@@ -8,6 +8,7 @@ class ProductType {
   final String packageUnit;
   final String packageUnitDisplayName;
   final String displayLabel;
+  final String? imageUrl;
 
   ProductType({
     required this.id,
@@ -19,6 +20,7 @@ class ProductType {
     required this.packageUnit,
     required this.packageUnitDisplayName,
     String? displayLabel,
+    this.imageUrl,
   }) : displayLabel = displayLabel ?? '$productName - $color ($packageQuantity $packageUnitDisplayName)';
 
   @override

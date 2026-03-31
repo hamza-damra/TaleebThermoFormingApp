@@ -11,6 +11,7 @@ import '../providers/palletizing_provider.dart';
 import '../providers/shift_handover_provider.dart';
 import '../widgets/production_line_section.dart';
 import '../widgets/shift_handover_dialog.dart';
+import '../widgets/shimmer/palletizing_shimmer.dart';
 import 'settings_hub_screen.dart';
 
 class PalletizingScreen extends StatefulWidget {
@@ -306,12 +307,22 @@ class _PalletizingScreenState extends State<PalletizingScreen>
     // First ask: do you have incomplete pallets to hand over?
     final hasIncomplete = await showDialog<bool>(
       context: context,
-      builder: (context) => Dialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        child: Container(
-          constraints: const BoxConstraints(maxWidth: 400),
-          padding: const EdgeInsets.all(20),
-          child: Column(
+      builder: (context) {
+        final screenWidth = MediaQuery.of(context).size.width;
+        final isMobile = screenWidth < 600;
+        final dialogWidth = isMobile ? screenWidth * 0.9 : 400.0;
+        
+        return Dialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          insetPadding: EdgeInsets.symmetric(
+            horizontal: isMobile ? 16 : 40,
+            vertical: 24,
+          ),
+          child: Container(
+            width: dialogWidth,
+            constraints: BoxConstraints(maxWidth: dialogWidth),
+            padding: EdgeInsets.all(isMobile ? 16 : 20),
+            child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               // Header with close icon
@@ -331,10 +342,7 @@ class _PalletizingScreenState extends State<PalletizingScreen>
                   ),
                   IconButton(
                     onPressed: () => Navigator.of(context).pop(null),
-                    icon: Icon(
-                      Icons.close,
-                      color: Colors.grey.shade600,
-                    ),
+                    icon: Icon(Icons.close, color: Colors.grey.shade600),
                     tooltip: 'إلغاء',
                   ),
                 ],
@@ -346,56 +354,55 @@ class _PalletizingScreenState extends State<PalletizingScreen>
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 24),
-              // Action buttons - same size
-              Row(
-                children: [
-                  Expanded(
-                    child: OutlinedButton(
-                      onPressed: () => Navigator.of(context).pop(false),
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: Colors.red,
-                        side: const BorderSide(color: Colors.red),
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                      ),
-                      child: Text(
-                        'لا، خروج فقط',
-                        style: GoogleFonts.cairo(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 14,
-                        ),
-                      ),
+              // Action buttons - always stacked vertically
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: () => Navigator.of(context).pop(true),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.orange,
+                    foregroundColor: Colors.white,
+                    padding: EdgeInsets.symmetric(vertical: isMobile ? 12 : 14),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
                     ),
                   ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: ElevatedButton(
-                      onPressed: () => Navigator.of(context).pop(true),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.orange,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                      ),
-                      child: Text(
-                        'نعم، تسليم المشاتيح',
-                        style: GoogleFonts.cairo(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 14,
-                        ),
-                      ),
+                  child: Text(
+                    'نعم، تسليم المشاتيح',
+                    style: GoogleFonts.cairo(
+                      fontWeight: FontWeight.bold,
+                      fontSize: isMobile ? 13 : 14,
                     ),
                   ),
-                ],
+                ),
+              ),
+              const SizedBox(height: 10),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton(
+                  onPressed: () => Navigator.of(context).pop(false),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: Colors.red,
+                    side: const BorderSide(color: Colors.red),
+                    padding: EdgeInsets.symmetric(vertical: isMobile ? 12 : 14),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                  ),
+                  child: Text(
+                    'لا، خروج فقط',
+                    style: GoogleFonts.cairo(
+                      fontWeight: FontWeight.bold,
+                      fontSize: isMobile ? 13 : 14,
+                    ),
+                  ),
+                ),
               ),
             ],
           ),
-        ),
-      ),
+          ),
+        );
+      },
     );
 
     if (hasIncomplete == null || !context.mounted) return;
@@ -472,9 +479,26 @@ class _PalletizingScreenState extends State<PalletizingScreen>
     handoverProvider.fetchCurrentShift();
   }
 
+  Widget _buildLoadingShimmer(bool isMobile) {
+    if (isMobile) {
+      // For mobile, show shimmer in TabBarView matching tabs
+      return TabBarView(
+        controller: _tabController,
+        physics: const NeverScrollableScrollPhysics(),
+        children: [
+          PalletizingShimmer(line: ProductionLine.line1),
+          PalletizingShimmer(line: ProductionLine.line2),
+        ],
+      );
+    }
+
+    // Desktop/tablet: dual pane shimmer
+    return const PalletizingShimmerDualPane();
+  }
+
   Widget _buildBody(PalletizingProvider provider, bool isMobile) {
     if (provider.isLoading) {
-      return const Center(child: CircularProgressIndicator());
+      return _buildLoadingShimmer(isMobile);
     }
 
     if (provider.errorMessage != null) {

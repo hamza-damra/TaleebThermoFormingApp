@@ -203,7 +203,7 @@ class _ShiftHandoverDialogState extends State<ShiftHandoverDialog> {
             ),
             const SizedBox(height: 8),
             DropdownButtonFormField<entity.ProductionLine>(
-              value: item.productionLine,
+              initialValue: item.productionLine,
               isExpanded: true,
               decoration: InputDecoration(
                 labelText: 'خط الإنتاج',

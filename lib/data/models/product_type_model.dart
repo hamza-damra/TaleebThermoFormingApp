@@ -11,6 +11,7 @@ class ProductTypeModel extends ProductType {
     required super.packageUnit,
     required super.packageUnitDisplayName,
     super.displayLabel,
+    super.imageUrl,
   });
 
   factory ProductTypeModel.fromJson(Map<String, dynamic> json) {
@@ -24,6 +25,7 @@ class ProductTypeModel extends ProductType {
       packageUnit: json['packageUnit'] as String,
       packageUnitDisplayName: json['packageUnitDisplayName'] as String,
       displayLabel: json['displayLabel'] as String?,
+      imageUrl: json['imageUrl'] as String?,
     );
   }
 }

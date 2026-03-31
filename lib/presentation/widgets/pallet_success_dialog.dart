@@ -1,12 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
-import 'package:qr_flutter/qr_flutter.dart';
+
 
 import '../../domain/entities/pallet_create_response.dart';
 import '../providers/palletizing_provider.dart';
 import '../providers/printing_provider.dart';
 import 'printer_selector_dialog.dart';
+import 'product_type_image.dart';
 
 class PalletSuccessDialog extends StatefulWidget {
   final PalletCreateResponse pallet;
@@ -57,6 +58,7 @@ class _PalletSuccessDialogState extends State<PalletSuccessDialog> {
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 24),
+              _buildProductTypeImage(isMobile),
               const SizedBox(height: 16),
               if (_printError != null) ...[
                 const SizedBox(height: 16),
@@ -144,6 +146,38 @@ class _PalletSuccessDialogState extends State<PalletSuccessDialog> {
       return const Icon(Icons.print_disabled, color: Colors.red, size: 64);
     }
     return const Icon(Icons.check_circle, color: Colors.green, size: 64);
+  }
+
+  Widget _buildProductTypeImage(bool isMobile) {
+    final imageUrl = widget.pallet.productType.imageUrl;
+    if (imageUrl == null || imageUrl.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    final imageSize = isMobile ? 100.0 : 120.0;
+
+    return Container(
+      padding: const EdgeInsets.all(8),
+      decoration: BoxDecoration(
+        color: Colors.grey.shade50,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.grey.shade200),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: ProductTypeImage(
+        imageUrl: imageUrl,
+        size: imageSize,
+        borderRadius: 12,
+        showBorder: false,
+        fit: BoxFit.contain,
+      ),
+    );
   }
 
   Widget _buildPrinterInfo() {
@@ -256,6 +290,7 @@ class _PalletSuccessDialogState extends State<PalletSuccessDialog> {
     );
 
     if (!mounted) return;
+    if (!context.mounted) return;
 
     final palletizingProvider = context.read<PalletizingProvider>();
     await palletizingProvider.logPrintAttempt(

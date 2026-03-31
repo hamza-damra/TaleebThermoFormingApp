@@ -11,6 +11,7 @@ import '../../domain/entities/production_line.dart' as entity;
 import '../providers/palletizing_provider.dart';
 import 'create_pallet_dialog.dart';
 import 'pallet_success_dialog.dart';
+import 'product_type_image.dart';
 import 'searchable_picker_dialog.dart';
 import 'summary_card.dart';
 
@@ -497,34 +498,8 @@ class ProductionLineSection extends StatelessWidget {
                         ),
                       ),
                       SizedBox(height: isMobile ? 16 : 20),
-                      // Product Image - constrained height instead of AspectRatio
-                      Container(
-                        height: isMobile ? 140 : 160,
-                        width: double.infinity,
-                        decoration: BoxDecoration(
-                          color: Colors.grey.shade100,
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: Colors.grey.shade200),
-                        ),
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(
-                              Icons.image_outlined,
-                              size: isMobile ? 40 : 52,
-                              color: Colors.grey.shade400,
-                            ),
-                            SizedBox(height: isMobile ? 8 : 10),
-                            Text(
-                              'صورة المنتج',
-                              style: GoogleFonts.cairo(
-                                fontSize: isMobile ? 13 : 15,
-                                color: Colors.grey.shade500,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
+                      // Product Image - full width
+                      _buildFullWidthProductImage(productType, isMobile),
                     ],
                   ),
                 ),
@@ -583,6 +558,32 @@ class ProductionLineSection extends StatelessWidget {
               ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFullWidthProductImage(ProductType productType, bool isMobile) {
+    if (productType.imageUrl == null || productType.imageUrl!.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    return Container(
+      width: double.infinity,
+      height: isMobile ? 160 : 180,
+      decoration: BoxDecoration(
+        color: Colors.grey.shade50,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.grey.shade200),
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(16),
+        child: ProductTypeImage(
+          imageUrl: productType.imageUrl,
+          size: isMobile ? 160 : 180,
+          borderRadius: 16,
+          showBorder: false,
+          fit: BoxFit.contain,
         ),
       ),
     );

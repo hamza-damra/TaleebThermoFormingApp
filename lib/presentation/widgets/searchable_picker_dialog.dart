@@ -26,6 +26,9 @@ class SearchablePickerDialog<T> extends StatefulWidget {
   /// Function to extract subtitle text from an item (optional)
   final String Function(T item)? subtitleExtractor;
 
+  /// Function to build a leading widget for an item (optional, e.g., thumbnail image)
+  final Widget Function(T item)? leadingWidgetBuilder;
+
   /// Function to determine if an item matches the search query
   final bool Function(T item, String query) searchMatcher;
 
@@ -41,6 +44,7 @@ class SearchablePickerDialog<T> extends StatefulWidget {
     required this.searchMatcher,
     this.selectedItem,
     this.subtitleExtractor,
+    this.leadingWidgetBuilder,
     this.themeColor = Colors.blue,
   });
 
@@ -54,6 +58,7 @@ class SearchablePickerDialog<T> extends StatefulWidget {
     required bool Function(T item, String query) searchMatcher,
     T? selectedItem,
     String Function(T item)? subtitleExtractor,
+    Widget Function(T item)? leadingWidgetBuilder,
     Color themeColor = Colors.blue,
   }) {
     return showDialog<T>(
@@ -71,6 +76,7 @@ class SearchablePickerDialog<T> extends StatefulWidget {
           selectedItem: selectedItem,
           displayTextExtractor: displayTextExtractor,
           subtitleExtractor: subtitleExtractor,
+          leadingWidgetBuilder: leadingWidgetBuilder,
           searchMatcher: searchMatcher,
           themeColor: themeColor,
         ),
@@ -276,6 +282,7 @@ class _SearchablePickerDialogState<T> extends State<SearchablePickerDialog<T>> {
   ) {
     final displayText = widget.displayTextExtractor(item);
     final subtitle = widget.subtitleExtractor?.call(item);
+    final leadingWidget = widget.leadingWidgetBuilder?.call(item);
 
     return InkWell(
       onTap: () {
@@ -296,6 +303,10 @@ class _SearchablePickerDialogState<T> extends State<SearchablePickerDialog<T>> {
         ),
         child: Row(
           children: [
+            if (leadingWidget != null) ...[
+              leadingWidget,
+              SizedBox(width: padding * 0.75),
+            ],
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,

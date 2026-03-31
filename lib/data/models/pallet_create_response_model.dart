@@ -41,6 +41,7 @@ class PalletCreateResponseModel extends PalletCreateResponse {
         packageUnit: productTypeJson['packageUnit'] as String? ?? '',
         packageUnitDisplayName:
             productTypeJson['packageUnitDisplayName'] as String? ?? '',
+        imageUrl: productTypeJson['imageUrl'] as String?,
       ),
       productionLine: ProductionLine(
         id: productionLineJson['id'] as int,

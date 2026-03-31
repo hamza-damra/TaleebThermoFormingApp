@@ -81,7 +81,7 @@ class PalletizingRepositoryImpl implements PalletizingRepository {
       data: {
         'printerIdentifier': printerIdentifier,
         'status': status,
-        if (failureReason != null) 'failureReason': failureReason,
+        'failureReason': ?failureReason,
       },
       parser: (json) => PrintAttemptResultModel.fromJson(
         json['data'] as Map<String, dynamic>,
