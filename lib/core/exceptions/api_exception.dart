@@ -1,0 +1,111 @@
+class ApiException implements Exception {
+  final String code;
+  final String message;
+  final Map<String, dynamic>? details;
+  final int? statusCode;
+
+  ApiException({
+    required this.code,
+    required this.message,
+    this.details,
+    this.statusCode,
+  });
+
+  factory ApiException.fromJson(Map<String, dynamic> json, {int? statusCode}) {
+    final error = json['error'] as Map<String, dynamic>?;
+    if (error != null) {
+      return ApiException(
+        code: error['code'] as String? ?? 'UNKNOWN_ERROR',
+        message: error['message'] as String? ?? 'حدث خطأ غير متوقع',
+        details: error['details'] as Map<String, dynamic>?,
+        statusCode: statusCode,
+      );
+    }
+    return ApiException(
+      code: 'UNKNOWN_ERROR',
+      message: 'حدث خطأ غير متوقع',
+      statusCode: statusCode,
+    );
+  }
+
+  factory ApiException.network() {
+    return ApiException(
+      code: 'NETWORK_ERROR',
+      message: 'فشل الاتصال بالخادم. تحقق من اتصالك بالإنترنت',
+    );
+  }
+
+  factory ApiException.timeout() {
+    return ApiException(
+      code: 'TIMEOUT_ERROR',
+      message: 'انتهت مهلة الاتصال. حاول مرة أخرى',
+    );
+  }
+
+  factory ApiException.unauthorized() {
+    return ApiException(
+      code: 'UNAUTHORIZED',
+      message: 'انتهت صلاحية الجلسة. يرجى تسجيل الدخول مرة أخرى',
+      statusCode: 401,
+    );
+  }
+
+  String get displayMessage {
+    switch (code) {
+      case 'OPERATOR_NOT_FOUND':
+        return 'المشغل غير موجود';
+      case 'OPERATOR_INACTIVE':
+        return 'المشغل غير نشط';
+      case 'PRODUCT_TYPE_NOT_FOUND':
+        return 'نوع المنتج غير موجود';
+      case 'PRODUCT_TYPE_INACTIVE':
+        return 'نوع المنتج غير نشط';
+      case 'PRODUCTION_LINE_NOT_FOUND':
+        return 'خط الإنتاج غير موجود';
+      case 'PRODUCTION_LINE_INACTIVE':
+        return 'خط الإنتاج غير نشط';
+      case 'PALLET_NOT_FOUND':
+        return 'المشتاح غير موجود';
+      case 'SERIAL_GENERATION_FAILED':
+        return 'فشل في توليد الرقم التسلسلي';
+      case 'VALIDATION_ERROR':
+        return _formatValidationErrors();
+      case 'AUTH_INVALID_CREDENTIALS':
+        return 'بيانات الدخول غير صحيحة';
+      case 'EMPLOYEE_CODE_NOT_FOUND':
+        return 'رمز الموظف غير صحيح';
+      case 'USER_DISABLED':
+        return 'الحساب معطل، تواصل مع الإدارة';
+      case 'ROLE_NOT_ELIGIBLE_FOR_PIN_LOGIN':
+        return 'هذا الحساب غير مصرح له';
+      case 'ROLE_NOT_ALLOWED':
+        return 'ليس لديك صلاحية استخدام هذا التطبيق';
+      case 'PENDING_HANDOVER_EXISTS':
+        return 'يوجد تسليم معلق بالفعل';
+      case 'HANDOVER_NOT_FOUND':
+        return 'تسليم المناوبة غير موجود';
+      case 'HANDOVER_ALREADY_RESOLVED':
+        return 'تم معالجة تسليم المناوبة مسبقاً';
+      case 'NO_PENDING_HANDOVER':
+        return 'لا يوجد تسليم مناوبة معلق';
+      case 'HANDOVER_DUPLICATE_LINE':
+        return 'لا يمكن إضافة أكثر من عنصر لنفس خط الإنتاج';
+      case 'SHIFT_PROFILE_NOT_FOUND':
+        return 'لم يتم العثور على جدول المناوبات';
+      case 'INTERNAL_ERROR':
+        return 'حدث خطأ في الخادم. حاول مرة أخرى';
+      default:
+        return message;
+    }
+  }
+
+  String _formatValidationErrors() {
+    if (details == null || details!.isEmpty) {
+      return message;
+    }
+    return details!.values.join('\n');
+  }
+
+  @override
+  String toString() => 'ApiException: [$code] $message';
+}
