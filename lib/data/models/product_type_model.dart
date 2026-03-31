@@ -1,7 +1,7 @@
 import '../../domain/entities/product_type.dart';
 
 class ProductTypeModel extends ProductType {
-  const ProductTypeModel({
+  ProductTypeModel({
     required super.id,
     required super.name,
     required super.productName,
@@ -10,6 +10,7 @@ class ProductTypeModel extends ProductType {
     required super.packageQuantity,
     required super.packageUnit,
     required super.packageUnitDisplayName,
+    super.displayLabel,
   });
 
   factory ProductTypeModel.fromJson(Map<String, dynamic> json) {
@@ -22,6 +23,7 @@ class ProductTypeModel extends ProductType {
       packageQuantity: json['packageQuantity'] as int,
       packageUnit: json['packageUnit'] as String,
       packageUnitDisplayName: json['packageUnitDisplayName'] as String,
+      displayLabel: json['displayLabel'] as String?,
     );
   }
 }

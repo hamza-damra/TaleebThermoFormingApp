@@ -7,8 +7,9 @@ class ProductType {
   final int packageQuantity;
   final String packageUnit;
   final String packageUnitDisplayName;
+  final String displayLabel;
 
-  const ProductType({
+  ProductType({
     required this.id,
     required this.name,
     required this.productName,
@@ -17,7 +18,8 @@ class ProductType {
     required this.packageQuantity,
     required this.packageUnit,
     required this.packageUnitDisplayName,
-  });
+    String? displayLabel,
+  }) : displayLabel = displayLabel ?? '$productName - $color ($packageQuantity $packageUnitDisplayName)';
 
   @override
   bool operator ==(Object other) =>

@@ -11,6 +11,7 @@ import '../../domain/entities/production_line.dart' as entity;
 import '../providers/palletizing_provider.dart';
 import 'create_pallet_dialog.dart';
 import 'pallet_success_dialog.dart';
+import 'searchable_picker_dialog.dart';
 import 'summary_card.dart';
 
 class ProductionLineSection extends StatelessWidget {
@@ -171,39 +172,60 @@ class ProductionLineSection extends StatelessWidget {
       context: context,
       label: 'اسم المشغل',
       icon: Icons.person_outline_rounded,
-      child: DropdownButtonFormField<Operator>(
-        key: ValueKey('operator_${line.number}_${provider.operators.length}'),
-        value: selectedOperator,
-        isExpanded: true,
-        icon: Icon(
-          Icons.keyboard_arrow_down_rounded,
-          color: line.color,
-          size: isMobile ? 24 : 28,
-        ),
-        decoration: _buildInputDecoration(context, 'اختر المشغل'),
-        dropdownColor: Colors.white,
-        style: GoogleFonts.cairo(
-          fontSize: isMobile ? 15 : 17,
-          color: Colors.black87,
-          fontWeight: FontWeight.w500,
-          height: 1.0,
-        ),
-        items: provider.operators.map((operator) {
-          return DropdownMenuItem<Operator>(
-            value: operator,
-            child: Text(
-              operator.name,
-              style: GoogleFonts.cairo(
-                fontSize: isMobile ? 15 : 17,
-                fontWeight: FontWeight.w500,
-                height: 1.2, // Added height to prevent clipping
-              ),
-            ),
+      child: InkWell(
+        onTap: () async {
+          final selected = await SearchablePickerDialog.show<Operator>(
+            context: context,
+            title: 'اختر المشغل',
+            searchHint: 'ابحث عن المشغل...',
+            items: provider.operators,
+            selectedItem: selectedOperator,
+            displayTextExtractor: (op) => op.displayLabel,
+            searchMatcher: (op, query) {
+              final queryLower = query.toLowerCase();
+              return op.name.toLowerCase().contains(queryLower) ||
+                  op.code.toLowerCase().contains(queryLower) ||
+                  op.displayLabel.toLowerCase().contains(queryLower);
+            },
+            themeColor: line.color,
           );
-        }).toList(),
-        onChanged: (value) {
-          context.read<PalletizingProvider>().selectOperator(line.number, value);
+          if (selected != null && context.mounted) {
+            context.read<PalletizingProvider>().selectOperator(line.number, selected);
+          }
         },
+        borderRadius: BorderRadius.circular(12),
+        child: Container(
+          padding: EdgeInsets.symmetric(
+            horizontal: isMobile ? 16 : 20,
+            vertical: isMobile ? 18 : 22,
+          ),
+          decoration: BoxDecoration(
+            color: Colors.grey.shade50,
+            border: Border.all(color: Colors.grey.shade200),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  selectedOperator?.displayLabel ?? 'اختر المشغل',
+                  style: GoogleFonts.cairo(
+                    fontSize: isMobile ? 15 : 17,
+                    fontWeight: FontWeight.w500,
+                    color: selectedOperator != null
+                        ? Colors.black87
+                        : Colors.grey.shade400,
+                  ),
+                ),
+              ),
+              Icon(
+                Icons.keyboard_arrow_down_rounded,
+                color: line.color,
+                size: isMobile ? 24 : 28,
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -229,44 +251,67 @@ class ProductionLineSection extends StatelessWidget {
       context: context,
       label: 'نوع المنتج',
       icon: Icons.inventory_2_outlined,
-      child: DropdownButtonFormField<ProductType>(
-        key: ValueKey('product_${line.number}_${provider.productTypes.length}'),
-        value: selectedProductType,
-        isExpanded: true,
-        icon: Icon(
-          Icons.keyboard_arrow_down_rounded,
-          color: line.color,
-          size: isMobile ? 24 : 28,
-        ),
-        decoration: _buildInputDecoration(context, 'اختر نوع المنتج'),
-        dropdownColor: Colors.white,
-        style: GoogleFonts.cairo(
-          fontSize: isMobile ? 15 : 17,
-          color: Colors.black87,
-          fontWeight: FontWeight.w500,
-          height: 1.0,
-        ),
-        items: provider.productTypes.map((productType) {
-          return DropdownMenuItem<ProductType>(
-            value: productType,
-            child: Text(
-              productType.name,
-              style: GoogleFonts.cairo(
-                fontSize: isMobile ? 15 : 17,
-                fontWeight: FontWeight.w500,
-                height: 1.2, // Added height to prevent clipping
-              ),
-              overflow: TextOverflow.ellipsis,
-            ),
+      child: InkWell(
+        onTap: () async {
+          final selected = await SearchablePickerDialog.show<ProductType>(
+            context: context,
+            title: 'اختر نوع المنتج',
+            searchHint: 'ابحث عن المنتج...',
+            items: provider.productTypes,
+            selectedItem: selectedProductType,
+            displayTextExtractor: (pt) => pt.displayLabel,
+            subtitleExtractor: (pt) => pt.prefix,
+            searchMatcher: (pt, query) {
+              final queryLower = query.toLowerCase();
+              return pt.name.toLowerCase().contains(queryLower) ||
+                  pt.productName.toLowerCase().contains(queryLower) ||
+                  pt.color.toLowerCase().contains(queryLower) ||
+                  pt.prefix.toLowerCase().contains(queryLower) ||
+                  pt.displayLabel.toLowerCase().contains(queryLower);
+            },
+            themeColor: line.color,
           );
-        }).toList(),
-        onChanged: (value) async {
-          if (value == null) return;
-          final confirmed = await _showProductTypeConfirmationDialog(context, value);
-          if (confirmed == true && context.mounted) {
-            context.read<PalletizingProvider>().selectProductType(line.number, value);
+          if (selected != null && context.mounted) {
+            final confirmed = await _showProductTypeConfirmationDialog(context, selected);
+            if (confirmed == true && context.mounted) {
+              context.read<PalletizingProvider>().selectProductType(line.number, selected);
+            }
           }
         },
+        borderRadius: BorderRadius.circular(12),
+        child: Container(
+          padding: EdgeInsets.symmetric(
+            horizontal: isMobile ? 16 : 20,
+            vertical: isMobile ? 18 : 22,
+          ),
+          decoration: BoxDecoration(
+            color: Colors.grey.shade50,
+            border: Border.all(color: Colors.grey.shade200),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  selectedProductType?.displayLabel ?? 'اختر نوع المنتج',
+                  style: GoogleFonts.cairo(
+                    fontSize: isMobile ? 15 : 17,
+                    fontWeight: FontWeight.w500,
+                    color: selectedProductType != null
+                        ? Colors.black87
+                        : Colors.grey.shade400,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              Icon(
+                Icons.keyboard_arrow_down_rounded,
+                color: line.color,
+                size: isMobile ? 24 : 28,
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -309,37 +354,6 @@ class ProductionLineSection extends StatelessWidget {
     );
   }
 
-  InputDecoration _buildInputDecoration(BuildContext context, String hint) {
-    final isMobile = ResponsiveHelper.isMobile(context);
-
-    return InputDecoration(
-      hintText: hint,
-      hintStyle: GoogleFonts.cairo(
-        fontSize: isMobile ? 14 : 16,
-        color: Colors.grey.shade400,
-      ),
-      filled: true,
-      fillColor: Colors.grey.shade50,
-      isDense: false,
-      contentPadding: EdgeInsets.symmetric(
-        horizontal: isMobile ? 16 : 20,
-        vertical: isMobile ? 22 : 28, // Even larger vertical padding
-      ),
-      border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
-        borderSide: BorderSide(color: Colors.grey.shade200),
-      ),
-      enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
-        borderSide: BorderSide(color: Colors.grey.shade200),
-      ),
-      focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
-        borderSide: BorderSide(color: line.color, width: 2),
-      ),
-    );
-  }
-
   Widget _buildWarningBox(BuildContext context, String message) {
     final isMobile = ResponsiveHelper.isMobile(context);
 
@@ -379,121 +393,136 @@ class ProductionLineSection extends StatelessWidget {
   ) {
     final isMobile = ResponsiveHelper.isMobile(context);
 
+    final screenHeight = MediaQuery.of(context).size.height;
+    final maxDialogHeight = screenHeight * 0.85;
+
     return showDialog<bool>(
       context: context,
       builder: (context) => Dialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         child: Container(
-          constraints: BoxConstraints(maxWidth: isMobile ? 340 : 420),
+          constraints: BoxConstraints(
+            maxWidth: isMobile ? 340 : 420,
+            maxHeight: maxDialogHeight,
+          ),
           padding: EdgeInsets.all(isMobile ? 20 : 28),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              // Header icon
-              Container(
-                padding: EdgeInsets.all(isMobile ? 14 : 18),
-                decoration: BoxDecoration(
-                  color: line.color.withValues(alpha: 0.1),
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(
-                  Icons.help_outline_rounded,
-                  color: line.color,
-                  size: isMobile ? 36 : 44,
-                ),
-              ),
-              SizedBox(height: isMobile ? 16 : 20),
-              Text(
-                'تأكيد نوع المنتج',
-                style: GoogleFonts.cairo(
-                  fontWeight: FontWeight.bold,
-                  fontSize: isMobile ? 20 : 24,
-                  color: Colors.black87,
-                ),
-              ),
-              SizedBox(height: isMobile ? 8 : 12),
-              Text(
-                'هل أنت متأكد من اختيار هذا المنتج؟',
-                style: GoogleFonts.cairo(
-                  fontSize: isMobile ? 14 : 16,
-                  color: Colors.grey.shade600,
-                ),
-                textAlign: TextAlign.center,
-              ),
-              SizedBox(height: isMobile ? 20 : 28),
-              // Product info card
-              Container(
-                width: double.infinity,
-                padding: EdgeInsets.all(isMobile ? 16 : 20),
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [
-                      line.color.withValues(alpha: 0.08),
-                      line.color.withValues(alpha: 0.04),
-                    ],
-                    begin: Alignment.topRight,
-                    end: Alignment.bottomLeft,
-                  ),
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: line.color.withValues(alpha: 0.2)),
-                ),
-                child: Column(
-                  children: [
-                    Text(
-                      productType.name,
-                      style: GoogleFonts.cairo(
-                        fontSize: isMobile ? 17 : 20,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.black87,
-                      ),
-                      textAlign: TextAlign.center,
-                    ),
-                    SizedBox(height: isMobile ? 8 : 10),
-                    Container(
-                      padding: EdgeInsets.symmetric(
-                        horizontal: isMobile ? 12 : 16,
-                        vertical: isMobile ? 6 : 8,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: Text(
-                        'اللون: ${productType.color}',
-                        style: GoogleFonts.cairo(
-                          fontSize: isMobile ? 13 : 15,
-                          color: Colors.grey.shade700,
-                          fontWeight: FontWeight.w500,
+              // Scrollable content
+              Flexible(
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      // Header icon
+                      Container(
+                        padding: EdgeInsets.all(isMobile ? 14 : 18),
+                        decoration: BoxDecoration(
+                          color: line.color.withValues(alpha: 0.1),
+                          shape: BoxShape.circle,
+                        ),
+                        child: Icon(
+                          Icons.help_outline_rounded,
+                          color: line.color,
+                          size: isMobile ? 36 : 44,
                         ),
                       ),
-                    ),
-                  ],
-                ),
-              ),
-              SizedBox(height: isMobile ? 16 : 20),
-              // Product Image
-              AspectRatio(
-                aspectRatio: 16 / 10,
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: Colors.grey.shade100,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: Colors.grey.shade200),
-                  ),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(
-                        Icons.image_outlined,
-                        size: isMobile ? 40 : 52,
-                        color: Colors.grey.shade400,
-                      ),
-                      SizedBox(height: isMobile ? 8 : 10),
+                      SizedBox(height: isMobile ? 16 : 20),
                       Text(
-                        'صورة المنتج',
+                        'تأكيد نوع المنتج',
                         style: GoogleFonts.cairo(
-                          fontSize: isMobile ? 13 : 15,
-                          color: Colors.grey.shade500,
+                          fontWeight: FontWeight.bold,
+                          fontSize: isMobile ? 20 : 24,
+                          color: Colors.black87,
+                        ),
+                      ),
+                      SizedBox(height: isMobile ? 8 : 12),
+                      Text(
+                        'هل أنت متأكد من اختيار هذا المنتج؟',
+                        style: GoogleFonts.cairo(
+                          fontSize: isMobile ? 14 : 16,
+                          color: Colors.grey.shade600,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                      SizedBox(height: isMobile ? 20 : 28),
+                      // Product info card
+                      Container(
+                        width: double.infinity,
+                        padding: EdgeInsets.all(isMobile ? 16 : 20),
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: [
+                              line.color.withValues(alpha: 0.08),
+                              line.color.withValues(alpha: 0.04),
+                            ],
+                            begin: Alignment.topRight,
+                            end: Alignment.bottomLeft,
+                          ),
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(color: line.color.withValues(alpha: 0.2)),
+                        ),
+                        child: Column(
+                          children: [
+                            Text(
+                              productType.name,
+                              style: GoogleFonts.cairo(
+                                fontSize: isMobile ? 17 : 20,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.black87,
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+                            SizedBox(height: isMobile ? 8 : 10),
+                            Container(
+                              padding: EdgeInsets.symmetric(
+                                horizontal: isMobile ? 12 : 16,
+                                vertical: isMobile ? 6 : 8,
+                              ),
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                              child: Text(
+                                'اللون: ${productType.color}',
+                                style: GoogleFonts.cairo(
+                                  fontSize: isMobile ? 13 : 15,
+                                  color: Colors.grey.shade700,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      SizedBox(height: isMobile ? 16 : 20),
+                      // Product Image - constrained height instead of AspectRatio
+                      Container(
+                        height: isMobile ? 140 : 160,
+                        width: double.infinity,
+                        decoration: BoxDecoration(
+                          color: Colors.grey.shade100,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: Colors.grey.shade200),
+                        ),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              Icons.image_outlined,
+                              size: isMobile ? 40 : 52,
+                              color: Colors.grey.shade400,
+                            ),
+                            SizedBox(height: isMobile ? 8 : 10),
+                            Text(
+                              'صورة المنتج',
+                              style: GoogleFonts.cairo(
+                                fontSize: isMobile ? 13 : 15,
+                                color: Colors.grey.shade500,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     ],
@@ -501,7 +530,7 @@ class ProductionLineSection extends StatelessWidget {
                 ),
               ),
               SizedBox(height: isMobile ? 24 : 32),
-              // Action buttons
+              // Action buttons - always visible at bottom
               Row(
                 children: [
                   Expanded(

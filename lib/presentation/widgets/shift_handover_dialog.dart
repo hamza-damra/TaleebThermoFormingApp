@@ -2,21 +2,21 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../../core/responsive.dart';
+import '../../domain/entities/operator.dart';
 import '../../domain/entities/product_type.dart';
 import '../../domain/entities/production_line.dart' as entity;
+import 'searchable_picker_dialog.dart';
 
 class HandoverItemEntry {
   entity.ProductionLine? productionLine;
   ProductType? productType;
   int quantity;
-  String? scannedValue;
   String? notes;
 
   HandoverItemEntry({
     this.productionLine,
     this.productType,
     this.quantity = 1,
-    this.scannedValue,
     this.notes,
   });
 
@@ -24,8 +24,6 @@ class HandoverItemEntry {
     'productionLineId': productionLine!.id,
     'productTypeId': productType!.id,
     'quantity': quantity,
-    if (scannedValue != null && scannedValue!.isNotEmpty)
-      'scannedValue': scannedValue,
     if (notes != null && notes!.isNotEmpty) 'notes': notes,
   };
 }
@@ -33,12 +31,16 @@ class HandoverItemEntry {
 class ShiftHandoverDialog extends StatefulWidget {
   final List<ProductType> productTypes;
   final List<entity.ProductionLine> productionLines;
+  final List<Operator> operators;
+  final Operator? initialOperator;
   final Color themeColor;
 
   const ShiftHandoverDialog({
     super.key,
     required this.productTypes,
     required this.productionLines,
+    required this.operators,
+    this.initialOperator,
     required this.themeColor,
   });
 
@@ -48,6 +50,13 @@ class ShiftHandoverDialog extends StatefulWidget {
 
 class _ShiftHandoverDialogState extends State<ShiftHandoverDialog> {
   final List<HandoverItemEntry> _items = [HandoverItemEntry()];
+  Operator? _selectedOperator;
+
+  @override
+  void initState() {
+    super.initState();
+    _selectedOperator = widget.initialOperator;
+  }
 
   List<entity.ProductionLine> _availableLines(HandoverItemEntry currentItem) {
     final selectedIds = _items
@@ -89,6 +98,8 @@ class _ShiftHandoverDialogState extends State<ShiftHandoverDialog> {
                   color: Colors.grey.shade700,
                 ),
               ),
+              const SizedBox(height: 12),
+              _buildOperatorSelector(isMobile),
               const SizedBox(height: 12),
               ..._items.asMap().entries.map(
                 (entry) => _buildItemCard(entry.key, entry.value, isMobile),
@@ -214,7 +225,7 @@ class _ShiftHandoverDialogState extends State<ShiftHandoverDialog> {
                 return DropdownMenuItem<entity.ProductionLine>(
                   value: line,
                   child: Text(
-                    line.name,
+                    _getArabicLineName(line),
                     style: GoogleFonts.cairo(fontSize: fontSize),
                     overflow: TextOverflow.ellipsis,
                   ),
@@ -227,11 +238,13 @@ class _ShiftHandoverDialogState extends State<ShiftHandoverDialog> {
               },
             ),
             const SizedBox(height: 8),
-            DropdownButtonFormField<ProductType>(
-              value: item.productType,
-              isExpanded: true,
+            _buildProductTypePicker(item, fontSize, isMobile),
+            const SizedBox(height: 8),
+            TextFormField(
+              initialValue: '${item.quantity}',
+              keyboardType: TextInputType.number,
               decoration: InputDecoration(
-                labelText: 'نوع المنتج',
+                labelText: 'الكمية',
                 labelStyle: GoogleFonts.cairo(fontSize: fontSize),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(8),
@@ -242,78 +255,13 @@ class _ShiftHandoverDialogState extends State<ShiftHandoverDialog> {
                 ),
                 isDense: true,
               ),
-              hint: Text(
-                'اختر نوع المنتج',
-                style: GoogleFonts.cairo(fontSize: fontSize),
-              ),
-              items: widget.productTypes.map((pt) {
-                return DropdownMenuItem<ProductType>(
-                  value: pt,
-                  child: Text(
-                    pt.name,
-                    style: GoogleFonts.cairo(fontSize: fontSize),
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                );
-              }).toList(),
+              style: GoogleFonts.cairo(fontSize: fontSize),
               onChanged: (value) {
-                setState(() {
-                  item.productType = value;
-                });
+                final parsed = int.tryParse(value);
+                if (parsed != null && parsed >= 1) {
+                  item.quantity = parsed;
+                }
               },
-            ),
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                Expanded(
-                  child: TextFormField(
-                    initialValue: '${item.quantity}',
-                    keyboardType: TextInputType.number,
-                    decoration: InputDecoration(
-                      labelText: 'الكمية',
-                      labelStyle: GoogleFonts.cairo(fontSize: fontSize),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      contentPadding: EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: isMobile ? 10 : 12,
-                      ),
-                      isDense: true,
-                    ),
-                    style: GoogleFonts.cairo(fontSize: fontSize),
-                    onChanged: (value) {
-                      final parsed = int.tryParse(value);
-                      if (parsed != null && parsed >= 1) {
-                        item.quantity = parsed;
-                      }
-                    },
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: TextFormField(
-                    initialValue: item.scannedValue,
-                    decoration: InputDecoration(
-                      labelText: 'كود المشتاح (اختياري)',
-                      labelStyle: GoogleFonts.cairo(fontSize: fontSize),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      contentPadding: EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: isMobile ? 10 : 12,
-                      ),
-                      isDense: true,
-                    ),
-                    style: GoogleFonts.cairo(fontSize: fontSize),
-                    textDirection: TextDirection.ltr,
-                    onChanged: (value) {
-                      item.scannedValue = value;
-                    },
-                  ),
-                ),
-              ],
             ),
             const SizedBox(height: 8),
             TextFormField(
@@ -341,8 +289,199 @@ class _ShiftHandoverDialogState extends State<ShiftHandoverDialog> {
     );
   }
 
+  String _getArabicLineName(entity.ProductionLine line) {
+    switch (line.lineNumber) {
+      case 1:
+        return 'خط الإنتاج 1';
+      case 2:
+        return 'خط الإنتاج 2';
+      default:
+        return 'خط ${line.lineNumber}';
+    }
+  }
+
+  Widget _buildOperatorSelector(bool isMobile) {
+    final fontSize = isMobile ? 13.0 : 14.0;
+    return Container(
+      padding: EdgeInsets.all(isMobile ? 10 : 14),
+      decoration: BoxDecoration(
+        color: Colors.blue.shade50,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: Colors.blue.shade200),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'اختر المشغّل:',
+            style: GoogleFonts.cairo(
+              fontWeight: FontWeight.bold,
+              fontSize: fontSize,
+              color: Colors.blue.shade800,
+            ),
+          ),
+          const SizedBox(height: 8),
+          if (widget.operators.isEmpty)
+            Text(
+              'لا يوجد مشغّلين متاحين',
+              style: GoogleFonts.cairo(
+                fontSize: fontSize,
+                color: Colors.red.shade600,
+              ),
+            )
+          else
+            InkWell(
+              onTap: () async {
+                final selected = await SearchablePickerDialog.show<Operator>(
+                  context: context,
+                  title: 'اختر المشغّل',
+                  searchHint: 'ابحث عن المشغل...',
+                  items: widget.operators,
+                  selectedItem: _selectedOperator,
+                  displayTextExtractor: (op) => op.displayLabel,
+                  searchMatcher: (op, query) {
+                    final queryLower = query.toLowerCase();
+                    return op.name.toLowerCase().contains(queryLower) ||
+                        op.code.toLowerCase().contains(queryLower) ||
+                        op.displayLabel.toLowerCase().contains(queryLower);
+                  },
+                  themeColor: widget.themeColor,
+                );
+                if (selected != null) {
+                  setState(() {
+                    _selectedOperator = selected;
+                  });
+                }
+              },
+              borderRadius: BorderRadius.circular(8),
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 12,
+                ),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  border: Border.all(color: Colors.grey.shade300),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        _selectedOperator?.displayLabel ?? 'اختر المشغّل',
+                        style: GoogleFonts.cairo(
+                          fontSize: fontSize,
+                          color: _selectedOperator != null
+                              ? Colors.black87
+                              : Colors.grey,
+                        ),
+                      ),
+                    ),
+                    Icon(
+                      Icons.arrow_drop_down,
+                      color: Colors.grey.shade600,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          if (_selectedOperator == null && widget.operators.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(top: 6),
+              child: Text(
+                'يجب اختيار المشغّل قبل التأكيد',
+                style: GoogleFonts.cairo(
+                  fontSize: fontSize - 1,
+                  color: Colors.orange.shade700,
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildProductTypePicker(
+    HandoverItemEntry item,
+    double fontSize,
+    bool isMobile,
+  ) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'نوع المنتج',
+          style: GoogleFonts.cairo(
+            fontSize: fontSize,
+            color: Colors.grey.shade700,
+          ),
+        ),
+        const SizedBox(height: 4),
+        InkWell(
+          onTap: () async {
+            final selected = await SearchablePickerDialog.show<ProductType>(
+              context: context,
+              title: 'اختر نوع المنتج',
+              searchHint: 'ابحث عن المنتج...',
+              items: widget.productTypes,
+              selectedItem: item.productType,
+              displayTextExtractor: (pt) => pt.displayLabel,
+              subtitleExtractor: (pt) => pt.prefix,
+              searchMatcher: (pt, query) {
+                final queryLower = query.toLowerCase();
+                return pt.name.toLowerCase().contains(queryLower) ||
+                    pt.productName.toLowerCase().contains(queryLower) ||
+                    pt.color.toLowerCase().contains(queryLower) ||
+                    pt.prefix.toLowerCase().contains(queryLower) ||
+                    pt.displayLabel.toLowerCase().contains(queryLower);
+              },
+              themeColor: widget.themeColor,
+            );
+            if (selected != null) {
+              setState(() {
+                item.productType = selected;
+              });
+            }
+          },
+          borderRadius: BorderRadius.circular(8),
+          child: Container(
+            padding: EdgeInsets.symmetric(
+              horizontal: 12,
+              vertical: isMobile ? 10 : 12,
+            ),
+            decoration: BoxDecoration(
+              border: Border.all(color: Colors.grey.shade400),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    item.productType?.displayLabel ?? 'اختر نوع المنتج',
+                    style: GoogleFonts.cairo(
+                      fontSize: fontSize,
+                      color: item.productType != null
+                          ? Colors.black87
+                          : Colors.grey.shade600,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                Icon(
+                  Icons.arrow_drop_down,
+                  color: Colors.grey.shade600,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
   bool _canConfirm() {
-    return _items.isNotEmpty &&
+    return _selectedOperator != null &&
+        _items.isNotEmpty &&
         _items.every(
           (item) =>
               item.productionLine != null &&
@@ -353,6 +492,9 @@ class _ShiftHandoverDialogState extends State<ShiftHandoverDialog> {
 
   void _handleConfirm() {
     final items = _items.map((item) => item.toJson()).toList();
-    Navigator.of(context).pop(items);
+    Navigator.of(context).pop({
+      'operatorId': _selectedOperator!.id,
+      'items': items,
+    });
   }
 }

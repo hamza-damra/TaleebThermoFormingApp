@@ -4,6 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../core/responsive.dart';
 import '../../domain/entities/handover.dart';
 import '../../domain/entities/operator.dart';
+import 'searchable_picker_dialog.dart';
 
 enum PendingHandoverAction { confirm, reject }
 
@@ -239,47 +240,65 @@ class _PendingHandoverDialogState extends State<PendingHandoverDialog> {
               ),
             )
           else
-            DropdownButtonFormField<Operator>(
-              initialValue: _selectedOperator,
-              isExpanded: true,
-              decoration: InputDecoration(
-                contentPadding: const EdgeInsets.symmetric(
+            InkWell(
+              onTap: widget.isProcessing
+                  ? null
+                  : () async {
+                      final selected =
+                          await SearchablePickerDialog.show<Operator>(
+                        context: context,
+                        title: 'اختر المشغّل',
+                        searchHint: 'ابحث عن المشغل...',
+                        items: widget.operators,
+                        selectedItem: _selectedOperator,
+                        displayTextExtractor: (op) => op.displayLabel,
+                        searchMatcher: (op, query) {
+                          final queryLower = query.toLowerCase();
+                          return op.name.toLowerCase().contains(queryLower) ||
+                              op.code.toLowerCase().contains(queryLower) ||
+                              op.displayLabel.toLowerCase().contains(queryLower);
+                        },
+                        themeColor: Colors.blue,
+                      );
+                      if (selected != null) {
+                        setState(() {
+                          _selectedOperator = selected;
+                        });
+                      }
+                    },
+              borderRadius: BorderRadius.circular(8),
+              child: Container(
+                padding: const EdgeInsets.symmetric(
                   horizontal: 12,
-                  vertical: 8,
+                  vertical: 12,
                 ),
-                border: OutlineInputBorder(
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  border: Border.all(color: Colors.grey.shade300),
                   borderRadius: BorderRadius.circular(8),
                 ),
-                filled: true,
-                fillColor: Colors.white,
-                hintText: 'اختر المشغّل',
-                hintStyle: GoogleFonts.cairo(
-                  fontSize: fontSize,
-                  color: Colors.grey,
-                ),
-              ),
-              style: GoogleFonts.cairo(
-                fontSize: fontSize,
-                color: Colors.black87,
-              ),
-              items: widget.operators
-                  .map(
-                    (op) => DropdownMenuItem<Operator>(
-                      value: op,
+                child: Row(
+                  children: [
+                    Expanded(
                       child: Text(
-                        op.name,
-                        style: GoogleFonts.cairo(fontSize: fontSize),
+                        _selectedOperator?.displayLabel ?? 'اختر المشغّل',
+                        style: GoogleFonts.cairo(
+                          fontSize: fontSize,
+                          color: _selectedOperator != null
+                              ? Colors.black87
+                              : Colors.grey,
+                        ),
                       ),
                     ),
-                  )
-                  .toList(),
-              onChanged: widget.isProcessing
-                  ? null
-                  : (value) {
-                      setState(() {
-                        _selectedOperator = value;
-                      });
-                    },
+                    Icon(
+                      Icons.arrow_drop_down,
+                      color: widget.isProcessing
+                          ? Colors.grey.shade400
+                          : Colors.grey.shade600,
+                    ),
+                  ],
+                ),
+              ),
             ),
           if (_selectedOperator == null &&
               !widget.isLoadingOperators &&

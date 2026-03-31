@@ -5,6 +5,7 @@ class OperatorModel extends Operator {
     required super.id,
     required super.name,
     required super.code,
+    super.displayLabel,
   });
 
   factory OperatorModel.fromJson(Map<String, dynamic> json) {
@@ -12,6 +13,7 @@ class OperatorModel extends Operator {
       id: json['id'] as int,
       name: json['name'] as String,
       code: json['code'] as String,
+      displayLabel: json['displayLabel'] as String?,
     );
   }
 }

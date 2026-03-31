@@ -254,7 +254,7 @@ class _PalletizingScreenState extends State<PalletizingScreen>
           ),
         ),
       ),
-      leadingWidth: isTablet ? 120 : 140,
+      leadingWidth: isTablet ? 180 : 140,
       actions: [
         Padding(
           padding: EdgeInsets.symmetric(horizontal: isTablet ? 4 : 8),
@@ -302,48 +302,99 @@ class _PalletizingScreenState extends State<PalletizingScreen>
     final palletizingProvider = context.read<PalletizingProvider>();
     final handoverProvider = context.read<ShiftHandoverProvider>();
     final authProvider = context.read<AuthProvider>();
-    final currentUser = authProvider.user;
 
     // First ask: do you have incomplete pallets to hand over?
     final hasIncomplete = await showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: Text(
-          'تسليم المناوبة',
-          style: GoogleFonts.cairo(fontWeight: FontWeight.bold),
+      builder: (context) => Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        child: Container(
+          constraints: const BoxConstraints(maxWidth: 400),
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Header with close icon
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const SizedBox(width: 40),
+                  Expanded(
+                    child: Text(
+                      'تسليم المناوبة',
+                      style: GoogleFonts.cairo(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 18,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                  IconButton(
+                    onPressed: () => Navigator.of(context).pop(null),
+                    icon: Icon(
+                      Icons.close,
+                      color: Colors.grey.shade600,
+                    ),
+                    tooltip: 'إلغاء',
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              Text(
+                'هل لديك مشاتيح غير مكتملة تريد تسليمها للمناوبة القادمة؟',
+                style: GoogleFonts.cairo(fontSize: 15),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 24),
+              // Action buttons - same size
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () => Navigator.of(context).pop(false),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: Colors.red,
+                        side: const BorderSide(color: Colors.red),
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                      ),
+                      child: Text(
+                        'لا، خروج فقط',
+                        style: GoogleFonts.cairo(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 14,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: () => Navigator.of(context).pop(true),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.orange,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                      ),
+                      child: Text(
+                        'نعم، تسليم المشاتيح',
+                        style: GoogleFonts.cairo(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 14,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
         ),
-        content: Text(
-          'هل لديك مشاتيح غير مكتملة تريد تسليمها للمناوبة القادمة؟',
-          style: GoogleFonts.cairo(),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(null),
-            child: Text('إلغاء', style: GoogleFonts.cairo(color: Colors.grey)),
-          ),
-          OutlinedButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            style: OutlinedButton.styleFrom(
-              foregroundColor: Colors.red,
-              side: const BorderSide(color: Colors.red),
-            ),
-            child: Text(
-              'لا، خروج فقط',
-              style: GoogleFonts.cairo(fontWeight: FontWeight.bold),
-            ),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.orange,
-              foregroundColor: Colors.white,
-            ),
-            child: Text(
-              'نعم، تسليم المشاتيح',
-              style: GoogleFonts.cairo(fontWeight: FontWeight.bold),
-            ),
-          ),
-        ],
       ),
     );
 
@@ -359,38 +410,29 @@ class _PalletizingScreenState extends State<PalletizingScreen>
     final selectedOperator = palletizingProvider.getSelectedOperator(
       (_tabController?.index ?? 0) + 1,
     );
-    final operatorId = selectedOperator?.id ?? currentUser?.id;
-
-    if (operatorId == null) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              'يرجى اختيار المشغل أولاً',
-              style: GoogleFonts.cairo(),
-            ),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-      return;
-    }
 
     if (!context.mounted) return;
 
     final activeLineNumber = (_tabController?.index ?? 0) + 1;
-    final items = await showDialog<List<Map<String, dynamic>>>(
+    final result = await showDialog<Map<String, dynamic>>(
       context: context,
       builder: (context) => ShiftHandoverDialog(
         productTypes: palletizingProvider.productTypes,
         productionLines: palletizingProvider.productionLines,
+        operators: palletizingProvider.operators,
+        initialOperator: selectedOperator,
         themeColor: activeLineNumber == 1
             ? ProductionLine.line1.color
             : ProductionLine.line2.color,
       ),
     );
 
-    if (items == null || items.isEmpty || !context.mounted) return;
+    if (result == null || !context.mounted) return;
+
+    final operatorId = result['operatorId'] as int;
+    final items = result['items'] as List<Map<String, dynamic>>;
+
+    if (items.isEmpty) return;
 
     // Create the handover
     final handover = await handoverProvider.createHandover(

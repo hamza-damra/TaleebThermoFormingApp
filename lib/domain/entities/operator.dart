@@ -2,8 +2,14 @@ class Operator {
   final int id;
   final String name;
   final String code;
+  final String displayLabel;
 
-  const Operator({required this.id, required this.name, required this.code});
+  const Operator({
+    required this.id,
+    required this.name,
+    required this.code,
+    String? displayLabel,
+  }) : displayLabel = displayLabel ?? '$name ($code)';
 
   @override
   bool operator ==(Object other) =>
