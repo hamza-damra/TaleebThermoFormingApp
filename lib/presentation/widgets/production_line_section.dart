@@ -260,8 +260,7 @@ class ProductionLineSection extends StatelessWidget {
             searchHint: 'ابحث عن المنتج...',
             items: provider.productTypes,
             selectedItem: selectedProductType,
-            displayTextExtractor: (pt) => pt.displayLabel,
-            subtitleExtractor: (pt) => pt.prefix,
+            displayTextExtractor: (pt) => pt.name,
             searchMatcher: (pt, query) {
               final queryLower = query.toLowerCase();
               return pt.name.toLowerCase().contains(queryLower) ||
@@ -294,7 +293,7 @@ class ProductionLineSection extends StatelessWidget {
             children: [
               Expanded(
                 child: Text(
-                  selectedProductType?.displayLabel ?? 'اختر نوع المنتج',
+                  selectedProductType?.name ?? 'اختر نوع المنتج',
                   style: GoogleFonts.cairo(
                     fontSize: isMobile ? 15 : 17,
                     fontWeight: FontWeight.w500,
@@ -448,6 +447,9 @@ class ProductionLineSection extends StatelessWidget {
                         textAlign: TextAlign.center,
                       ),
                       SizedBox(height: isMobile ? 20 : 28),
+                      // Product Image
+                      _buildFullWidthProductImage(productType, isMobile),
+                      SizedBox(height: isMobile ? 16 : 20),
                       // Product info card
                       Container(
                         width: double.infinity,
@@ -465,41 +467,103 @@ class ProductionLineSection extends StatelessWidget {
                           border: Border.all(color: line.color.withValues(alpha: 0.2)),
                         ),
                         child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
+                            // Product Code - Primary heading
                             Text(
                               productType.name,
                               style: GoogleFonts.cairo(
-                                fontSize: isMobile ? 17 : 20,
+                                fontSize: isMobile ? 20 : 24,
                                 fontWeight: FontWeight.bold,
-                                color: Colors.black87,
+                                color: line.color,
                               ),
                               textAlign: TextAlign.center,
                             ),
                             SizedBox(height: isMobile ? 8 : 10),
-                            Container(
-                              padding: EdgeInsets.symmetric(
-                                horizontal: isMobile ? 12 : 16,
-                                vertical: isMobile ? 6 : 8,
+                            // Product Description/Title
+                            Text(
+                              productType.productName,
+                              style: GoogleFonts.cairo(
+                                fontSize: isMobile ? 15 : 17,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.black87,
                               ),
-                              decoration: BoxDecoration(
-                                color: Colors.white,
-                                borderRadius: BorderRadius.circular(20),
-                              ),
-                              child: Text(
-                                'اللون: ${productType.color}',
-                                style: GoogleFonts.cairo(
-                                  fontSize: isMobile ? 13 : 15,
-                                  color: Colors.grey.shade700,
-                                  fontWeight: FontWeight.w500,
+                              textAlign: TextAlign.center,
+                            ),
+                            SizedBox(height: isMobile ? 12 : 16),
+                            // Color and Package Count row
+                            Wrap(
+                              alignment: WrapAlignment.center,
+                              spacing: 8,
+                              runSpacing: 8,
+                              children: [
+                                // Color chip
+                                Container(
+                                  padding: EdgeInsets.symmetric(
+                                    horizontal: isMobile ? 12 : 16,
+                                    vertical: isMobile ? 6 : 8,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: Colors.white,
+                                    borderRadius: BorderRadius.circular(20),
+                                    border: Border.all(color: Colors.grey.shade200),
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(
+                                        Icons.palette_outlined,
+                                        size: isMobile ? 14 : 16,
+                                        color: Colors.grey.shade600,
+                                      ),
+                                      SizedBox(width: isMobile ? 4 : 6),
+                                      Text(
+                                        productType.color,
+                                        style: GoogleFonts.cairo(
+                                          fontSize: isMobile ? 13 : 15,
+                                          color: Colors.grey.shade700,
+                                          fontWeight: FontWeight.w500,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
                                 ),
-                              ),
+                                // Default package count chip
+                                Container(
+                                  padding: EdgeInsets.symmetric(
+                                    horizontal: isMobile ? 12 : 16,
+                                    vertical: isMobile ? 6 : 8,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: Colors.white,
+                                    borderRadius: BorderRadius.circular(20),
+                                    border: Border.all(color: Colors.grey.shade200),
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(
+                                        Icons.inventory_2_outlined,
+                                        size: isMobile ? 14 : 16,
+                                        color: Colors.grey.shade600,
+                                      ),
+                                      SizedBox(width: isMobile ? 4 : 6),
+                                      Text(
+                                        '${productType.packageQuantity} ${productType.packageUnitDisplayName}',
+                                        style: GoogleFonts.cairo(
+                                          fontSize: isMobile ? 13 : 15,
+                                          color: Colors.grey.shade700,
+                                          fontWeight: FontWeight.w500,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
                             ),
                           ],
                         ),
                       ),
-                      SizedBox(height: isMobile ? 16 : 20),
-                      // Product Image - full width
-                      _buildFullWidthProductImage(productType, isMobile),
                     ],
                   ),
                 ),

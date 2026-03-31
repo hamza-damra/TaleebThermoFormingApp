@@ -425,8 +425,7 @@ class _ShiftHandoverDialogState extends State<ShiftHandoverDialog> {
               searchHint: 'ابحث عن المنتج...',
               items: widget.productTypes,
               selectedItem: item.productType,
-              displayTextExtractor: (pt) => pt.displayLabel,
-              subtitleExtractor: (pt) => pt.prefix,
+              displayTextExtractor: (pt) => pt.name,
               searchMatcher: (pt, query) {
                 final queryLower = query.toLowerCase();
                 return pt.name.toLowerCase().contains(queryLower) ||
@@ -457,7 +456,7 @@ class _ShiftHandoverDialogState extends State<ShiftHandoverDialog> {
               children: [
                 Expanded(
                   child: Text(
-                    item.productType?.displayLabel ?? 'اختر نوع المنتج',
+                    item.productType?.name ?? 'اختر نوع المنتج',
                     style: GoogleFonts.cairo(
                       fontSize: fontSize,
                       color: item.productType != null
