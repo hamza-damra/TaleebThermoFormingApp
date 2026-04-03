@@ -1,20 +1,12 @@
 import '../entities/bootstrap_response.dart';
 import '../entities/line_authorization_state.dart';
 import '../entities/line_handover_info.dart';
-import '../entities/operator.dart';
 import '../entities/pallet_create_response.dart';
 import '../entities/print_attempt_result.dart';
-import '../entities/product_type.dart';
-import '../entities/production_line.dart';
 import '../entities/session_table_row.dart';
 
 abstract class PalletizingRepository {
-  // Legacy endpoints (kept for adjacent flows like shift handover)
-  Future<List<Operator>> getOperators();
-  Future<List<ProductType>> getProductTypes();
-  Future<List<ProductionLine>> getProductionLines();
-
-  // ── New line-scoped endpoints (/palletizing-line) ──
+  // ── Line-scoped endpoints (/palletizing-line) ──
 
   /// GET /palletizing-line/bootstrap
   Future<BootstrapResponse> bootstrap();

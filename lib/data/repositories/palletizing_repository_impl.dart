@@ -4,8 +4,6 @@ import '../../domain/entities/line_handover_info.dart';
 import '../../domain/entities/operator.dart';
 import '../../domain/entities/pallet_create_response.dart';
 import '../../domain/entities/print_attempt_result.dart';
-import '../../domain/entities/product_type.dart';
-import '../../domain/entities/production_line.dart';
 import '../../domain/entities/session_table_row.dart';
 import '../../domain/repositories/palletizing_repository.dart';
 import '../datasources/api_client.dart';
@@ -14,8 +12,6 @@ import '../models/line_handover_info_model.dart';
 import '../models/operator_model.dart';
 import '../models/pallet_create_response_model.dart';
 import '../models/print_attempt_result_model.dart';
-import '../models/product_type_model.dart';
-import '../models/production_line_model.dart';
 import '../models/session_table_row_model.dart';
 
 class PalletizingRepositoryImpl implements PalletizingRepository {
@@ -24,36 +20,7 @@ class PalletizingRepositoryImpl implements PalletizingRepository {
   PalletizingRepositoryImpl({required ApiClient apiClient})
     : _apiClient = apiClient;
 
-  // ── Legacy endpoints (kept for adjacent flows) ──
-
-  @override
-  Future<List<Operator>> getOperators() async {
-    return await _apiClient.requestList<Operator>(
-      path: '/palletizing/operators',
-      method: 'GET',
-      itemParser: (json) => OperatorModel.fromJson(json),
-    );
-  }
-
-  @override
-  Future<List<ProductType>> getProductTypes() async {
-    return await _apiClient.requestList<ProductType>(
-      path: '/palletizing/product-types',
-      method: 'GET',
-      itemParser: (json) => ProductTypeModel.fromJson(json),
-    );
-  }
-
-  @override
-  Future<List<ProductionLine>> getProductionLines() async {
-    return await _apiClient.requestList<ProductionLine>(
-      path: '/palletizing/production-lines',
-      method: 'GET',
-      itemParser: (json) => ProductionLineModel.fromJson(json),
-    );
-  }
-
-  // ── New line-scoped endpoints (/palletizing-line) ──
+  // ── Line-scoped endpoints (/palletizing-line) ──
 
   @override
   Future<BootstrapResponse> bootstrap() async {

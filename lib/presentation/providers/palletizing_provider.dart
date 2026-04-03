@@ -22,7 +22,6 @@ class PalletizingProvider extends ChangeNotifier {
   String? _errorMessage;
 
   // ── Reference data ──
-  List<Operator> _operators = [];
   List<ProductType> _productTypes = [];
   List<ProductionLine> _productionLines = [];
 
@@ -45,7 +44,6 @@ class PalletizingProvider extends ChangeNotifier {
   PalletizingState get state => _state;
   String? get errorMessage => _errorMessage;
   bool get isLoading => _state == PalletizingState.loading;
-  List<Operator> get operators => _operators;
   List<ProductType> get productTypes => _productTypes;
   List<ProductionLine> get productionLines => _productionLines;
 
@@ -150,13 +148,6 @@ class PalletizingProvider extends ChangeNotifier {
         if (lineState.selectedProductType != null) {
           _selectedProductTypes[ln] = lineState.selectedProductType;
         }
-      }
-
-      // Load operators for legacy flows (shift handover)
-      try {
-        _operators = await _repository.getOperators();
-      } catch (_) {
-        // Non-critical for the new palletizing flow
       }
 
       _state = PalletizingState.loaded;
