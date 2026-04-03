@@ -6,11 +6,12 @@ class AuthLocalStorage {
   static const _userNameKey = 'user_name';
   static const _userEmailKey = 'user_email';
   static const _userRoleKey = 'user_role';
+  static const _deviceKeyKey = 'device_api_key';
 
   final FlutterSecureStorage _storage;
 
   AuthLocalStorage({FlutterSecureStorage? storage})
-      : _storage = storage ?? const FlutterSecureStorage();
+    : _storage = storage ?? const FlutterSecureStorage();
 
   Future<void> saveToken(String token) async {
     await _storage.write(key: _tokenKey, value: token);
@@ -56,5 +57,24 @@ class AuthLocalStorage {
   Future<bool> hasToken() async {
     final token = await getToken();
     return token != null && token.isNotEmpty;
+  }
+
+  // ── Device Key ──
+
+  Future<void> saveDeviceKey(String key) async {
+    await _storage.write(key: _deviceKeyKey, value: key);
+  }
+
+  Future<String?> getDeviceKey() async {
+    return await _storage.read(key: _deviceKeyKey);
+  }
+
+  Future<bool> hasDeviceKey() async {
+    final key = await getDeviceKey();
+    return key != null && key.isNotEmpty;
+  }
+
+  Future<void> clearDeviceKey() async {
+    await _storage.delete(key: _deviceKeyKey);
   }
 }

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../../core/responsive.dart';
+import 'device_settings_screen.dart';
 import 'preset_settings_screen.dart';
 import 'printer_settings_screen.dart';
 
@@ -39,6 +40,14 @@ class SettingsHubScreen extends StatelessWidget {
           crossAxisSpacing: 16,
           childAspectRatio: isMobile ? 2.8 : 2.2,
           children: [
+            _SettingCard(
+              icon: Icons.devices_rounded,
+              title: 'إعدادات الجهاز',
+              description: 'إدارة مفتاح الجهاز والاتصال',
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const DeviceSettingsScreen()),
+              ),
+            ),
             _SettingCard(
               icon: Icons.print,
               title: 'إعدادات الطابعات',

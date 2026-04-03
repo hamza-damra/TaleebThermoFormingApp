@@ -92,6 +92,26 @@ class ApiException implements Exception {
         return 'لا يمكن إضافة أكثر من عنصر لنفس خط الإنتاج';
       case 'SHIFT_PROFILE_NOT_FOUND':
         return 'لم يتم العثور على جدول المناوبات';
+      case 'OPERATOR_PIN_INVALID':
+        return 'رمز المشغل غير صحيح';
+      case 'OPERATOR_PIN_LOCKED':
+        return 'تم قفل الحساب بسبب محاولات متعددة. حاول لاحقاً';
+      case 'INVALID_PIN_FORMAT':
+        return 'صيغة الرمز غير صحيحة. يجب أن يكون 4 أرقام';
+      case 'LINE_NOT_AUTHORIZED':
+        return 'لا يوجد مشغل مصرح على هذا الخط';
+      case 'LINE_BLOCKED_BY_PENDING_HANDOVER':
+        return 'الخط محظور بسبب تسليم معلق';
+      case 'PALLET_LINE_MISMATCH':
+        return 'المشتاح لا ينتمي لهذا الخط';
+      case 'PENDING_LINE_HANDOVER_EXISTS':
+        return 'يوجد تسليم معلق بالفعل لهذا الخط';
+      case 'LINE_HANDOVER_NOT_FOUND':
+        return 'لم يتم العثور على التسليم';
+      case 'LINE_HANDOVER_ALREADY_RESOLVED':
+        return 'تم معالجة هذا التسليم مسبقاً';
+      case 'INVALID_LOOSE_BALANCE':
+        return 'عدد العبوات الفالتة غير صحيح';
       case 'INTERNAL_ERROR':
         return 'حدث خطأ في الخادم. حاول مرة أخرى';
       default:

@@ -9,7 +9,7 @@ class ApiClient {
   final AuthLocalStorage _authStorage;
 
   ApiClient({AuthLocalStorage? authStorage})
-      : _authStorage = authStorage ?? AuthLocalStorage() {
+    : _authStorage = authStorage ?? AuthLocalStorage() {
     dio = Dio(
       BaseOptions(
         baseUrl: AppConfig.baseUrl,
@@ -23,10 +23,7 @@ class ApiClient {
     );
 
     dio.interceptors.add(
-      InterceptorsWrapper(
-        onRequest: _onRequest,
-        onError: _onError,
-      ),
+      InterceptorsWrapper(onRequest: _onRequest, onError: _onError),
     );
   }
 
@@ -34,9 +31,20 @@ class ApiClient {
     RequestOptions options,
     RequestInterceptorHandler handler,
   ) async {
-    final token = await _authStorage.getToken();
-    if (token != null && token.isNotEmpty) {
-      options.headers['Authorization'] = 'Bearer $token';
+    // For palletizing-line endpoints, use X-Device-Key header (no JWT)
+    if (options.path.contains('/palletizing-line/')) {
+      final deviceKey = await _authStorage.getDeviceKey();
+      if (deviceKey != null && deviceKey.isNotEmpty) {
+        options.headers['X-Device-Key'] = deviceKey;
+      }
+      // Remove any JWT Authorization header for device-key endpoints
+      options.headers.remove('Authorization');
+    } else {
+      // For legacy endpoints, use JWT Bearer token
+      final token = await _authStorage.getToken();
+      if (token != null && token.isNotEmpty) {
+        options.headers['Authorization'] = 'Bearer $token';
+      }
     }
     handler.next(options);
   }
@@ -64,7 +72,10 @@ class ApiClient {
       if (responseData['success'] == true) {
         return parser(responseData);
       } else {
-        throw ApiException.fromJson(responseData, statusCode: response.statusCode);
+        throw ApiException.fromJson(
+          responseData,
+          statusCode: response.statusCode,
+        );
       }
     } on DioException catch (e) {
       throw _handleDioException(e);
@@ -74,12 +85,14 @@ class ApiClient {
   Future<List<T>> requestList<T>({
     required String path,
     required String method,
+    Map<String, dynamic>? data,
     Map<String, dynamic>? queryParameters,
     required T Function(Map<String, dynamic>) itemParser,
   }) async {
     try {
       final response = await dio.request(
         path,
+        data: data,
         queryParameters: queryParameters,
         options: Options(method: method),
       );
@@ -91,7 +104,10 @@ class ApiClient {
             .map((item) => itemParser(item as Map<String, dynamic>))
             .toList();
       } else {
-        throw ApiException.fromJson(responseData, statusCode: response.statusCode);
+        throw ApiException.fromJson(
+          responseData,
+          statusCode: response.statusCode,
+        );
       }
     } on DioException catch (e) {
       throw _handleDioException(e);
@@ -109,6 +125,14 @@ class ApiClient {
       case DioExceptionType.badResponse:
         final statusCode = e.response?.statusCode;
         if (statusCode == 401) {
+          // Try to parse the response body for a specific error code first
+          if (e.response?.data is Map<String, dynamic>) {
+            final body = e.response!.data as Map<String, dynamic>;
+            final error = body['error'] as Map<String, dynamic>?;
+            if (error != null && error['code'] != null) {
+              return ApiException.fromJson(body, statusCode: statusCode);
+            }
+          }
           return ApiException.unauthorized();
         }
         if (e.response?.data is Map<String, dynamic>) {

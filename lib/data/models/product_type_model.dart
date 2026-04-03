@@ -17,13 +17,13 @@ class ProductTypeModel extends ProductType {
   factory ProductTypeModel.fromJson(Map<String, dynamic> json) {
     return ProductTypeModel(
       id: json['id'] as int,
-      name: json['name'] as String,
-      productName: json['productName'] as String,
-      prefix: json['prefix'] as String,
-      color: json['color'] as String,
-      packageQuantity: json['packageQuantity'] as int,
-      packageUnit: json['packageUnit'] as String,
-      packageUnitDisplayName: json['packageUnitDisplayName'] as String,
+      name: json['name'] as String? ?? '',
+      productName: json['productName'] as String? ?? '',
+      prefix: json['prefix'] as String? ?? '',
+      color: json['color'] as String? ?? '',
+      packageQuantity: json['packageQuantity'] as int? ?? 0,
+      packageUnit: json['packageUnit'] as String? ?? '',
+      packageUnitDisplayName: json['packageUnitDisplayName'] as String? ?? '',
       displayLabel: json['displayLabel'] as String?,
       imageUrl: json['imageUrl'] as String?,
     );

@@ -3,23 +3,18 @@ import 'package:google_fonts/google_fonts.dart';
 
 import '../../core/constants.dart';
 import '../../core/responsive.dart';
-import '../../domain/entities/operator.dart';
 import '../../domain/entities/product_type.dart';
 import 'searchable_picker_dialog.dart';
 
 class CreatePalletDialog extends StatefulWidget {
   final ProductionLine line;
-  final List<Operator> operators;
   final List<ProductType> productTypes;
-  final Operator? initialOperator;
   final ProductType? initialProductType;
 
   const CreatePalletDialog({
     super.key,
     required this.line,
-    required this.operators,
     required this.productTypes,
-    this.initialOperator,
     this.initialProductType,
   });
 
@@ -28,7 +23,6 @@ class CreatePalletDialog extends StatefulWidget {
 }
 
 class _CreatePalletDialogState extends State<CreatePalletDialog> {
-  late Operator? _selectedOperator;
   late ProductType? _selectedProductType;
   int _quantity = 20;
   late TextEditingController _quantityController;
@@ -36,7 +30,6 @@ class _CreatePalletDialogState extends State<CreatePalletDialog> {
   @override
   void initState() {
     super.initState();
-    _selectedOperator = widget.initialOperator;
     _selectedProductType = widget.initialProductType;
     _quantityController = TextEditingController(text: '$_quantity');
   }
@@ -70,8 +63,6 @@ class _CreatePalletDialogState extends State<CreatePalletDialog> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            _buildOperatorDropdown(context),
-            SizedBox(height: spacing),
             _buildProductDropdown(context),
             SizedBox(height: spacing),
             _buildQuantityStepper(context),
@@ -104,79 +95,6 @@ class _CreatePalletDialogState extends State<CreatePalletDialog> {
             style: GoogleFonts.cairo(
               fontSize: isMobile ? 14 : 16,
               fontWeight: FontWeight.bold,
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildOperatorDropdown(BuildContext context) {
-    final isMobile = ResponsiveHelper.isMobile(context);
-    final fontSize = isMobile ? 14.0 : 16.0;
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'اسم المشغل',
-          style: GoogleFonts.cairo(
-            fontSize: fontSize,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-        SizedBox(height: isMobile ? 6 : 8),
-        InkWell(
-          onTap: () async {
-            final selected = await SearchablePickerDialog.show<Operator>(
-              context: context,
-              title: 'اختر المشغل',
-              searchHint: 'ابحث عن المشغل...',
-              items: widget.operators,
-              selectedItem: _selectedOperator,
-              displayTextExtractor: (op) => op.displayLabel,
-              searchMatcher: (op, query) {
-                final queryLower = query.toLowerCase();
-                return op.name.toLowerCase().contains(queryLower) ||
-                    op.code.toLowerCase().contains(queryLower) ||
-                    op.displayLabel.toLowerCase().contains(queryLower);
-              },
-              themeColor: widget.line.color,
-            );
-            if (selected != null) {
-              setState(() {
-                _selectedOperator = selected;
-              });
-            }
-          },
-          borderRadius: BorderRadius.circular(12),
-          child: Container(
-            padding: EdgeInsets.symmetric(
-              horizontal: isMobile ? 12 : 16,
-              vertical: isMobile ? 14 : 16,
-            ),
-            decoration: BoxDecoration(
-              border: Border.all(color: Colors.grey.shade400),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    _selectedOperator?.displayLabel ?? 'اختر المشغل',
-                    style: GoogleFonts.cairo(
-                      fontSize: fontSize,
-                      color: _selectedOperator != null
-                          ? Colors.black87
-                          : Colors.grey.shade600,
-                    ),
-                  ),
-                ),
-                Icon(
-                  Icons.arrow_drop_down,
-                  color: Colors.grey.shade600,
-                ),
-              ],
             ),
           ),
         ),
@@ -347,12 +265,11 @@ class _CreatePalletDialogState extends State<CreatePalletDialog> {
   }
 
   bool _canConfirm() {
-    return _selectedOperator != null && _selectedProductType != null;
+    return _selectedProductType != null && _quantity > 0;
   }
 
   void _handleConfirm() {
     Navigator.of(context).pop({
-      'operator': _selectedOperator,
       'productType': _selectedProductType,
       'quantity': _quantity,
     });

@@ -12,11 +12,13 @@ import 'product_type_image.dart';
 class PalletSuccessDialog extends StatefulWidget {
   final PalletCreateResponse pallet;
   final Color lineColor;
+  final int lineNumber;
 
   const PalletSuccessDialog({
     super.key,
     required this.pallet,
     required this.lineColor,
+    required this.lineNumber,
   });
 
   @override
@@ -294,6 +296,7 @@ class _PalletSuccessDialogState extends State<PalletSuccessDialog> {
 
     final palletizingProvider = context.read<PalletizingProvider>();
     await palletizingProvider.logPrintAttempt(
+      lineNumber: widget.lineNumber,
       palletId: widget.pallet.palletId,
       printerIdentifier: printingProvider.selectedPrinter?.name ?? 'UNKNOWN',
       success: result.isSuccess,

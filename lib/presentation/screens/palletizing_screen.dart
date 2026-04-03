@@ -6,11 +6,8 @@ import 'package:provider/provider.dart';
 
 import '../../core/constants.dart';
 import '../../core/responsive.dart';
-import '../providers/auth_provider.dart';
 import '../providers/palletizing_provider.dart';
-import '../providers/shift_handover_provider.dart';
 import '../widgets/production_line_section.dart';
-import '../widgets/shift_handover_dialog.dart';
 import '../widgets/shimmer/palletizing_shimmer.dart';
 import 'settings_hub_screen.dart';
 
@@ -38,10 +35,7 @@ class _PalletizingScreenState extends State<PalletizingScreen>
     _tabController!.addListener(_handleTabChange);
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       final palletizingProvider = context.read<PalletizingProvider>();
-      final handoverProvider = context.read<ShiftHandoverProvider>();
-
-      await palletizingProvider.loadInitialData();
-      handoverProvider.fetchCurrentShift();
+      await palletizingProvider.loadBootstrap();
     });
   }
 
@@ -120,13 +114,6 @@ class _PalletizingScreenState extends State<PalletizingScreen>
         iconTheme: const IconThemeData(color: Colors.white),
         centerTitle: true,
         toolbarHeight: 56,
-        leading: IconButton(
-          icon: const Icon(Icons.person),
-          onPressed: () {
-            // TODO: Show operator info
-          },
-          tooltip: 'المناوب',
-        ),
         actions: [
           IconButton(
             icon: const Icon(Icons.settings),
@@ -134,11 +121,6 @@ class _PalletizingScreenState extends State<PalletizingScreen>
               MaterialPageRoute(builder: (_) => const SettingsHubScreen()),
             ),
             tooltip: 'الإعدادات',
-          ),
-          IconButton(
-            icon: const Icon(Icons.swap_horiz),
-            onPressed: () => _handleShiftHandover(context),
-            tooltip: 'تسليم المناوبة',
           ),
         ],
         bottom: TabBar(
@@ -155,7 +137,7 @@ class _PalletizingScreenState extends State<PalletizingScreen>
                   Container(
                     width: 12,
                     height: 12,
-                    decoration: BoxDecoration(
+                    decoration: const BoxDecoration(
                       color: Colors.white,
                       shape: BoxShape.circle,
                     ),
@@ -192,9 +174,6 @@ class _PalletizingScreenState extends State<PalletizingScreen>
         ),
       );
     }
-
-    final authProvider = context.watch<AuthProvider>();
-    final userName = authProvider.user?.name ?? 'المناوب';
 
     final isTablet = ResponsiveHelper.isTablet(context);
     final titleFontSize = isTablet ? 18.0 : 20.0;
@@ -233,29 +212,6 @@ class _PalletizingScreenState extends State<PalletizingScreen>
       ),
       centerTitle: true,
       toolbarHeight: 60,
-      leading: Padding(
-        padding: const EdgeInsets.only(right: 4),
-        child: Center(
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Icon(Icons.person, size: 20),
-              const SizedBox(width: 4),
-              Flexible(
-                child: Text(
-                  'المناوب: $userName',
-                  style: GoogleFonts.cairo(
-                    fontSize: isTablet ? 12 : 14,
-                    fontWeight: FontWeight.w600,
-                  ),
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-      leadingWidth: isTablet ? 180 : 140,
       actions: [
         Padding(
           padding: EdgeInsets.symmetric(horizontal: isTablet ? 4 : 8),
@@ -267,221 +223,18 @@ class _PalletizingScreenState extends State<PalletizingScreen>
             tooltip: 'الإعدادات',
           ),
         ),
-        Padding(
-          padding: EdgeInsets.symmetric(horizontal: isTablet ? 8 : 12),
-          child: isTablet
-              ? IconButton(
-                  icon: const Icon(Icons.swap_horiz),
-                  onPressed: () => _handleShiftHandover(context),
-                  tooltip: 'تسليم المناوبة',
-                )
-              : OutlinedButton.icon(
-                  onPressed: () => _handleShiftHandover(context),
-                  icon: const Icon(Icons.swap_horiz, size: 18),
-                  label: Text(
-                    'تسليم المناوبة',
-                    style: GoogleFonts.cairo(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 13,
-                    ),
-                  ),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: Colors.white,
-                    side: const BorderSide(color: Colors.white, width: 1.5),
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 14,
-                      vertical: 8,
-                    ),
-                  ),
-                ),
-        ),
       ],
     );
   }
 
-  Future<void> _handleShiftHandover(BuildContext context) async {
-    final palletizingProvider = context.read<PalletizingProvider>();
-    final handoverProvider = context.read<ShiftHandoverProvider>();
-    final authProvider = context.read<AuthProvider>();
-
-    // First ask: do you have incomplete pallets to hand over?
-    final hasIncomplete = await showDialog<bool>(
-      context: context,
-      builder: (context) {
-        final screenWidth = MediaQuery.of(context).size.width;
-        final isMobile = screenWidth < 600;
-        final dialogWidth = isMobile ? screenWidth * 0.9 : 400.0;
-        
-        return Dialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          insetPadding: EdgeInsets.symmetric(
-            horizontal: isMobile ? 16 : 40,
-            vertical: 24,
-          ),
-          child: Container(
-            width: dialogWidth,
-            constraints: BoxConstraints(maxWidth: dialogWidth),
-            padding: EdgeInsets.all(isMobile ? 16 : 20),
-            child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // Header with close icon
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const SizedBox(width: 40),
-                  Expanded(
-                    child: Text(
-                      'تسليم المناوبة',
-                      style: GoogleFonts.cairo(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 18,
-                      ),
-                      textAlign: TextAlign.center,
-                    ),
-                  ),
-                  IconButton(
-                    onPressed: () => Navigator.of(context).pop(null),
-                    icon: Icon(Icons.close, color: Colors.grey.shade600),
-                    tooltip: 'إلغاء',
-                  ),
-                ],
-              ),
-              const SizedBox(height: 16),
-              Text(
-                'هل لديك مشاتيح غير مكتملة تريد تسليمها للمناوبة القادمة؟',
-                style: GoogleFonts.cairo(fontSize: 15),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 24),
-              // Action buttons - always stacked vertically
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: () => Navigator.of(context).pop(true),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.orange,
-                    foregroundColor: Colors.white,
-                    padding: EdgeInsets.symmetric(vertical: isMobile ? 12 : 14),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                  ),
-                  child: Text(
-                    'نعم، تسليم المشاتيح',
-                    style: GoogleFonts.cairo(
-                      fontWeight: FontWeight.bold,
-                      fontSize: isMobile ? 13 : 14,
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 10),
-              SizedBox(
-                width: double.infinity,
-                child: OutlinedButton(
-                  onPressed: () => Navigator.of(context).pop(false),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: Colors.red,
-                    side: const BorderSide(color: Colors.red),
-                    padding: EdgeInsets.symmetric(vertical: isMobile ? 12 : 14),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                  ),
-                  child: Text(
-                    'لا، خروج فقط',
-                    style: GoogleFonts.cairo(
-                      fontWeight: FontWeight.bold,
-                      fontSize: isMobile ? 13 : 14,
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-          ),
-        );
-      },
-    );
-
-    if (hasIncomplete == null || !context.mounted) return;
-
-    if (hasIncomplete == false) {
-      // Just logout, no handover needed
-      await authProvider.logout();
-      return;
-    }
-
-    // Show the handover dialog to declare incomplete pallets
-    final selectedOperator = palletizingProvider.getSelectedOperator(
-      (_tabController?.index ?? 0) + 1,
-    );
-
-    if (!context.mounted) return;
-
-    final activeLineNumber = (_tabController?.index ?? 0) + 1;
-    final result = await showDialog<Map<String, dynamic>>(
-      context: context,
-      builder: (context) => ShiftHandoverDialog(
-        productTypes: palletizingProvider.productTypes,
-        productionLines: palletizingProvider.productionLines,
-        operators: palletizingProvider.operators,
-        initialOperator: selectedOperator,
-        themeColor: activeLineNumber == 1
-            ? ProductionLine.line1.color
-            : ProductionLine.line2.color,
-      ),
-    );
-
-    if (result == null || !context.mounted) return;
-
-    final operatorId = result['operatorId'] as int;
-    final items = result['items'] as List<Map<String, dynamic>>;
-
-    if (items.isEmpty) return;
-
-    // Create the handover
-    final handover = await handoverProvider.createHandover(
-      operatorId: operatorId,
-      items: items,
-    );
-
-    if (!context.mounted) return;
-
-    if (handover != null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('تم تسليم المناوبة بنجاح', style: GoogleFonts.cairo()),
-          backgroundColor: Colors.green,
-        ),
-      );
-      await authProvider.logout();
-    } else if (handoverProvider.errorMessage != null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            handoverProvider.errorMessage!,
-            style: GoogleFonts.cairo(),
-          ),
-          backgroundColor: Colors.red,
-        ),
-      );
-      handoverProvider.clearError();
-    }
-  }
-
   Future<void> _refreshData() async {
     final palletizingProvider = context.read<PalletizingProvider>();
-    final handoverProvider = context.read<ShiftHandoverProvider>();
     palletizingProvider.clearError();
-    await palletizingProvider.loadInitialData();
-    handoverProvider.fetchCurrentShift();
+    await palletizingProvider.loadBootstrap();
   }
 
   Widget _buildLoadingShimmer(bool isMobile) {
     if (isMobile) {
-      // For mobile, show shimmer in TabBarView matching tabs
       return TabBarView(
         controller: _tabController,
         physics: const NeverScrollableScrollPhysics(),
@@ -492,7 +245,6 @@ class _PalletizingScreenState extends State<PalletizingScreen>
       );
     }
 
-    // Desktop/tablet: dual pane shimmer
     return const PalletizingShimmerDualPane();
   }
 
@@ -525,7 +277,6 @@ class _PalletizingScreenState extends State<PalletizingScreen>
       );
     }
 
-    // Find API entities matching the hardcoded lines
     final line1Entity = provider.productionLines
         .where((l) => l.lineNumber == 1)
         .firstOrNull;

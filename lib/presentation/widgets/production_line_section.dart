@@ -5,15 +5,18 @@ import 'package:provider/provider.dart';
 import '../../core/constants.dart';
 import '../../core/exceptions/api_exception.dart';
 import '../../core/responsive.dart';
-import '../../domain/entities/operator.dart';
 import '../../domain/entities/product_type.dart';
 import '../../domain/entities/production_line.dart' as entity;
 import '../providers/palletizing_provider.dart';
 import 'create_pallet_dialog.dart';
+import 'handover_creation_dialog.dart';
+import 'line_auth_overlay.dart';
+import 'line_handover_card.dart';
 import 'pallet_success_dialog.dart';
+import 'product_switch_dialog.dart';
 import 'product_type_image.dart';
 import 'searchable_picker_dialog.dart';
-import 'summary_card.dart';
+import 'session_table_widget.dart';
 
 class ProductionLineSection extends StatelessWidget {
   final ProductionLine line;
@@ -27,64 +30,222 @@ class ProductionLineSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final provider = context.watch<PalletizingProvider>();
     final isMobile = ResponsiveHelper.isMobile(context);
     final horizontalPadding = isMobile ? 16.0 : 24.0;
     final bottomPadding = MediaQuery.of(context).padding.bottom;
+    // Use lineUiMode as the single source of truth for which UI to render
+    final lineUiMode = provider.getLineUiMode(line.number);
+    final showPinOverlay =
+        lineUiMode == 'NEEDS_AUTHORIZATION' ||
+        (lineUiMode == null && !provider.isLineAuthorized(line.number));
+    final showPendingHandoverIncoming =
+        lineUiMode == 'PENDING_HANDOVER_NEEDS_INCOMING';
 
-    return Container(
-      color: line.lightColor,
-      child: SafeArea(
-        top: false,
-        child: Column(
-          children: [
-            // Scrollable content area
-            Expanded(
-              child: SingleChildScrollView(
-                physics: const AlwaysScrollableScrollPhysics(),
-                child: Padding(
-                  padding: EdgeInsets.symmetric(horizontal: horizontalPadding),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
+    final isHandoverReview = lineUiMode == 'PENDING_HANDOVER_REVIEW';
+
+    return Stack(
+      children: [
+        // Main content
+        Container(
+          color: line.lightColor,
+          child: SafeArea(
+            top: false,
+            child: isHandoverReview
+                ? _buildHandoverReviewLayout(context, provider, isMobile, horizontalPadding, bottomPadding)
+                : Column(
                     children: [
-                      SizedBox(height: isMobile ? 20 : 32),
-                      if (ResponsiveHelper.isDesktop(context)) ...[
-                        _buildHeader(context),
-                        const SizedBox(height: 32),
-                      ],
-                      _buildFormCard(context),
-                      SizedBox(height: isMobile ? 20 : 28),
-                      _buildSummaryCard(context),
-                      SizedBox(height: isMobile ? 24 : 32),
+                      // Scrollable content area
+                      Expanded(
+                        child: SingleChildScrollView(
+                          physics: const AlwaysScrollableScrollPhysics(),
+                          child: Padding(
+                            padding: EdgeInsets.symmetric(
+                              horizontal: horizontalPadding,
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                SizedBox(height: isMobile ? 20 : 32),
+                                if (ResponsiveHelper.isDesktop(context)) ...[
+                                  _buildHeader(context),
+                                  const SizedBox(height: 32),
+                                ],
+                                _buildFormCard(context),
+                                SizedBox(height: isMobile ? 20 : 28),
+                                // Visible "تسليم مناوبة" button when canInitiateHandover is true
+                                if (provider.canInitiateHandover(line.number)) ...[
+                                  _buildHandoverButton(context),
+                                  SizedBox(height: isMobile ? 20 : 28),
+                                ],
+                                // Pending handover card (from backend state)
+                                if (provider
+                                        .getPendingHandover(line.number)
+                                        ?.isPending ??
+                                    false) ...[
+                                  LineHandoverCard(
+                                    line: line,
+                                    handover: provider.getPendingHandover(
+                                      line.number,
+                                    )!,
+                                    showResolveActions: false,
+                                    onResolve: () => _handleConfirmHandover(context),
+                                    onReject: () => _handleRejectHandover(context),
+                                  ),
+                                  SizedBox(height: isMobile ? 20 : 28),
+                                ],
+                                // Session table (replaces old summary card)
+                                _buildSessionTable(context),
+                                SizedBox(height: isMobile ? 24 : 32),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                      // Fixed bottom button
+                      Container(
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.08),
+                              blurRadius: 16,
+                              offset: const Offset(0, -4),
+                            ),
+                          ],
+                        ),
+                        child: Padding(
+                          padding: EdgeInsets.fromLTRB(
+                            horizontalPadding,
+                            isMobile ? 12 : 16,
+                            horizontalPadding,
+                            (isMobile ? 12 : 16) + bottomPadding,
+                          ),
+                          child: _buildCreateButton(context),
+                        ),
+                      ),
                     ],
                   ),
-                ),
-              ),
-            ),
-            // Fixed bottom button
-            Container(
-              decoration: BoxDecoration(
-                color: Colors.white,
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.08),
-                    blurRadius: 16,
-                    offset: const Offset(0, -4),
+          ),
+        ),
+
+        // Per-line auth overlay — controlled by backend-driven lineUiMode only
+        if (showPinOverlay) LineAuthOverlay(line: line),
+
+        // Pending handover needs incoming operator — show PIN overlay for incoming
+        if (showPendingHandoverIncoming && !showPinOverlay)
+          LineAuthOverlay(line: line),
+      ],
+    );
+  }
+
+  Widget _buildHandoverReviewLayout(
+    BuildContext context,
+    PalletizingProvider provider,
+    bool isMobile,
+    double horizontalPadding,
+    double bottomPadding,
+  ) {
+    final handover = provider.getPendingHandover(line.number);
+
+    return Column(
+      children: [
+        Expanded(
+          child: SingleChildScrollView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            child: Padding(
+              padding: EdgeInsets.symmetric(horizontal: horizontalPadding),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  SizedBox(height: isMobile ? 20 : 32),
+                  // Review header
+                  Container(
+                    padding: EdgeInsets.all(isMobile ? 16 : 20),
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [Colors.orange.shade600, Colors.orange.shade400],
+                        begin: Alignment.topRight,
+                        end: Alignment.bottomLeft,
+                      ),
+                      borderRadius: BorderRadius.circular(16),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.orange.withValues(alpha: 0.3),
+                          blurRadius: 12,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.rate_review_rounded,
+                          color: Colors.white,
+                          size: isMobile ? 28 : 34,
+                        ),
+                        SizedBox(width: isMobile ? 12 : 16),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'مراجعة التسليم',
+                                style: GoogleFonts.cairo(
+                                  fontSize: isMobile ? 18 : 22,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.white,
+                                ),
+                              ),
+                              Text(
+                                'راجع تفاصيل التسليم ثم قم بالتأكيد أو الرفض',
+                                style: GoogleFonts.cairo(
+                                  fontSize: isMobile ? 12 : 14,
+                                  color: Colors.white.withValues(alpha: 0.9),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
+                  SizedBox(height: isMobile ? 20 : 28),
+                  // Full handover detail card
+                  if (handover != null)
+                    LineHandoverCard(
+                      line: line,
+                      handover: handover,
+                      showResolveActions: true,
+                      onResolve: () => _handleConfirmHandover(context),
+                      onReject: () => _handleRejectHandover(context),
+                    )
+                  else
+                    Center(
+                      child: Padding(
+                        padding: EdgeInsets.all(isMobile ? 24 : 32),
+                        child: Column(
+                          children: [
+                            const CircularProgressIndicator(),
+                            SizedBox(height: isMobile ? 12 : 16),
+                            Text(
+                              'جاري تحميل تفاصيل التسليم...',
+                              style: GoogleFonts.cairo(
+                                fontSize: isMobile ? 14 : 16,
+                                color: Colors.grey.shade600,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  SizedBox(height: isMobile ? 24 : 32),
                 ],
               ),
-              child: Padding(
-                padding: EdgeInsets.fromLTRB(
-                  horizontalPadding,
-                  isMobile ? 12 : 16,
-                  horizontalPadding,
-                  (isMobile ? 12 : 16) + bottomPadding,
-                ),
-                child: _buildCreateButton(context),
-              ),
             ),
-          ],
+          ),
         ),
-      ),
+      ],
     );
   }
 
@@ -143,7 +304,7 @@ class ProductionLineSection extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            _buildOperatorField(context),
+            _buildAuthorizedOperatorCard(context),
             SizedBox(height: isMobile ? 20 : 28),
             _buildProductField(context),
           ],
@@ -152,79 +313,104 @@ class ProductionLineSection extends StatelessWidget {
     );
   }
 
-  Widget _buildOperatorField(BuildContext context) {
+  Widget _buildAuthorizedOperatorCard(BuildContext context) {
     final provider = context.watch<PalletizingProvider>();
     final isMobile = ResponsiveHelper.isMobile(context);
-    final selectedOperator = provider.getSelectedOperator(line.number);
-
-    if (provider.operators.isEmpty) {
-      return _buildFieldContainer(
-        context: context,
-        label: 'اسم المشغل',
-        icon: Icons.person_outline_rounded,
-        child: _buildWarningBox(
-          context,
-          'لا يوجد مشغلين - يرجى إضافتهم من لوحة الإدارة',
-        ),
-      );
-    }
+    final operator = provider.getAuthorizedOperator(line.number);
+    final authState = provider.getLineAuth(line.number);
+    final isAuthorized = provider.isLineAuthorized(line.number);
+    // When authorized but operator object may be null, show "مشغل مفوض" rather than "لا يوجد"
+    final hasActiveOperator = isAuthorized || operator != null;
 
     return _buildFieldContainer(
       context: context,
-      label: 'اسم المشغل',
+      label: 'المشغل المسؤول',
       icon: Icons.person_outline_rounded,
-      child: InkWell(
-        onTap: () async {
-          final selected = await SearchablePickerDialog.show<Operator>(
-            context: context,
-            title: 'اختر المشغل',
-            searchHint: 'ابحث عن المشغل...',
-            items: provider.operators,
-            selectedItem: selectedOperator,
-            displayTextExtractor: (op) => op.displayLabel,
-            searchMatcher: (op, query) {
-              final queryLower = query.toLowerCase();
-              return op.name.toLowerCase().contains(queryLower) ||
-                  op.code.toLowerCase().contains(queryLower) ||
-                  op.displayLabel.toLowerCase().contains(queryLower);
-            },
-            themeColor: line.color,
-          );
-          if (selected != null && context.mounted) {
-            context.read<PalletizingProvider>().selectOperator(line.number, selected);
-          }
-        },
-        borderRadius: BorderRadius.circular(12),
-        child: Container(
-          padding: EdgeInsets.symmetric(
-            horizontal: isMobile ? 16 : 20,
-            vertical: isMobile ? 18 : 22,
+      child: Container(
+        padding: EdgeInsets.symmetric(
+          horizontal: isMobile ? 16 : 20,
+          vertical: isMobile ? 14 : 18,
+        ),
+        decoration: BoxDecoration(
+          color: hasActiveOperator
+              ? line.color.withValues(alpha: 0.05)
+              : Colors.grey.shade50,
+          border: Border.all(
+            color: hasActiveOperator
+                ? line.color.withValues(alpha: 0.3)
+                : Colors.grey.shade200,
           ),
-          decoration: BoxDecoration(
-            color: Colors.grey.shade50,
-            border: Border.all(color: Colors.grey.shade200),
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Row(
-            children: [
-              Expanded(
-                child: Text(
-                  selectedOperator?.displayLabel ?? 'اختر المشغل',
-                  style: GoogleFonts.cairo(
-                    fontSize: isMobile ? 15 : 17,
-                    fontWeight: FontWeight.w500,
-                    color: selectedOperator != null
-                        ? Colors.black87
-                        : Colors.grey.shade400,
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Row(
+          children: [
+            // Status indicator
+            Container(
+              width: isMobile ? 10 : 12,
+              height: isMobile ? 10 : 12,
+              decoration: BoxDecoration(
+                color: hasActiveOperator
+                    ? Colors.green.shade400
+                    : Colors.grey.shade400,
+                shape: BoxShape.circle,
+              ),
+            ),
+            SizedBox(width: isMobile ? 12 : 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    operator?.displayLabel ??
+                        (isAuthorized ? 'مشغل مفوض' : 'لا يوجد مشغل مفوض'),
+                    style: GoogleFonts.cairo(
+                      fontSize: isMobile ? 15 : 17,
+                      fontWeight: FontWeight.w600,
+                      color: hasActiveOperator
+                          ? Colors.black87
+                          : Colors.grey.shade400,
+                    ),
                   ),
-                ),
+                  if (hasActiveOperator && authState?.authorizedAt != null)
+                    Text(
+                      'تم التفويض',
+                      style: GoogleFonts.cairo(
+                        fontSize: isMobile ? 12 : 13,
+                        color: Colors.green.shade600,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                ],
               ),
-              Icon(
-                Icons.keyboard_arrow_down_rounded,
-                color: line.color,
-                size: isMobile ? 24 : 28,
-              ),
-            ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildHandoverButton(BuildContext context) {
+    final isMobile = ResponsiveHelper.isMobile(context);
+
+    return SizedBox(
+      width: double.infinity,
+      child: ElevatedButton.icon(
+        onPressed: () => _handleCreateHandover(context),
+        style: ElevatedButton.styleFrom(
+          backgroundColor: Colors.orange.shade600,
+          foregroundColor: Colors.white,
+          padding: EdgeInsets.symmetric(vertical: isMobile ? 14 : 18),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
+          ),
+          elevation: 0,
+        ),
+        icon: const Icon(Icons.swap_horiz_rounded),
+        label: Text(
+          'تسليم مناوبة',
+          style: GoogleFonts.cairo(
+            fontSize: isMobile ? 16 : 18,
+            fontWeight: FontWeight.bold,
           ),
         ),
       ),
@@ -272,10 +458,7 @@ class ProductionLineSection extends StatelessWidget {
             themeColor: line.color,
           );
           if (selected != null && context.mounted) {
-            final confirmed = await _showProductTypeConfirmationDialog(context, selected);
-            if (confirmed == true && context.mounted) {
-              context.read<PalletizingProvider>().selectProductType(line.number, selected);
-            }
+            await _handleProductSelection(context, selected);
           }
         },
         borderRadius: BorderRadius.circular(12),
@@ -314,6 +497,61 @@ class ProductionLineSection extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  /// Handles product selection with product-switch loose-balance flow
+  Future<void> _handleProductSelection(
+    BuildContext context,
+    ProductType newProduct,
+  ) async {
+    final provider = context.read<PalletizingProvider>();
+    final currentProduct = provider.getSelectedProductType(line.number);
+
+    // First selection or same product — just confirm and set
+    if (currentProduct == null || currentProduct.id == newProduct.id) {
+      final confirmed = await _showProductTypeConfirmationDialog(
+        context,
+        newProduct,
+      );
+      if (confirmed == true && context.mounted) {
+        provider.selectProductType(line.number, newProduct);
+      }
+      return;
+    }
+
+    // Different product → product-switch dialog (loose balance flow)
+    if (!context.mounted) return;
+    final looseCount = await ProductSwitchDialog.show(
+      context: context,
+      previousProduct: currentProduct,
+      newProduct: newProduct,
+      themeColor: line.color,
+    );
+
+    if (looseCount == null || !context.mounted) return; // Cancelled
+
+    // Submit product switch to backend
+    final success = await provider.switchProduct(
+      lineNumber: line.number,
+      previousProductTypeId: currentProduct.id,
+      looseCount: looseCount,
+    );
+
+    if (success && context.mounted) {
+      provider.selectProductType(line.number, newProduct);
+    } else if (!success && context.mounted) {
+      final error = provider.getLineError(line.number);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            error ?? 'فشل في تبديل المنتج',
+            style: GoogleFonts.cairo(),
+          ),
+          backgroundColor: Colors.red,
+        ),
+      );
+      provider.clearLineError(line.number);
+    }
   }
 
   Widget _buildFieldContainer({
@@ -409,13 +647,11 @@ class ProductionLineSection extends StatelessWidget {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              // Scrollable content
               Flexible(
                 child: SingleChildScrollView(
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      // Header icon
                       Container(
                         padding: EdgeInsets.all(isMobile ? 14 : 18),
                         decoration: BoxDecoration(
@@ -447,10 +683,8 @@ class ProductionLineSection extends StatelessWidget {
                         textAlign: TextAlign.center,
                       ),
                       SizedBox(height: isMobile ? 20 : 28),
-                      // Product Image
                       _buildFullWidthProductImage(productType, isMobile),
                       SizedBox(height: isMobile ? 16 : 20),
-                      // Product info card
                       Container(
                         width: double.infinity,
                         padding: EdgeInsets.all(isMobile ? 16 : 20),
@@ -464,12 +698,13 @@ class ProductionLineSection extends StatelessWidget {
                             end: Alignment.bottomLeft,
                           ),
                           borderRadius: BorderRadius.circular(16),
-                          border: Border.all(color: line.color.withValues(alpha: 0.2)),
+                          border: Border.all(
+                            color: line.color.withValues(alpha: 0.2),
+                          ),
                         ),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
-                            // Product Code - Primary heading
                             Text(
                               productType.name,
                               style: GoogleFonts.cairo(
@@ -480,7 +715,6 @@ class ProductionLineSection extends StatelessWidget {
                               textAlign: TextAlign.center,
                             ),
                             SizedBox(height: isMobile ? 8 : 10),
-                            // Product Description/Title
                             Text(
                               productType.productName,
                               style: GoogleFonts.cairo(
@@ -491,73 +725,20 @@ class ProductionLineSection extends StatelessWidget {
                               textAlign: TextAlign.center,
                             ),
                             SizedBox(height: isMobile ? 12 : 16),
-                            // Color and Package Count row
                             Wrap(
                               alignment: WrapAlignment.center,
                               spacing: 8,
                               runSpacing: 8,
                               children: [
-                                // Color chip
-                                Container(
-                                  padding: EdgeInsets.symmetric(
-                                    horizontal: isMobile ? 12 : 16,
-                                    vertical: isMobile ? 6 : 8,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: Colors.white,
-                                    borderRadius: BorderRadius.circular(20),
-                                    border: Border.all(color: Colors.grey.shade200),
-                                  ),
-                                  child: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Icon(
-                                        Icons.palette_outlined,
-                                        size: isMobile ? 14 : 16,
-                                        color: Colors.grey.shade600,
-                                      ),
-                                      SizedBox(width: isMobile ? 4 : 6),
-                                      Text(
-                                        productType.color,
-                                        style: GoogleFonts.cairo(
-                                          fontSize: isMobile ? 13 : 15,
-                                          color: Colors.grey.shade700,
-                                          fontWeight: FontWeight.w500,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
+                                _buildProductChip(
+                                  Icons.palette_outlined,
+                                  productType.color,
+                                  isMobile,
                                 ),
-                                // Default package count chip
-                                Container(
-                                  padding: EdgeInsets.symmetric(
-                                    horizontal: isMobile ? 12 : 16,
-                                    vertical: isMobile ? 6 : 8,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: Colors.white,
-                                    borderRadius: BorderRadius.circular(20),
-                                    border: Border.all(color: Colors.grey.shade200),
-                                  ),
-                                  child: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Icon(
-                                        Icons.inventory_2_outlined,
-                                        size: isMobile ? 14 : 16,
-                                        color: Colors.grey.shade600,
-                                      ),
-                                      SizedBox(width: isMobile ? 4 : 6),
-                                      Text(
-                                        '${productType.packageQuantity} ${productType.packageUnitDisplayName}',
-                                        style: GoogleFonts.cairo(
-                                          fontSize: isMobile ? 13 : 15,
-                                          color: Colors.grey.shade700,
-                                          fontWeight: FontWeight.w500,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
+                                _buildProductChip(
+                                  Icons.inventory_2_outlined,
+                                  '${productType.packageQuantity} ${productType.packageUnitDisplayName}',
+                                  isMobile,
                                 ),
                               ],
                             ),
@@ -569,7 +750,6 @@ class ProductionLineSection extends StatelessWidget {
                 ),
               ),
               SizedBox(height: isMobile ? 24 : 32),
-              // Action buttons - always visible at bottom
               Row(
                 children: [
                   Expanded(
@@ -579,7 +759,10 @@ class ProductionLineSection extends StatelessWidget {
                         padding: EdgeInsets.symmetric(
                           vertical: isMobile ? 14 : 18,
                         ),
-                        side: BorderSide(color: Colors.grey.shade300, width: 1.5),
+                        side: BorderSide(
+                          color: Colors.grey.shade300,
+                          width: 1.5,
+                        ),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12),
                         ),
@@ -627,6 +810,35 @@ class ProductionLineSection extends StatelessWidget {
     );
   }
 
+  Widget _buildProductChip(IconData icon, String text, bool isMobile) {
+    return Container(
+      padding: EdgeInsets.symmetric(
+        horizontal: isMobile ? 12 : 16,
+        vertical: isMobile ? 6 : 8,
+      ),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Colors.grey.shade200),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: isMobile ? 14 : 16, color: Colors.grey.shade600),
+          SizedBox(width: isMobile ? 4 : 6),
+          Text(
+            text,
+            style: GoogleFonts.cairo(
+              fontSize: isMobile ? 13 : 15,
+              color: Colors.grey.shade700,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildFullWidthProductImage(ProductType productType, bool isMobile) {
     if (productType.imageUrl == null || productType.imageUrl!.isEmpty) {
       return const SizedBox.shrink();
@@ -653,28 +865,23 @@ class ProductionLineSection extends StatelessWidget {
     );
   }
 
-  Widget _buildSummaryCard(BuildContext context) {
+  Widget _buildSessionTable(BuildContext context) {
     final provider = context.watch<PalletizingProvider>();
+    final sessionRows = provider.getSessionTable(line.number);
 
-    final palletCount = provider.getPalletCount(line.number);
-    final selectedProductType = provider.getSelectedProductType(line.number);
-    final packageCount = selectedProductType != null
-        ? palletCount * selectedProductType.packageQuantity
-        : 0;
-
-    return SummaryCard(
-      line: line,
-      palletCount: palletCount,
-      packageCount: packageCount,
-    );
+    return SessionTableWidget(line: line, rows: sessionRows);
   }
 
   Widget _buildCreateButton(BuildContext context) {
     final provider = context.watch<PalletizingProvider>();
     final isMobile = ResponsiveHelper.isMobile(context);
+    final isBlocked = provider.isLineBlocked(line.number);
+    final isCreating = provider.isLineCreating(line.number);
 
     return ElevatedButton(
-      onPressed: provider.isCreating ? null : () => _showCreateDialog(context),
+      onPressed: (isCreating || isBlocked)
+          ? null
+          : () => _showCreateDialog(context),
       style: ElevatedButton.styleFrom(
         backgroundColor: line.color,
         foregroundColor: Colors.white,
@@ -682,11 +889,9 @@ class ProductionLineSection extends StatelessWidget {
         minimumSize: Size(double.infinity, isMobile ? 60 : 68),
         elevation: 0,
         shadowColor: Colors.transparent,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(14),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
       ),
-      child: provider.isCreating
+      child: isCreating
           ? const SizedBox(
               width: 24,
               height: 24,
@@ -698,7 +903,10 @@ class ProductionLineSection extends StatelessWidget {
           : Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(Icons.add_circle_outline_rounded, size: isMobile ? 22 : 26),
+                Icon(
+                  Icons.add_circle_outline_rounded,
+                  size: isMobile ? 22 : 26,
+                ),
                 SizedBox(width: isMobile ? 8 : 12),
                 Text(
                   'إنشاء مشتاح جديد',
@@ -715,22 +923,18 @@ class ProductionLineSection extends StatelessWidget {
 
   Future<void> _showCreateDialog(BuildContext context) async {
     final provider = context.read<PalletizingProvider>();
-    final initialOperator = provider.getSelectedOperator(line.number);
     final initialProductType = provider.getSelectedProductType(line.number);
 
     final result = await showDialog<Map<String, dynamic>>(
       context: context,
       builder: (context) => CreatePalletDialog(
         line: line,
-        operators: provider.operators,
         productTypes: provider.productTypes,
-        initialOperator: initialOperator,
         initialProductType: initialProductType,
       ),
     );
 
     if (result != null && context.mounted) {
-      final operator = result['operator'] as Operator;
       final productType = result['productType'] as ProductType;
       final quantity = result['quantity'] as int;
 
@@ -738,10 +942,8 @@ class ProductionLineSection extends StatelessWidget {
         final palletResponse = await context
             .read<PalletizingProvider>()
             .createPallet(
-              operatorId: operator.id,
-              productTypeId: productType.id,
-              productionLineId: productionLineEntity?.id ?? line.number,
               lineNumber: line.number,
+              productTypeId: productType.id,
               quantity: quantity,
             );
 
@@ -773,8 +975,187 @@ class ProductionLineSection extends StatelessWidget {
   void _showSuccessDialog(BuildContext context, dynamic palletResponse) {
     showDialog(
       context: context,
-      builder: (context) =>
-          PalletSuccessDialog(pallet: palletResponse, lineColor: line.color),
+      builder: (context) => PalletSuccessDialog(
+        pallet: palletResponse,
+        lineColor: line.color,
+        lineNumber: line.number,
+      ),
     );
+  }
+
+  Future<void> _handleCreateHandover(BuildContext context) async {
+    final provider = context.read<PalletizingProvider>();
+
+    final result = await HandoverCreationDialog.show(
+      context: context,
+      productTypes: provider.productTypes,
+      themeColor: line.color,
+    );
+
+    if (result == null || !context.mounted) return;
+
+    try {
+      await provider.createLineHandover(
+        line.number,
+        incompletePalletProductTypeId: result.incompletePalletProductTypeId,
+        incompletePalletQuantity: result.incompletePalletQuantity,
+        looseBalances: result.looseBalances.isNotEmpty ? result.looseBalances : null,
+        notes: result.notes,
+      );
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'تم إنشاء طلب التسليم بنجاح',
+              style: GoogleFonts.cairo(),
+            ),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } on ApiException catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(e.displayMessage, style: GoogleFonts.cairo()),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _handleConfirmHandover(BuildContext context) async {
+    final provider = context.read<PalletizingProvider>();
+    final handover = provider.getPendingHandover(line.number);
+    if (handover == null) return;
+
+    try {
+      await provider.confirmLineHandover(
+        lineNumber: line.number,
+        handoverId: handover.handoverId,
+      );
+
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('تم تأكيد التسليم بنجاح', style: GoogleFonts.cairo()),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } on ApiException catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(e.displayMessage, style: GoogleFonts.cairo()),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _handleRejectHandover(BuildContext context) async {
+    final provider = context.read<PalletizingProvider>();
+    final handover = provider.getPendingHandover(line.number);
+    if (handover == null) return;
+
+    // Show rejection reason dialog
+    final rejectionNotes = await showDialog<String?>(
+      context: context,
+      builder: (ctx) {
+        final controller = TextEditingController();
+        final isMobile = ResponsiveHelper.isMobile(ctx);
+        return AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          title: Text(
+            'رفض التسليم',
+            style: GoogleFonts.cairo(
+              fontWeight: FontWeight.bold,
+              color: Colors.red.shade700,
+            ),
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                'سبب الرفض (اختياري):',
+                style: GoogleFonts.cairo(
+                  fontSize: isMobile ? 14 : 15,
+                  color: Colors.grey.shade700,
+                ),
+              ),
+              const SizedBox(height: 10),
+              TextField(
+                controller: controller,
+                maxLines: 3,
+                decoration: InputDecoration(
+                  hintText: 'أدخل سبب الرفض...',
+                  hintStyle: GoogleFonts.cairo(color: Colors.grey.shade400),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  contentPadding: const EdgeInsets.all(12),
+                ),
+                style: GoogleFonts.cairo(fontSize: isMobile ? 14 : 15),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(null),
+              child: Text('إلغاء', style: GoogleFonts.cairo(color: Colors.grey)),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                final notes = controller.text.trim();
+                Navigator.of(ctx).pop(notes.isEmpty ? '' : notes);
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.red.shade600,
+                foregroundColor: Colors.white,
+              ),
+              child: Text('تأكيد الرفض', style: GoogleFonts.cairo(fontWeight: FontWeight.bold)),
+            ),
+          ],
+        );
+      },
+    );
+
+    // null means user cancelled
+    if (rejectionNotes == null || !context.mounted) return;
+
+    try {
+      await provider.rejectLineHandover(
+        lineNumber: line.number,
+        handoverId: handover.handoverId,
+        notes: rejectionNotes.isEmpty ? null : rejectionNotes,
+      );
+
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'تم رفض التسليم وسيتم مراجعته من قبل الإدارة',
+              style: GoogleFonts.cairo(),
+            ),
+            backgroundColor: Colors.orange,
+          ),
+        );
+      }
+    } on ApiException catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(e.displayMessage, style: GoogleFonts.cairo()),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
   }
 }
