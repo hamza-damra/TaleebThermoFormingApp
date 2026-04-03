@@ -23,6 +23,7 @@ class _PalletizingScreenState extends State<PalletizingScreen>
   late Timer _timer;
   String _currentDateTime = '';
   TabController? _tabController;
+  int _activeTabIndex = 0;
 
   @override
   void initState() {
@@ -32,22 +33,26 @@ class _PalletizingScreenState extends State<PalletizingScreen>
       _updateDateTime();
     });
     _tabController = TabController(length: 2, vsync: this);
-    _tabController!.addListener(_handleTabChange);
+    _tabController!.animation!.addListener(_handleTabAnimation);
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       final palletizingProvider = context.read<PalletizingProvider>();
       await palletizingProvider.loadBootstrap();
     });
   }
 
-  void _handleTabChange() {
-    if (_tabController!.indexIsChanging) {
-      setState(() {});
+  void _handleTabAnimation() {
+    final newIndex = (_tabController!.animation!.value).round();
+    if (newIndex != _activeTabIndex) {
+      setState(() {
+        _activeTabIndex = newIndex;
+      });
     }
   }
 
   @override
   void dispose() {
     _timer.cancel();
+    _tabController?.animation?.removeListener(_handleTabAnimation);
     _tabController?.dispose();
     super.dispose();
   }
@@ -97,7 +102,7 @@ class _PalletizingScreenState extends State<PalletizingScreen>
 
   PreferredSizeWidget _buildAppBar(bool useTabs) {
     if (useTabs) {
-      final activeColor = _tabController?.index == 1
+      final activeColor = _activeTabIndex == 1
           ? ProductionLine.line2.color
           : ProductionLine.line1.color;
 

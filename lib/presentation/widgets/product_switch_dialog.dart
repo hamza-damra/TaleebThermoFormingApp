@@ -65,9 +65,10 @@ class _ProductSwitchDialogState extends State<ProductSwitchDialog> {
         width: dialogWidth,
         constraints: BoxConstraints(maxWidth: dialogWidth),
         padding: EdgeInsets.all(isMobile ? 20 : 28),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
             // Icon
             Container(
               padding: EdgeInsets.all(isMobile ? 14 : 18),
@@ -280,7 +281,8 @@ class _ProductSwitchDialogState extends State<ProductSwitchDialog> {
                 ),
               ],
             ),
-          ],
+            ],
+          ),
         ),
       ),
     );

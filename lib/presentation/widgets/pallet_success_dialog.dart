@@ -99,7 +99,7 @@ class _PalletSuccessDialogState extends State<PalletSuccessDialog> {
               _buildInfoRow('اللون', widget.pallet.productType.color),
               _buildInfoRow(
                 'الكمية',
-                '${widget.pallet.quantity} ${widget.pallet.productType.packageUnitDisplayName}',
+                '${widget.pallet.productType.packageQuantity} ${widget.pallet.productType.packageUnitDisplayName}',
               ),
               _buildInfoRow('خط الإنتاج', widget.pallet.productionLine.name),
               _buildInfoRow('المشغل', widget.pallet.operator.name),

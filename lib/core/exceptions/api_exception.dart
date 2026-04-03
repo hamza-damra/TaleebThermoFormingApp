@@ -80,16 +80,6 @@ class ApiException implements Exception {
         return 'هذا الحساب غير مصرح له';
       case 'ROLE_NOT_ALLOWED':
         return 'ليس لديك صلاحية استخدام هذا التطبيق';
-      case 'PENDING_HANDOVER_EXISTS':
-        return 'يوجد تسليم معلق بالفعل';
-      case 'HANDOVER_NOT_FOUND':
-        return 'تسليم المناوبة غير موجود';
-      case 'HANDOVER_ALREADY_RESOLVED':
-        return 'تم معالجة تسليم المناوبة مسبقاً';
-      case 'NO_PENDING_HANDOVER':
-        return 'لا يوجد تسليم مناوبة معلق';
-      case 'HANDOVER_DUPLICATE_LINE':
-        return 'لا يمكن إضافة أكثر من عنصر لنفس خط الإنتاج';
       case 'SHIFT_PROFILE_NOT_FOUND':
         return 'لم يتم العثور على جدول المناوبات';
       case 'OPERATOR_PIN_INVALID':

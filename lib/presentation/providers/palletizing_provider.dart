@@ -380,6 +380,7 @@ class PalletizingProvider extends ChangeNotifier {
       notifyListeners();
       return false;
     } catch (e) {
+      debugPrint('ProductSwitch error (line $lineNumber): $e');
       _lineErrors[lineNumber] = 'فشل في تبديل المنتج';
       _lineSwitchingProduct[lineNumber] = false;
       notifyListeners();

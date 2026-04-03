@@ -24,13 +24,14 @@ class CreatePalletDialog extends StatefulWidget {
 
 class _CreatePalletDialogState extends State<CreatePalletDialog> {
   late ProductType? _selectedProductType;
-  int _quantity = 20;
+  late int _quantity;
   late TextEditingController _quantityController;
 
   @override
   void initState() {
     super.initState();
     _selectedProductType = widget.initialProductType;
+    _quantity = _selectedProductType?.packageQuantity ?? 20;
     _quantityController = TextEditingController(text: '$_quantity');
   }
 
@@ -139,6 +140,8 @@ class _CreatePalletDialogState extends State<CreatePalletDialog> {
             if (selected != null) {
               setState(() {
                 _selectedProductType = selected;
+                _quantity = selected.packageQuantity;
+                _quantityController.text = '$_quantity';
               });
             }
           },

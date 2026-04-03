@@ -162,14 +162,21 @@ class PalletizingRepositoryImpl implements PalletizingRepository {
     required int previousProductTypeId,
     required int looseCount,
   }) async {
-    return await _apiClient.requestList<SessionTableRow>(
+    return await _apiClient.request<List<SessionTableRow>>(
       path: '/palletizing-line/lines/$lineId/product-switch',
       method: 'POST',
       data: {
         'previousProductTypeId': previousProductTypeId,
         'loosePackageCount': looseCount,
       },
-      itemParser: (json) => SessionTableRowModel.fromJson(json),
+      parser: (json) {
+        final data = json['data'] as Map<String, dynamic>;
+        final sessionTableJson = data['sessionTable'] as List<dynamic>? ?? [];
+        return sessionTableJson
+            .map((item) =>
+                SessionTableRowModel.fromJson(item as Map<String, dynamic>))
+            .toList();
+      },
     );
   }
 
