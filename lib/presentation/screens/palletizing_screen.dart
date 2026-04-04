@@ -254,7 +254,7 @@ class _PalletizingScreenState extends State<PalletizingScreen>
   }
 
   Widget _buildBody(PalletizingProvider provider, bool isMobile) {
-    if (provider.isLoading) {
+    if (provider.isLoading || provider.state == PalletizingState.idle) {
       return _buildLoadingShimmer(isMobile);
     }
 

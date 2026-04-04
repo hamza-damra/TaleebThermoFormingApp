@@ -160,6 +160,26 @@ class PalletizingProvider extends ChangeNotifier {
         }
       }
 
+      // Fetch full handover details for lines in review mode.
+      // Bootstrap only contains a condensed LineHandoverSummary that lacks
+      // incompletePallet and looseBalances — the review screen needs the
+      // full LineHandoverResponse from GET /handover/pending.
+      for (final lineState in bootstrap.lines) {
+        if (lineState.lineUiMode == 'PENDING_HANDOVER_REVIEW') {
+          try {
+            final fullHandover =
+                await _repository.getLineHandover(lineState.lineId);
+            if (fullHandover != null) {
+              _pendingHandovers[lineState.lineNumber] = fullHandover;
+            }
+          } catch (e) {
+            debugPrint(
+              'Failed to fetch full handover details for line ${lineState.lineNumber}: $e',
+            );
+          }
+        }
+      }
+
       _state = PalletizingState.loaded;
     } on ApiException catch (e) {
       _errorMessage = e.displayMessage;

@@ -31,7 +31,7 @@ class MyApp extends StatelessWidget {
         ),
       ],
       child: MaterialApp(
-        title: 'Taleeb ThermoForming',
+        title: 'مصنع طليب',
         debugShowCheckedModeBanner: false,
         theme: AppTheme.lightTheme,
         locale: const Locale('ar'),
@@ -86,7 +86,12 @@ class _DeviceKeyWrapperState extends State<DeviceKeyWrapper> {
   @override
   Widget build(BuildContext context) {
     if (_checking) {
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+      return Scaffold(
+        backgroundColor: Colors.white,
+        body: Center(
+          child: Image.asset('assets/images/icon.jpg', width: 200, height: 200),
+        ),
+      );
     }
 
     if (!_hasDeviceKey) {
