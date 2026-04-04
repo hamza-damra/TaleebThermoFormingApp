@@ -1,10 +1,13 @@
 import 'package:flutter/foundation.dart';
 
 import '../../core/exceptions/api_exception.dart';
+import '../../domain/entities/complete_incomplete_pallet_response.dart';
 import '../../domain/entities/line_authorization_state.dart';
 import '../../domain/entities/line_handover_info.dart';
+import '../../domain/entities/open_items_response.dart';
 import '../../domain/entities/operator.dart';
 import '../../domain/entities/pallet_create_response.dart';
+import '../../domain/entities/produce_pallet_from_loose_response.dart';
 import '../../domain/entities/product_type.dart';
 import '../../domain/entities/production_line.dart';
 import '../../domain/entities/session_table_row.dart';
@@ -39,6 +42,8 @@ class PalletizingProvider extends ChangeNotifier {
   final Map<int, bool> _canInitiateHandovers = {};
   final Map<int, bool> _canConfirmHandovers = {};
   final Map<int, bool> _canRejectHandovers = {};
+  final Map<int, OpenItemsResponse?> _openItems = {};
+  final Map<int, bool> _openItemsLoading = {};
 
   // ── Global getters ──
   PalletizingState get state => _state;
@@ -95,6 +100,11 @@ class PalletizingProvider extends ChangeNotifier {
 
   bool canRejectHandover(int lineNumber) =>
       _canRejectHandovers[lineNumber] ?? false;
+
+  OpenItemsResponse? getOpenItems(int lineNumber) => _openItems[lineNumber];
+
+  bool isOpenItemsLoading(int lineNumber) =>
+      _openItemsLoading[lineNumber] ?? false;
 
   bool isLineBlocked(int lineNumber) {
     final uiMode = _lineUiModes[lineNumber];
@@ -540,6 +550,88 @@ class PalletizingProvider extends ChangeNotifier {
       // Refresh line state after handover rejection
       await _refreshLineStateFromBackend(lineNumber, lineId);
       notifyListeners();
+    } on ApiException catch (e) {
+      _lineErrors[lineNumber] = e.displayMessage;
+      notifyListeners();
+      rethrow;
+    }
+  }
+
+  // ── Open Items ──
+
+  Future<void> fetchOpenItems(int lineNumber) async {
+    final lineId = getLineIdForNumber(lineNumber);
+    if (lineId == null) return;
+
+    _openItemsLoading[lineNumber] = true;
+    notifyListeners();
+
+    try {
+      final result = await _repository.getOpenItems(lineId);
+      _openItems[lineNumber] = result;
+    } on ApiException catch (e) {
+      _lineErrors[lineNumber] = e.displayMessage;
+      debugPrint('fetchOpenItems error: ${e.code} - ${e.message}');
+    } catch (e) {
+      _lineErrors[lineNumber] = 'فشل في تحميل العناصر المفتوحة';
+      debugPrint('fetchOpenItems unexpected error: $e');
+    }
+
+    _openItemsLoading[lineNumber] = false;
+    notifyListeners();
+  }
+
+  Future<ProducePalletFromLooseResponse?> producePalletFromLoose({
+    required int lineNumber,
+    required int productTypeId,
+    required int looseQuantityToUse,
+    int freshQuantityToAdd = 0,
+  }) async {
+    final lineId = getLineIdForNumber(lineNumber);
+    if (lineId == null) return null;
+
+    try {
+      final result = await _repository.producePalletFromLoose(
+        lineId: lineId,
+        productTypeId: productTypeId,
+        looseQuantityToUse: looseQuantityToUse,
+        freshQuantityToAdd: freshQuantityToAdd,
+      );
+
+      // Refresh open items and line state
+      await Future.wait([
+        fetchOpenItems(lineNumber),
+        _refreshLineStateFromBackend(lineNumber, lineId),
+      ]);
+      notifyListeners();
+      return result;
+    } on ApiException catch (e) {
+      _lineErrors[lineNumber] = e.displayMessage;
+      notifyListeners();
+      rethrow;
+    }
+  }
+
+  Future<CompleteIncompletePalletResponse?> completeIncompletePallet({
+    required int lineNumber,
+    int additionalFreshQuantity = 0,
+  }) async {
+    final lineId = getLineIdForNumber(lineNumber);
+    if (lineId == null) return null;
+
+    try {
+      final result = await _repository.completeIncompletePallet(
+        lineId: lineId,
+        additionalFreshQuantity: additionalFreshQuantity,
+      );
+
+      // Refresh open items and line state
+      await Future.wait([
+        fetchOpenItems(lineNumber),
+        _refreshLineStateFromBackend(lineNumber, lineId),
+      ]);
+      notifyListeners();
+      return result;
     } on ApiException catch (e) {
       _lineErrors[lineNumber] = e.displayMessage;
       notifyListeners();

@@ -16,6 +16,7 @@ import 'pallet_success_dialog.dart';
 import 'product_switch_dialog.dart';
 import 'product_type_image.dart';
 import 'searchable_picker_dialog.dart';
+import 'open_items_screen.dart';
 import 'session_table_widget.dart';
 
 class ProductionLineSection extends StatelessWidget {
@@ -73,6 +74,12 @@ class ProductionLineSection extends StatelessWidget {
                                 ],
                                 _buildFormCard(context),
                                 SizedBox(height: isMobile ? 20 : 28),
+                                // Open Items button — visible when authorized and not blocked
+                                if (provider.isLineAuthorized(line.number) &&
+                                    !provider.isLineBlocked(line.number)) ...[
+                                  _buildOpenItemsButton(context),
+                                  SizedBox(height: isMobile ? 12 : 16),
+                                ],
                                 // Visible "تسليم مناوبة" button when canInitiateHandover is true
                                 if (provider.canInitiateHandover(line.number)) ...[
                                   _buildHandoverButton(context),
@@ -417,6 +424,33 @@ class ProductionLineSection extends StatelessWidget {
     );
   }
 
+  Widget _buildOpenItemsButton(BuildContext context) {
+    final isMobile = ResponsiveHelper.isMobile(context);
+
+    return SizedBox(
+      width: double.infinity,
+      child: OutlinedButton.icon(
+        onPressed: () => OpenItemsScreen.show(context: context, line: line),
+        style: OutlinedButton.styleFrom(
+          foregroundColor: line.color,
+          side: BorderSide(color: line.color, width: 1.5),
+          padding: EdgeInsets.symmetric(vertical: isMobile ? 14 : 18),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
+          ),
+        ),
+        icon: Icon(Icons.inventory_2_outlined, size: isMobile ? 20 : 22),
+        label: Text(
+          'العناصر المفتوحة',
+          style: GoogleFonts.cairo(
+            fontSize: isMobile ? 16 : 18,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildProductField(BuildContext context) {
     final provider = context.watch<PalletizingProvider>();
     final isMobile = ResponsiveHelper.isMobile(context);
@@ -446,7 +480,7 @@ class ProductionLineSection extends StatelessWidget {
             searchHint: 'ابحث عن المنتج...',
             items: provider.productTypes,
             selectedItem: selectedProductType,
-            displayTextExtractor: (pt) => pt.name,
+            displayTextExtractor: (pt) => pt.compactLabel,
             searchMatcher: (pt, query) {
               final queryLower = query.toLowerCase();
               return pt.name.toLowerCase().contains(queryLower) ||
@@ -476,7 +510,7 @@ class ProductionLineSection extends StatelessWidget {
             children: [
               Expanded(
                 child: Text(
-                  selectedProductType?.name ?? 'اختر نوع المنتج',
+                  selectedProductType?.compactLabel ?? 'اختر نوع المنتج',
                   style: GoogleFonts.cairo(
                     fontSize: isMobile ? 15 : 17,
                     fontWeight: FontWeight.w500,
@@ -706,41 +740,13 @@ class ProductionLineSection extends StatelessWidget {
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
                             Text(
-                              productType.name,
+                              productType.compactLabel,
                               style: GoogleFonts.cairo(
                                 fontSize: isMobile ? 20 : 24,
                                 fontWeight: FontWeight.bold,
                                 color: line.color,
                               ),
                               textAlign: TextAlign.center,
-                            ),
-                            SizedBox(height: isMobile ? 8 : 10),
-                            Text(
-                              productType.productName,
-                              style: GoogleFonts.cairo(
-                                fontSize: isMobile ? 15 : 17,
-                                fontWeight: FontWeight.w600,
-                                color: Colors.black87,
-                              ),
-                              textAlign: TextAlign.center,
-                            ),
-                            SizedBox(height: isMobile ? 12 : 16),
-                            Wrap(
-                              alignment: WrapAlignment.center,
-                              spacing: 8,
-                              runSpacing: 8,
-                              children: [
-                                _buildProductChip(
-                                  Icons.palette_outlined,
-                                  productType.color,
-                                  isMobile,
-                                ),
-                                _buildProductChip(
-                                  Icons.inventory_2_outlined,
-                                  '${productType.packageQuantity} ${productType.packageUnitDisplayName}',
-                                  isMobile,
-                                ),
-                              ],
                             ),
                           ],
                         ),
@@ -810,34 +816,6 @@ class ProductionLineSection extends StatelessWidget {
     );
   }
 
-  Widget _buildProductChip(IconData icon, String text, bool isMobile) {
-    return Container(
-      padding: EdgeInsets.symmetric(
-        horizontal: isMobile ? 12 : 16,
-        vertical: isMobile ? 6 : 8,
-      ),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.grey.shade200),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: isMobile ? 14 : 16, color: Colors.grey.shade600),
-          SizedBox(width: isMobile ? 4 : 6),
-          Text(
-            text,
-            style: GoogleFonts.cairo(
-              fontSize: isMobile ? 13 : 15,
-              color: Colors.grey.shade700,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 
   Widget _buildFullWidthProductImage(ProductType productType, bool isMobile) {
     if (productType.imageUrl == null || productType.imageUrl!.isEmpty) {

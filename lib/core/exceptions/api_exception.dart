@@ -102,6 +102,14 @@ class ApiException implements Exception {
         return 'تم معالجة هذا التسليم مسبقاً';
       case 'INVALID_LOOSE_BALANCE':
         return 'عدد العبوات الفالتة غير صحيح';
+      case 'INSUFFICIENT_LOOSE_BALANCE':
+        return 'الكمية الفالتة غير كافية';
+      case 'LOOSE_BALANCE_NOT_FOUND':
+        return 'لا يوجد رصيد فالت لهذا المنتج';
+      case 'INCOMPLETE_PALLET_NOT_FOUND':
+        return 'لا يوجد مشتاح ناقص معلق';
+      case 'INCOMPLETE_PALLET_ALREADY_RESOLVED':
+        return 'تم معالجة المشتاح الناقص مسبقاً';
       case 'INTERNAL_ERROR':
         return 'حدث خطأ في الخادم. حاول مرة أخرى';
       default:

@@ -126,7 +126,7 @@ class _CreatePalletDialogState extends State<CreatePalletDialog> {
               searchHint: 'ابحث عن المنتج...',
               items: widget.productTypes,
               selectedItem: _selectedProductType,
-              displayTextExtractor: (pt) => pt.name,
+              displayTextExtractor: (pt) => pt.compactLabel,
               searchMatcher: (pt, query) {
                 final queryLower = query.toLowerCase();
                 return pt.name.toLowerCase().contains(queryLower) ||
@@ -159,7 +159,7 @@ class _CreatePalletDialogState extends State<CreatePalletDialog> {
               children: [
                 Expanded(
                   child: Text(
-                    _selectedProductType?.name ?? 'اختر نوع المنتج',
+                    _selectedProductType?.compactLabel ?? 'اختر نوع المنتج',
                     style: GoogleFonts.cairo(
                       fontSize: fontSize,
                       color: _selectedProductType != null

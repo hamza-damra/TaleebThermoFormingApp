@@ -95,8 +95,7 @@ class _PalletSuccessDialogState extends State<PalletSuccessDialog> {
                 ),
               ],
               const SizedBox(height: 24),
-              _buildInfoRow('المنتج', widget.pallet.productType.productName),
-              _buildInfoRow('اللون', widget.pallet.productType.color),
+              _buildInfoRow('المنتج', widget.pallet.productType.compactLabel),
               _buildInfoRow(
                 'الكمية',
                 '${widget.pallet.quantity} ${widget.pallet.productType.packageUnitDisplayName}',

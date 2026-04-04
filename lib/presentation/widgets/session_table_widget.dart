@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 
 import '../../core/constants.dart';
 import '../../core/responsive.dart';
+import '../../domain/entities/product_type.dart';
 import '../../domain/entities/session_table_row.dart';
 
 class SessionTableWidget extends StatelessWidget {
@@ -172,7 +173,7 @@ class SessionTableWidget extends StatelessWidget {
                       )
                     : null,
                 children: [
-                  _buildCell(row.productTypeName, cellStyle, isMobile),
+                  _buildCell(ProductType.formatCompactName(row.productTypeName), cellStyle, isMobile),
                   _buildCell(
                     '${row.completedPalletCount}',
                     cellStyle,

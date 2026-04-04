@@ -421,7 +421,7 @@ class _HandoverCreationDialogState extends State<HandoverCreationDialog> {
                   searchHint: 'ابحث عن المنتج...',
                   items: widget.productTypes,
                   selectedItem: entry.productType,
-                  displayTextExtractor: (pt) => pt.name,
+                  displayTextExtractor: (pt) => pt.compactLabel,
                   searchMatcher: (pt, query) {
                     final queryLower = query.toLowerCase();
                     return pt.name.toLowerCase().contains(queryLower) ||
@@ -453,7 +453,7 @@ class _HandoverCreationDialogState extends State<HandoverCreationDialog> {
                   children: [
                     Expanded(
                       child: Text(
-                        entry.productType?.name ?? 'اختر نوع المنتج',
+                        entry.productType?.compactLabel ?? 'اختر نوع المنتج',
                         style: GoogleFonts.cairo(
                           fontSize: fontSize,
                           color: entry.productType != null
@@ -566,7 +566,7 @@ class _HandoverCreationDialogState extends State<HandoverCreationDialog> {
               searchHint: 'ابحث عن المنتج...',
               items: widget.productTypes,
               selectedItem: _selectedProductType,
-              displayTextExtractor: (pt) => pt.name,
+              displayTextExtractor: (pt) => pt.compactLabel,
               searchMatcher: (pt, query) {
                 final queryLower = query.toLowerCase();
                 return pt.name.toLowerCase().contains(queryLower) ||
@@ -595,7 +595,7 @@ class _HandoverCreationDialogState extends State<HandoverCreationDialog> {
               children: [
                 Expanded(
                   child: Text(
-                    _selectedProductType?.name ?? 'اختر نوع المنتج',
+                    _selectedProductType?.compactLabel ?? 'اختر نوع المنتج',
                     style: GoogleFonts.cairo(
                       fontSize: fontSize,
                       color: _selectedProductType != null

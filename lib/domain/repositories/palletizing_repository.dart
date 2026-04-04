@@ -1,8 +1,11 @@
 import '../entities/bootstrap_response.dart';
+import '../entities/complete_incomplete_pallet_response.dart';
 import '../entities/line_authorization_state.dart';
 import '../entities/line_handover_info.dart';
+import '../entities/open_items_response.dart';
 import '../entities/pallet_create_response.dart';
 import '../entities/print_attempt_result.dart';
+import '../entities/produce_pallet_from_loose_response.dart';
 import '../entities/session_table_row.dart';
 
 abstract class PalletizingRepository {
@@ -66,5 +69,22 @@ abstract class PalletizingRepository {
     required int lineId,
     required int handoverId,
     String? notes,
+  });
+
+  /// GET /palletizing-line/lines/{lineId}/open-items
+  Future<OpenItemsResponse> getOpenItems(int lineId);
+
+  /// POST /palletizing-line/lines/{lineId}/loose-balances/produce-pallet
+  Future<ProducePalletFromLooseResponse> producePalletFromLoose({
+    required int lineId,
+    required int productTypeId,
+    required int looseQuantityToUse,
+    int freshQuantityToAdd,
+  });
+
+  /// POST /palletizing-line/lines/{lineId}/incomplete-pallet/complete
+  Future<CompleteIncompletePalletResponse> completeIncompletePallet({
+    required int lineId,
+    int additionalFreshQuantity,
   });
 }

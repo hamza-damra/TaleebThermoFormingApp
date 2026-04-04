@@ -4,6 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../core/constants.dart';
 import '../../core/responsive.dart';
 import '../../domain/entities/line_handover_info.dart';
+import '../../domain/entities/product_type.dart';
 
 class LineHandoverCard extends StatelessWidget {
   final ProductionLine line;
@@ -131,7 +132,7 @@ class LineHandoverCard extends StatelessWidget {
                     children: [
                       _buildInfoRow(
                         'المنتج',
-                        handover.incompletePallet!.productTypeName,
+                        ProductType.formatCompactName(handover.incompletePallet!.productTypeName),
                         isMobile,
                       ),
                       _buildInfoRow(
@@ -155,7 +156,7 @@ class LineHandoverCard extends StatelessWidget {
                     children: [
                       for (final lb in handover.looseBalances)
                         _buildInfoRow(
-                          lb.productTypeName,
+                          ProductType.formatCompactName(lb.productTypeName),
                           '${lb.loosePackageCount} عبوة',
                           isMobile,
                         ),

@@ -106,7 +106,7 @@ class _ProductSwitchDialogState extends State<ProductSwitchDialog> {
                 children: [
                   const TextSpan(text: 'سيتم التبديل من '),
                   TextSpan(
-                    text: widget.previousProduct.name,
+                    text: widget.previousProduct.compactLabel,
                     style: GoogleFonts.cairo(
                       fontWeight: FontWeight.bold,
                       color: widget.themeColor,
@@ -114,7 +114,7 @@ class _ProductSwitchDialogState extends State<ProductSwitchDialog> {
                   ),
                   const TextSpan(text: ' إلى '),
                   TextSpan(
-                    text: widget.newProduct.name,
+                    text: widget.newProduct.compactLabel,
                     style: GoogleFonts.cairo(
                       fontWeight: FontWeight.bold,
                       color: widget.themeColor,

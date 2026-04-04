@@ -23,6 +23,18 @@ class ProductType {
     this.imageUrl,
   }) : displayLabel = displayLabel ?? '$productName - $color ($packageQuantity $packageUnitDisplayName)';
 
+  /// Short compact label for UI display: e.g. "TT-20 Black 30"
+  String get compactLabel => '$productName $packageQuantity';
+
+  /// Strips verbose slash-separated metadata from a raw product type name string.
+  /// e.g. "TT-20 Black 500 / أسود / 30 كرتونة" → "TT-20 Black 500"
+  static String formatCompactName(String verboseName) {
+    if (verboseName.contains('/')) {
+      return verboseName.split('/').first.trim();
+    }
+    return verboseName;
+  }
+
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
