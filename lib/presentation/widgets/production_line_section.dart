@@ -53,7 +53,13 @@ class ProductionLineSection extends StatelessWidget {
           child: SafeArea(
             top: false,
             child: isHandoverReview
-                ? _buildHandoverReviewLayout(context, provider, isMobile, horizontalPadding, bottomPadding)
+                ? _buildHandoverReviewLayout(
+                    context,
+                    provider,
+                    isMobile,
+                    horizontalPadding,
+                    bottomPadding,
+                  )
                 : Column(
                     children: [
                       // Scrollable content area
@@ -72,19 +78,14 @@ class ProductionLineSection extends StatelessWidget {
                                   _buildHeader(context),
                                   const SizedBox(height: 32),
                                 ],
+                                // Top action buttons row (غير مكتمل + تسليم مناوبة)
+                                _buildTopActionButtons(
+                                  context,
+                                  provider,
+                                  isMobile,
+                                ),
                                 _buildFormCard(context),
                                 SizedBox(height: isMobile ? 20 : 28),
-                                // Open Items button — visible when authorized and not blocked
-                                if (provider.isLineAuthorized(line.number) &&
-                                    !provider.isLineBlocked(line.number)) ...[
-                                  _buildOpenItemsButton(context),
-                                  SizedBox(height: isMobile ? 12 : 16),
-                                ],
-                                // Visible "تسليم مناوبة" button when canInitiateHandover is true
-                                if (provider.canInitiateHandover(line.number)) ...[
-                                  _buildHandoverButton(context),
-                                  SizedBox(height: isMobile ? 20 : 28),
-                                ],
                                 // Pending handover card (from backend state)
                                 if (provider
                                         .getPendingHandover(line.number)
@@ -96,8 +97,10 @@ class ProductionLineSection extends StatelessWidget {
                                       line.number,
                                     )!,
                                     showResolveActions: false,
-                                    onResolve: () => _handleConfirmHandover(context),
-                                    onReject: () => _handleRejectHandover(context),
+                                    onResolve: () =>
+                                        _handleConfirmHandover(context),
+                                    onReject: () =>
+                                        _handleRejectHandover(context),
                                   ),
                                   SizedBox(height: isMobile ? 20 : 28),
                                 ],
@@ -171,7 +174,10 @@ class ProductionLineSection extends StatelessWidget {
                     padding: EdgeInsets.all(isMobile ? 16 : 20),
                     decoration: BoxDecoration(
                       gradient: LinearGradient(
-                        colors: [Colors.orange.shade600, Colors.orange.shade400],
+                        colors: [
+                          Colors.orange.shade600,
+                          Colors.orange.shade400,
+                        ],
                         begin: Alignment.topRight,
                         end: Alignment.bottomLeft,
                       ),
@@ -396,57 +402,76 @@ class ProductionLineSection extends StatelessWidget {
     );
   }
 
-  Widget _buildHandoverButton(BuildContext context) {
-    final isMobile = ResponsiveHelper.isMobile(context);
+  Widget _buildTopActionButtons(
+    BuildContext context,
+    PalletizingProvider provider,
+    bool isMobile,
+  ) {
+    final showOpenItems =
+        provider.isLineAuthorized(line.number) &&
+        !provider.isLineBlocked(line.number);
+    final showHandover = provider.canInitiateHandover(line.number);
 
-    return SizedBox(
-      width: double.infinity,
-      child: ElevatedButton.icon(
-        onPressed: () => _handleCreateHandover(context),
-        style: ElevatedButton.styleFrom(
-          backgroundColor: Colors.orange.shade600,
-          foregroundColor: Colors.white,
-          padding: EdgeInsets.symmetric(vertical: isMobile ? 14 : 18),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(14),
-          ),
-          elevation: 0,
-        ),
-        icon: const Icon(Icons.swap_horiz_rounded),
-        label: Text(
-          'تسليم مناوبة',
-          style: GoogleFonts.cairo(
-            fontSize: isMobile ? 16 : 18,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-      ),
-    );
-  }
+    if (!showOpenItems && !showHandover) return const SizedBox.shrink();
 
-  Widget _buildOpenItemsButton(BuildContext context) {
-    final isMobile = ResponsiveHelper.isMobile(context);
-
-    return SizedBox(
-      width: double.infinity,
-      child: OutlinedButton.icon(
-        onPressed: () => OpenItemsScreen.show(context: context, line: line),
-        style: OutlinedButton.styleFrom(
-          foregroundColor: line.color,
-          side: BorderSide(color: line.color, width: 1.5),
-          padding: EdgeInsets.symmetric(vertical: isMobile ? 14 : 18),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(14),
-          ),
-        ),
-        icon: Icon(Icons.inventory_2_outlined, size: isMobile ? 20 : 22),
-        label: Text(
-          'العناصر المفتوحة',
-          style: GoogleFonts.cairo(
-            fontSize: isMobile ? 16 : 18,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
+    return Padding(
+      padding: EdgeInsets.only(bottom: isMobile ? 12 : 16),
+      child: Row(
+        children: [
+          // غير مكتمل — RIGHT side (first in RTL Row = right visually)
+          if (showOpenItems)
+            Expanded(
+              child: OutlinedButton.icon(
+                onPressed: () =>
+                    OpenItemsScreen.show(context: context, line: line),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: line.color,
+                  side: BorderSide(color: line.color, width: 1.5),
+                  padding: EdgeInsets.symmetric(vertical: isMobile ? 12 : 16),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                ),
+                icon: Icon(
+                  Icons.inventory_2_outlined,
+                  size: isMobile ? 18 : 20,
+                ),
+                label: Text(
+                  'غير مكتمل',
+                  style: GoogleFonts.cairo(
+                    fontSize: isMobile ? 14 : 16,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ),
+          if (showOpenItems && showHandover)
+            SizedBox(width: isMobile ? 10 : 14),
+          // تسليم مناوبة — LEFT side (second in RTL Row = left visually)
+          if (showHandover)
+            Expanded(
+              child: ElevatedButton.icon(
+                onPressed: () => _handleCreateHandover(context),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.orange.shade600,
+                  foregroundColor: Colors.white,
+                  padding: EdgeInsets.symmetric(vertical: isMobile ? 12 : 16),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  elevation: 0,
+                ),
+                icon: Icon(Icons.swap_horiz_rounded, size: isMobile ? 18 : 20),
+                label: Text(
+                  'تسليم مناوبة',
+                  style: GoogleFonts.cairo(
+                    fontSize: isMobile ? 14 : 16,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ),
+        ],
       ),
     );
   }
@@ -816,7 +841,6 @@ class ProductionLineSection extends StatelessWidget {
     );
   }
 
-
   Widget _buildFullWidthProductImage(ProductType productType, bool isMobile) {
     if (productType.imageUrl == null || productType.imageUrl!.isEmpty) {
       return const SizedBox.shrink();
@@ -887,7 +911,7 @@ class ProductionLineSection extends StatelessWidget {
                 ),
                 SizedBox(width: isMobile ? 8 : 12),
                 Text(
-                  'إنشاء مشتاح جديد',
+                  'إنشاء طبلية جديدة',
                   style: GoogleFonts.cairo(
                     fontSize: isMobile ? 18 : 21,
                     fontWeight: FontWeight.bold,
@@ -941,7 +965,7 @@ class ProductionLineSection extends StatelessWidget {
         if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('فشل في إنشاء المشتاح', style: GoogleFonts.cairo()),
+              content: Text('فشل في إنشاء الطبلية', style: GoogleFonts.cairo()),
               backgroundColor: Colors.red,
             ),
           );
@@ -977,7 +1001,9 @@ class ProductionLineSection extends StatelessWidget {
         line.number,
         incompletePalletProductTypeId: result.incompletePalletProductTypeId,
         incompletePalletQuantity: result.incompletePalletQuantity,
-        looseBalances: result.looseBalances.isNotEmpty ? result.looseBalances : null,
+        looseBalances: result.looseBalances.isNotEmpty
+            ? result.looseBalances
+            : null,
         notes: result.notes,
       );
       if (context.mounted) {
@@ -1086,7 +1112,10 @@ class ProductionLineSection extends StatelessWidget {
           actions: [
             TextButton(
               onPressed: () => Navigator.of(ctx).pop(null),
-              child: Text('إلغاء', style: GoogleFonts.cairo(color: Colors.grey)),
+              child: Text(
+                'إلغاء',
+                style: GoogleFonts.cairo(color: Colors.grey),
+              ),
             ),
             ElevatedButton(
               onPressed: () {
@@ -1097,7 +1126,10 @@ class ProductionLineSection extends StatelessWidget {
                 backgroundColor: Colors.red.shade600,
                 foregroundColor: Colors.white,
               ),
-              child: Text('تأكيد الرفض', style: GoogleFonts.cairo(fontWeight: FontWeight.bold)),
+              child: Text(
+                'تأكيد الرفض',
+                style: GoogleFonts.cairo(fontWeight: FontWeight.bold),
+              ),
             ),
           ],
         );

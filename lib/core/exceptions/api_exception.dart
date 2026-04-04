@@ -65,7 +65,7 @@ class ApiException implements Exception {
       case 'PRODUCTION_LINE_INACTIVE':
         return 'خط الإنتاج غير نشط';
       case 'PALLET_NOT_FOUND':
-        return 'المشتاح غير موجود';
+        return 'الطبلية غير موجودة';
       case 'SERIAL_GENERATION_FAILED':
         return 'فشل في توليد الرقم التسلسلي';
       case 'VALIDATION_ERROR':
@@ -93,7 +93,7 @@ class ApiException implements Exception {
       case 'LINE_BLOCKED_BY_PENDING_HANDOVER':
         return 'الخط محظور بسبب تسليم معلق';
       case 'PALLET_LINE_MISMATCH':
-        return 'المشتاح لا ينتمي لهذا الخط';
+        return 'الطبلية لا تنتمي لهذا الخط';
       case 'PENDING_LINE_HANDOVER_EXISTS':
         return 'يوجد تسليم معلق بالفعل لهذا الخط';
       case 'LINE_HANDOVER_NOT_FOUND':
@@ -107,9 +107,9 @@ class ApiException implements Exception {
       case 'LOOSE_BALANCE_NOT_FOUND':
         return 'لا يوجد رصيد فالت لهذا المنتج';
       case 'INCOMPLETE_PALLET_NOT_FOUND':
-        return 'لا يوجد مشتاح ناقص معلق';
+        return 'لا يوجد طبلية ناقصة معلقة';
       case 'INCOMPLETE_PALLET_ALREADY_RESOLVED':
-        return 'تم معالجة المشتاح الناقص مسبقاً';
+        return 'تم معالجة الطبلية الناقصة مسبقاً';
       case 'INTERNAL_ERROR':
         return 'حدث خطأ في الخادم. حاول مرة أخرى';
       default:

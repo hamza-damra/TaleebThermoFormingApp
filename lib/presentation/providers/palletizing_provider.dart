@@ -436,7 +436,7 @@ class PalletizingProvider extends ChangeNotifier {
       rethrow;
     } catch (e) {
       _lineCreating[lineNumber] = false;
-      _lineErrors[lineNumber] = 'فشل في إنشاء المشتاح';
+      _lineErrors[lineNumber] = 'فشل في إنشاء الطبلية';
       debugPrint('PalletizingProvider createPallet error: $e');
       notifyListeners();
       rethrow;
@@ -573,7 +573,7 @@ class PalletizingProvider extends ChangeNotifier {
       _lineErrors[lineNumber] = e.displayMessage;
       debugPrint('fetchOpenItems error: ${e.code} - ${e.message}');
     } catch (e) {
-      _lineErrors[lineNumber] = 'فشل في تحميل العناصر المفتوحة';
+      _lineErrors[lineNumber] = 'فشل في تحميل العناصر غير المكتملة';
       debugPrint('fetchOpenItems unexpected error: $e');
     }
 

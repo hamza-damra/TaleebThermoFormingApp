@@ -102,7 +102,7 @@ class _ProducePalletFromLooseDialogState
 
               // Title
               Text(
-                'إنشاء مشتاح من الفالت',
+                'إنشاء طبلية من الفالت',
                 style: GoogleFonts.cairo(
                   fontSize: isMobile ? 20 : 24,
                   fontWeight: FontWeight.bold,
@@ -125,7 +125,9 @@ class _ProducePalletFromLooseDialogState
                 child: Column(
                   children: [
                     Text(
-                      ProductType.formatCompactName(widget.looseBalance.productTypeName),
+                      ProductType.formatCompactName(
+                        widget.looseBalance.productTypeName,
+                      ),
                       style: GoogleFonts.cairo(
                         fontSize: isMobile ? 16 : 18,
                         fontWeight: FontWeight.bold,
@@ -144,7 +146,7 @@ class _ProducePalletFromLooseDialogState
                         ),
                         SizedBox(width: isMobile ? 8 : 12),
                         _buildInfoChip(
-                          'حجم المشتاح',
+                          'حجم الطبلية',
                           '${widget.packageQuantity}',
                           isMobile,
                         ),
@@ -294,7 +296,7 @@ class _ProducePalletFromLooseDialogState
                         ),
                       ),
                       child: Text(
-                        'إنشاء المشتاح',
+                        'إنشاء الطبلية',
                         style: GoogleFonts.cairo(
                           fontSize: isMobile ? 16 : 18,
                           fontWeight: FontWeight.bold,
@@ -406,9 +408,7 @@ class _ProducePalletFromLooseDialogState
     final freshQty = _freshValue;
 
     if (looseQty <= 0) {
-      setState(
-        () => _validationError = 'يرجى إدخال عدد صحيح أكبر من صفر',
-      );
+      setState(() => _validationError = 'يرجى إدخال عدد صحيح أكبر من صفر');
       return;
     }
 
@@ -427,9 +427,8 @@ class _ProducePalletFromLooseDialogState
       return;
     }
 
-    Navigator.of(context).pop({
-      'looseQuantityToUse': looseQty,
-      'freshQuantityToAdd': freshQty,
-    });
+    Navigator.of(
+      context,
+    ).pop({'looseQuantityToUse': looseQty, 'freshQuantityToAdd': freshQty});
   }
 }

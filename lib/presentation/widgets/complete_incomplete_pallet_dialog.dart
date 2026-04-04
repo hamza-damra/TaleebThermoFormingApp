@@ -88,7 +88,7 @@ class _CompleteIncompletePalletDialogState
 
               // Title
               Text(
-                'إكمال المشتاح الناقص',
+                'إكمال الطبلية الناقصة',
                 style: GoogleFonts.cairo(
                   fontSize: isMobile ? 20 : 24,
                   fontWeight: FontWeight.bold,
@@ -111,7 +111,9 @@ class _CompleteIncompletePalletDialogState
                 child: Column(
                   children: [
                     Text(
-                      ProductType.formatCompactName(widget.incompletePallet.productTypeName),
+                      ProductType.formatCompactName(
+                        widget.incompletePallet.productTypeName,
+                      ),
                       style: GoogleFonts.cairo(
                         fontSize: isMobile ? 16 : 18,
                         fontWeight: FontWeight.bold,
@@ -150,7 +152,10 @@ class _CompleteIncompletePalletDialogState
                         ),
                       ),
                     ),
-                    if (widget.incompletePallet.receivedAtDisplay.isNotEmpty) ...[
+                    if (widget
+                        .incompletePallet
+                        .receivedAtDisplay
+                        .isNotEmpty) ...[
                       SizedBox(height: isMobile ? 4 : 6),
                       Text(
                         widget.incompletePallet.receivedAtDisplay,
@@ -213,9 +218,7 @@ class _CompleteIncompletePalletDialogState
                       controller: _freshController,
                       keyboardType: TextInputType.number,
                       textAlign: TextAlign.center,
-                      inputFormatters: [
-                        FilteringTextInputFormatter.digitsOnly,
-                      ],
+                      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                       style: GoogleFonts.cairo(
                         fontSize: isMobile ? 18 : 22,
                         fontWeight: FontWeight.bold,
@@ -223,8 +226,9 @@ class _CompleteIncompletePalletDialogState
                       ),
                       decoration: InputDecoration(
                         hintText: 'أدخل العدد',
-                        hintStyle:
-                            GoogleFonts.cairo(color: Colors.grey.shade400),
+                        hintStyle: GoogleFonts.cairo(
+                          color: Colors.grey.shade400,
+                        ),
                         filled: true,
                         fillColor: Colors.grey.shade50,
                         border: OutlineInputBorder(
@@ -351,7 +355,7 @@ class _CompleteIncompletePalletDialogState
                         ),
                       ),
                       child: Text(
-                        'إكمال المشتاح',
+                        'إكمال الطبلية',
                         style: GoogleFonts.cairo(
                           fontSize: isMobile ? 16 : 18,
                           fontWeight: FontWeight.bold,
@@ -375,8 +379,9 @@ class _CompleteIncompletePalletDialogState
     required bool isMobile,
     bool isHighlight = false,
   }) {
-    final selectedColor =
-        isHighlight ? Colors.purple.shade600 : widget.themeColor;
+    final selectedColor = isHighlight
+        ? Colors.purple.shade600
+        : widget.themeColor;
 
     return InkWell(
       onTap: onTap,
@@ -446,9 +451,7 @@ class _CompleteIncompletePalletDialogState
     if (_addFresh) {
       final freshQty = _freshValue;
       if (freshQty <= 0) {
-        setState(
-          () => _validationError = 'يرجى إدخال عدد صحيح أكبر من صفر',
-        );
+        setState(() => _validationError = 'يرجى إدخال عدد صحيح أكبر من صفر');
         return;
       }
       Navigator.of(context).pop(freshQty);

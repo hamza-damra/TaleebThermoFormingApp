@@ -50,7 +50,7 @@ class _CreatePalletDialogState extends State<CreatePalletDialog> {
 
     return AlertDialog(
       title: Text(
-        'إنشاء مشتاح جديد - ${widget.line.arabicLabel}',
+        'إنشاء طبلية جديدة - ${widget.line.arabicLabel}',
         style: GoogleFonts.cairo(
           fontWeight: FontWeight.bold,
           color: widget.line.color,
@@ -169,10 +169,7 @@ class _CreatePalletDialogState extends State<CreatePalletDialog> {
                     overflow: TextOverflow.ellipsis,
                   ),
                 ),
-                Icon(
-                  Icons.arrow_drop_down,
-                  color: Colors.grey.shade600,
-                ),
+                Icon(Icons.arrow_drop_down, color: Colors.grey.shade600),
               ],
             ),
           ),
@@ -272,9 +269,8 @@ class _CreatePalletDialogState extends State<CreatePalletDialog> {
   }
 
   void _handleConfirm() {
-    Navigator.of(context).pop({
-      'productType': _selectedProductType,
-      'quantity': _quantity,
-    });
+    Navigator.of(
+      context,
+    ).pop({'productType': _selectedProductType, 'quantity': _quantity});
   }
 }

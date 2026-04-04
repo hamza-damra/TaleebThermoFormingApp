@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 
-
 import '../../domain/entities/pallet_create_response.dart';
 import '../providers/palletizing_provider.dart';
 import '../providers/printing_provider.dart';
@@ -49,65 +48,73 @@ class _PalletSuccessDialogState extends State<PalletSuccessDialog> {
                   children: [
                     const SizedBox(height: 12),
                     _buildStatusIcon(),
-              const SizedBox(height: 16),
-              Text(
-                _printSuccess ? 'تمت الطباعة بنجاح' : 'تم إنشاء المشتاح بنجاح',
-                style: GoogleFonts.cairo(
-                  fontSize: isMobile ? 16 : 20,
-                  fontWeight: FontWeight.bold,
-                  color: _printSuccess ? Colors.green : widget.lineColor,
-                ),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 24),
-              _buildProductTypeImage(isMobile),
-              const SizedBox(height: 16),
-              if (_printError != null) ...[
-                const SizedBox(height: 16),
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: Colors.red.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(
-                      color: Colors.red.withValues(alpha: 0.3),
-                    ),
-                  ),
-                  child: Row(
-                    children: [
-                      const Icon(
-                        Icons.error_outline,
-                        color: Colors.red,
-                        size: 20,
+                    const SizedBox(height: 16),
+                    Text(
+                      _printSuccess
+                          ? 'تمت الطباعة بنجاح'
+                          : 'تم إنشاء الطبلية بنجاح',
+                      style: GoogleFonts.cairo(
+                        fontSize: isMobile ? 16 : 20,
+                        fontWeight: FontWeight.bold,
+                        color: _printSuccess ? Colors.green : widget.lineColor,
                       ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          _printError!,
-                          style: GoogleFonts.cairo(
-                            color: Colors.red.shade700,
-                            fontSize: isMobile ? 12 : 14,
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 24),
+                    _buildProductTypeImage(isMobile),
+                    const SizedBox(height: 16),
+                    if (_printError != null) ...[
+                      const SizedBox(height: 16),
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Colors.red.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(
+                            color: Colors.red.withValues(alpha: 0.3),
                           ),
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(
+                              Icons.error_outline,
+                              color: Colors.red,
+                              size: 20,
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                _printError!,
+                                style: GoogleFonts.cairo(
+                                  color: Colors.red.shade700,
+                                  fontSize: isMobile ? 12 : 14,
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     ],
-                  ),
-                ),
-              ],
-              const SizedBox(height: 24),
-              _buildInfoRow('المنتج', widget.pallet.productType.compactLabel),
-              _buildInfoRow(
-                'الكمية',
-                '${widget.pallet.quantity} ${widget.pallet.productType.packageUnitDisplayName}',
-              ),
-              _buildInfoRow('خط الإنتاج', widget.pallet.productionLine.name),
-              _buildInfoRow('المشغل', widget.pallet.operator.name),
-              _buildInfoRow(
-                'التاريخ',
-                widget.pallet.createdAtDisplay,
-                showDivider: false,
-              ),
-              _buildPrinterInfo(),
+                    const SizedBox(height: 24),
+                    _buildInfoRow(
+                      'المنتج',
+                      widget.pallet.productType.compactLabel,
+                    ),
+                    _buildInfoRow(
+                      'الكمية',
+                      '${widget.pallet.quantity} ${widget.pallet.productType.packageUnitDisplayName}',
+                    ),
+                    _buildInfoRow(
+                      'خط الإنتاج',
+                      widget.pallet.productionLine.name,
+                    ),
+                    _buildInfoRow('المشغل', widget.pallet.operator.name),
+                    _buildInfoRow(
+                      'التاريخ',
+                      widget.pallet.createdAtDisplay,
+                      showDivider: false,
+                    ),
+                    _buildPrinterInfo(),
                   ],
                 ),
               ),
@@ -248,10 +255,7 @@ class _PalletSuccessDialogState extends State<PalletSuccessDialog> {
               : const Icon(Icons.print, size: 28),
           label: Text(
             _printError != null ? 'إعادة المحاولة' : 'طباعة الملصق',
-            style: GoogleFonts.cairo(
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
-            ),
+            style: GoogleFonts.cairo(fontSize: 20, fontWeight: FontWeight.bold),
           ),
         ),
       ),

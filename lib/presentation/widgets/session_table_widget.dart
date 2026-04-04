@@ -10,11 +10,7 @@ class SessionTableWidget extends StatelessWidget {
   final ProductionLine line;
   final List<SessionTableRow> rows;
 
-  const SessionTableWidget({
-    super.key,
-    required this.line,
-    required this.rows,
-  });
+  const SessionTableWidget({super.key, required this.line, required this.rows});
 
   @override
   Widget build(BuildContext context) {
@@ -73,7 +69,7 @@ class SessionTableWidget extends StatelessWidget {
                 ),
                 SizedBox(width: isMobile ? 12 : 16),
                 Text(
-                  'ملخص الجلسة',
+                  'ملخص المناوبة',
                   style: GoogleFonts.cairo(
                     fontSize: isMobile ? 16 : 20,
                     fontWeight: FontWeight.bold,
@@ -147,8 +143,7 @@ class SessionTableWidget extends StatelessWidget {
             3: FlexColumnWidth(1.5),
           },
           border: TableBorder(
-            horizontalInside:
-                BorderSide(color: Colors.grey.shade200, width: 1),
+            horizontalInside: BorderSide(color: Colors.grey.shade200, width: 1),
             bottom: BorderSide(color: Colors.grey.shade200, width: 1),
           ),
           children: [
@@ -159,7 +154,7 @@ class SessionTableWidget extends StatelessWidget {
               ),
               children: [
                 _buildHeaderCell('نوع المنتج', headerStyle, isMobile),
-                _buildHeaderCell('المشاتيح', headerStyle, isMobile),
+                _buildHeaderCell('الطبليات', headerStyle, isMobile),
                 _buildHeaderCell('العبوات', headerStyle, isMobile),
                 _buildHeaderCell('الفالت', headerStyle, isMobile),
               ],
@@ -173,7 +168,11 @@ class SessionTableWidget extends StatelessWidget {
                       )
                     : null,
                 children: [
-                  _buildCell(ProductType.formatCompactName(row.productTypeName), cellStyle, isMobile),
+                  _buildCell(
+                    ProductType.formatCompactName(row.productTypeName),
+                    cellStyle,
+                    isMobile,
+                  ),
                   _buildCell(
                     '${row.completedPalletCount}',
                     cellStyle,
@@ -241,11 +240,7 @@ class SessionTableWidget extends StatelessWidget {
             )
           : Align(
               alignment: alignment,
-              child: Text(
-                text,
-                style: style,
-                overflow: TextOverflow.ellipsis,
-              ),
+              child: Text(text, style: style, overflow: TextOverflow.ellipsis),
             ),
     );
   }

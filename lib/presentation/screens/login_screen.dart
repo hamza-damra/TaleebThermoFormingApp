@@ -231,7 +231,7 @@ class _LoginScreenState extends State<LoginScreen> {
         ),
         const SizedBox(height: 16),
         Text(
-          'تكوين المشاتيح',
+          'تكوين طبليات',
           style: GoogleFonts.cairo(
             fontSize: 32,
             fontWeight: FontWeight.w900,

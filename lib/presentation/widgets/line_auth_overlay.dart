@@ -187,7 +187,9 @@ class _LineAuthOverlayState extends State<LineAuthOverlay> {
                           horizontal: 16,
                         ),
                       ),
-                      onSubmitted: isAuthorizing ? null : (_) => _handleSubmit(),
+                      onSubmitted: isAuthorizing
+                          ? null
+                          : (_) => _handleSubmit(),
                       onChanged: (_) {
                         // Clear error when user starts typing
                         if (error != null) {
@@ -239,8 +241,9 @@ class _LineAuthOverlayState extends State<LineAuthOverlay> {
                         style: ElevatedButton.styleFrom(
                           backgroundColor: widget.line.color,
                           foregroundColor: Colors.white,
-                          disabledBackgroundColor:
-                              widget.line.color.withValues(alpha: 0.5),
+                          disabledBackgroundColor: widget.line.color.withValues(
+                            alpha: 0.5,
+                          ),
                           padding: EdgeInsets.symmetric(
                             vertical: isMobile ? 16 : 20,
                           ),
@@ -327,17 +330,9 @@ class _LineAuthOverlayState extends State<LineAuthOverlay> {
               isMobile,
             ),
           if (handover.createdAtDisplay != null)
-            _buildSummaryRow(
-              'الوقت',
-              handover.createdAtDisplay!,
-              isMobile,
-            ),
+            _buildSummaryRow('الوقت', handover.createdAtDisplay!, isMobile),
           if (handover.hasIncompletePallet)
-            _buildSummaryRow(
-              'مشتاح ناقص',
-              'نعم',
-              isMobile,
-            ),
+            _buildSummaryRow('طبلية ناقصة', 'نعم', isMobile),
           if (handover.looseBalanceCount > 0)
             _buildSummaryRow(
               'أرصدة فرطة',
@@ -382,11 +377,11 @@ class _LineAuthOverlayState extends State<LineAuthOverlay> {
       case 'NONE':
         return 'تسليم نظيف';
       case 'INCOMPLETE_PALLET_ONLY':
-        return 'مشاتيح ناقصة فقط';
+        return 'طبليات ناقصة فقط';
       case 'LOOSE_BALANCES_ONLY':
         return 'فالت فقط';
       case 'BOTH':
-        return 'مشاتيح ناقصة وفالت';
+        return 'طبليات ناقصة وفالت';
       default:
         return type;
     }
@@ -400,10 +395,7 @@ class _LineAuthOverlayState extends State<LineAuthOverlay> {
       provider.clearLineAuthError(widget.line.number);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(
-            'يجب إدخال 4 أرقام',
-            style: GoogleFonts.cairo(),
-          ),
+          content: Text('يجب إدخال 4 أرقام', style: GoogleFonts.cairo()),
           backgroundColor: Colors.orange,
           duration: const Duration(seconds: 2),
         ),

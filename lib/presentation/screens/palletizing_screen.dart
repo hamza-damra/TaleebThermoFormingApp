@@ -109,7 +109,7 @@ class _PalletizingScreenState extends State<PalletizingScreen>
       return AppBar(
         backgroundColor: activeColor,
         title: Text(
-          'تكوين المشاتيح',
+          'تكوين طبليات',
           style: GoogleFonts.cairo(
             fontWeight: FontWeight.bold,
             fontSize: 18,
@@ -149,7 +149,7 @@ class _PalletizingScreenState extends State<PalletizingScreen>
                   ),
                   const SizedBox(width: 8),
                   Text(
-                    'خط 1',
+                    'ماكنة 1',
                     style: GoogleFonts.cairo(fontWeight: FontWeight.bold),
                   ),
                 ],
@@ -169,7 +169,7 @@ class _PalletizingScreenState extends State<PalletizingScreen>
                   ),
                   const SizedBox(width: 8),
                   Text(
-                    'خط 2',
+                    'ماكنة 2',
                     style: GoogleFonts.cairo(fontWeight: FontWeight.bold),
                   ),
                 ],
@@ -190,7 +190,7 @@ class _PalletizingScreenState extends State<PalletizingScreen>
         children: [
           Flexible(
             child: Text(
-              'تكوين المشاتيح',
+              'تكوين طبليات',
               style: GoogleFonts.cairo(
                 fontWeight: FontWeight.bold,
                 fontSize: titleFontSize,

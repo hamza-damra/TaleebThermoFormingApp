@@ -22,11 +22,9 @@ class OpenItemsScreen extends StatefulWidget {
     required BuildContext context,
     required ProductionLine line,
   }) {
-    return Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => OpenItemsScreen(line: line),
-      ),
-    );
+    return Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (_) => OpenItemsScreen(line: line)));
   }
 
   @override
@@ -53,7 +51,7 @@ class _OpenItemsScreenState extends State<OpenItemsScreen> {
       appBar: AppBar(
         backgroundColor: widget.line.color,
         title: Text(
-          'العناصر المفتوحة',
+          'غير مكتمل',
           style: GoogleFonts.cairo(
             fontWeight: FontWeight.bold,
             fontSize: isMobile ? 18 : 20,
@@ -121,7 +119,7 @@ class _OpenItemsScreenState extends State<OpenItemsScreen> {
         if (openItems.receivedIncompletePallet != null) ...[
           _buildSectionHeader(
             icon: Icons.pending_actions_rounded,
-            title: 'مشتاح ناقص مستلم',
+            title: 'طبلية ناقصة مستلمة',
             count: 1,
             color: Colors.purple.shade600,
             isMobile: isMobile,
@@ -156,7 +154,7 @@ class _OpenItemsScreenState extends State<OpenItemsScreen> {
           ),
           SizedBox(height: isMobile ? 16 : 24),
           Text(
-            'لا توجد عناصر مفتوحة',
+            'لا توجد عناصر غير مكتملة',
             style: GoogleFonts.cairo(
               fontSize: isMobile ? 18 : 22,
               fontWeight: FontWeight.bold,
@@ -319,7 +317,7 @@ class _OpenItemsScreenState extends State<OpenItemsScreen> {
                     size: isMobile ? 18 : 20,
                   ),
                   label: Text(
-                    'إنشاء مشتاح',
+                    'إنشاء طبلية',
                     style: GoogleFonts.cairo(
                       fontSize: isMobile ? 13 : 15,
                       fontWeight: FontWeight.bold,
@@ -415,7 +413,7 @@ class _OpenItemsScreenState extends State<OpenItemsScreen> {
                         ),
                       ),
                       Text(
-                        'مشتاح ناقص — ${pallet.quantity} عبوة',
+                        'طبلية ناقصة — ${pallet.quantity} عبوة',
                         style: GoogleFonts.cairo(
                           fontSize: isMobile ? 13 : 14,
                           color: Colors.purple.shade600,
@@ -473,9 +471,7 @@ class _OpenItemsScreenState extends State<OpenItemsScreen> {
                   backgroundColor: Colors.purple.shade600,
                   foregroundColor: Colors.white,
                   elevation: 0,
-                  padding: EdgeInsets.symmetric(
-                    vertical: isMobile ? 12 : 16,
-                  ),
+                  padding: EdgeInsets.symmetric(vertical: isMobile ? 12 : 16),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),
                   ),
@@ -485,7 +481,7 @@ class _OpenItemsScreenState extends State<OpenItemsScreen> {
                   size: isMobile ? 20 : 22,
                 ),
                 label: Text(
-                  'إكمال المشتاح',
+                  'إكمال الطبلية',
                   style: GoogleFonts.cairo(
                     fontSize: isMobile ? 15 : 17,
                     fontWeight: FontWeight.bold,

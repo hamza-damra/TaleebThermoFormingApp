@@ -26,8 +26,7 @@ class _LooseBalanceEntry {
   ProductType? productType;
   final TextEditingController countController;
 
-  _LooseBalanceEntry()
-      : countController = TextEditingController(text: '1');
+  _LooseBalanceEntry() : countController = TextEditingController(text: '1');
 
   void dispose() => countController.dispose();
 }
@@ -61,8 +60,7 @@ class HandoverCreationDialog extends StatefulWidget {
   }
 
   @override
-  State<HandoverCreationDialog> createState() =>
-      _HandoverCreationDialogState();
+  State<HandoverCreationDialog> createState() => _HandoverCreationDialogState();
 }
 
 class _HandoverCreationDialogState extends State<HandoverCreationDialog> {
@@ -130,7 +128,9 @@ class _HandoverCreationDialogState extends State<HandoverCreationDialog> {
           child: _step == 0 ? _buildStep0(isMobile) : _buildStep1(isMobile),
         ),
       ),
-      actions: _step == 0 ? _buildStep0Actions(isMobile) : _buildStep1Actions(isMobile),
+      actions: _step == 0
+          ? _buildStep0Actions(isMobile)
+          : _buildStep1Actions(isMobile),
     );
   }
 
@@ -144,11 +144,14 @@ class _HandoverCreationDialogState extends State<HandoverCreationDialog> {
       children: [
         Text(
           'حدد ما إذا كان هناك عناصر معلقة قبل التسليم:',
-          style: GoogleFonts.cairo(fontSize: fontSize, color: Colors.grey.shade700),
+          style: GoogleFonts.cairo(
+            fontSize: fontSize,
+            color: Colors.grey.shade700,
+          ),
         ),
         const SizedBox(height: 16),
         _buildToggleTile(
-          label: 'هل يوجد مشاتيح ناقصة؟',
+          label: 'هل يوجد طبليات ناقصة؟',
           value: _hasIncompletePallet,
           onChanged: (v) => setState(() => _hasIncompletePallet = v),
           isMobile: isMobile,
@@ -172,10 +175,14 @@ class _HandoverCreationDialogState extends State<HandoverCreationDialog> {
   }) {
     return Container(
       decoration: BoxDecoration(
-        color: value ? widget.themeColor.withValues(alpha: 0.08) : Colors.grey.shade50,
+        color: value
+            ? widget.themeColor.withValues(alpha: 0.08)
+            : Colors.grey.shade50,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: value ? widget.themeColor.withValues(alpha: 0.4) : Colors.grey.shade300,
+          color: value
+              ? widget.themeColor.withValues(alpha: 0.4)
+              : Colors.grey.shade300,
         ),
       ),
       child: SwitchListTile(
@@ -217,9 +224,14 @@ class _HandoverCreationDialogState extends State<HandoverCreationDialog> {
         style: ElevatedButton.styleFrom(
           backgroundColor: widget.themeColor,
           foregroundColor: Colors.white,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+          ),
         ),
-        child: Text('التالي', style: GoogleFonts.cairo(fontWeight: FontWeight.bold)),
+        child: Text(
+          'التالي',
+          style: GoogleFonts.cairo(fontWeight: FontWeight.bold),
+        ),
       ),
     ];
   }
@@ -245,7 +257,11 @@ class _HandoverCreationDialogState extends State<HandoverCreationDialog> {
 
         // Incomplete pallet form
         if (showPalletForm) ...[
-          _buildSectionHeader('مشتاح ناقص', Icons.inventory_2_outlined, isMobile),
+          _buildSectionHeader(
+            'طبلية ناقصة',
+            Icons.inventory_2_outlined,
+            isMobile,
+          ),
           const SizedBox(height: 10),
           _buildProductTypePicker(fontSize, isMobile),
           const SizedBox(height: 10),
@@ -256,8 +272,13 @@ class _HandoverCreationDialogState extends State<HandoverCreationDialog> {
             decoration: InputDecoration(
               labelText: 'الكمية',
               labelStyle: GoogleFonts.cairo(fontSize: fontSize),
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 12,
+                vertical: 12,
+              ),
               isDense: true,
             ),
             style: GoogleFonts.cairo(fontSize: fontSize),
@@ -267,7 +288,11 @@ class _HandoverCreationDialogState extends State<HandoverCreationDialog> {
 
         // Loose balances dynamic form
         if (showLooseForm) ...[
-          _buildSectionHeader('أرصدة المواد الفرطة', Icons.warning_amber_rounded, isMobile),
+          _buildSectionHeader(
+            'ملخص الفالت',
+            Icons.warning_amber_rounded,
+            isMobile,
+          ),
           const SizedBox(height: 8),
           _buildLooseBalanceForm(fontSize, isMobile),
           const SizedBox(height: 14),
@@ -281,7 +306,10 @@ class _HandoverCreationDialogState extends State<HandoverCreationDialog> {
             labelText: 'ملاحظات (اختياري)',
             labelStyle: GoogleFonts.cairo(fontSize: isMobile ? 13.0 : 14.0),
             border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 12,
+              vertical: 12,
+            ),
             isDense: true,
           ),
           style: GoogleFonts.cairo(fontSize: isMobile ? 13.0 : 14.0),
@@ -322,12 +350,17 @@ class _HandoverCreationDialogState extends State<HandoverCreationDialog> {
             icon: const Icon(Icons.add, size: 18),
             label: Text(
               'إضافة نوع منتج',
-              style: GoogleFonts.cairo(fontSize: fontSize, fontWeight: FontWeight.w600),
+              style: GoogleFonts.cairo(
+                fontSize: fontSize,
+                fontWeight: FontWeight.w600,
+              ),
             ),
             style: OutlinedButton.styleFrom(
               foregroundColor: widget.themeColor,
               side: BorderSide(color: widget.themeColor.withValues(alpha: 0.5)),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
               padding: EdgeInsets.symmetric(vertical: isMobile ? 10 : 12),
             ),
           ),
@@ -349,7 +382,7 @@ class _HandoverCreationDialogState extends State<HandoverCreationDialog> {
                 const SizedBox(width: 10),
                 Expanded(
                   child: Text(
-                    'اضغط "إضافة نوع منتج" لإضافة أرصدة المواد الفرطة.',
+                    'اضغط "إضافة نوع منتج" لإضافة ملخص الفالت.',
                     style: GoogleFonts.cairo(
                       fontSize: isMobile ? 12 : 13,
                       color: Colors.blue.shade800,
@@ -477,8 +510,13 @@ class _HandoverCreationDialogState extends State<HandoverCreationDialog> {
               decoration: InputDecoration(
                 labelText: 'عدد العبوات',
                 labelStyle: GoogleFonts.cairo(fontSize: fontSize),
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 10,
+                ),
                 isDense: true,
               ),
               style: GoogleFonts.cairo(fontSize: fontSize),
@@ -497,17 +535,20 @@ class _HandoverCreationDialogState extends State<HandoverCreationDialog> {
         label = 'تسليم نظيف — بدون عناصر معلقة';
         icon = Icons.check_circle_outline;
       case _HandoverCase.incompletePalletOnly:
-        label = 'مشاتيح ناقصة فقط';
+        label = 'طبليات ناقصة فقط';
         icon = Icons.inventory_2_outlined;
       case _HandoverCase.looseBalancesOnly:
         label = 'فالت فقط';
         icon = Icons.warning_amber_rounded;
       case _HandoverCase.both:
-        label = 'مشاتيح ناقصة وفالت';
+        label = 'طبليات ناقصة وفالت';
         icon = Icons.assignment_outlined;
     }
     return Container(
-      padding: EdgeInsets.symmetric(horizontal: 12, vertical: isMobile ? 8 : 10),
+      padding: EdgeInsets.symmetric(
+        horizontal: 12,
+        vertical: isMobile ? 8 : 10,
+      ),
       decoration: BoxDecoration(
         color: widget.themeColor.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(10),
@@ -555,7 +596,10 @@ class _HandoverCreationDialogState extends State<HandoverCreationDialog> {
       children: [
         Text(
           'نوع المنتج',
-          style: GoogleFonts.cairo(fontSize: fontSize, color: Colors.grey.shade700),
+          style: GoogleFonts.cairo(
+            fontSize: fontSize,
+            color: Colors.grey.shade700,
+          ),
         ),
         const SizedBox(height: 4),
         InkWell(
@@ -630,7 +674,9 @@ class _HandoverCreationDialogState extends State<HandoverCreationDialog> {
           backgroundColor: widget.themeColor,
           foregroundColor: Colors.white,
           disabledBackgroundColor: widget.themeColor.withValues(alpha: 0.4),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+          ),
         ),
         child: Text(
           'تأكيد التسليم',
@@ -679,7 +725,10 @@ class _HandoverCreationDialogState extends State<HandoverCreationDialog> {
       for (final entry in _looseBalanceEntries) {
         if (entry.productType != null) {
           if (!productTypeIds.add(entry.productType!.id)) {
-            setState(() => _looseBalanceError = 'لا يمكن تكرار نفس نوع المنتج في قائمة الفالت');
+            setState(
+              () => _looseBalanceError =
+                  'لا يمكن تكرار نفس نوع المنتج في قائمة الفالت',
+            );
             return;
           }
         }
@@ -699,9 +748,12 @@ class _HandoverCreationDialogState extends State<HandoverCreationDialog> {
 
     Navigator.of(context).pop(
       HandoverCreationResult(
-        incompletePalletProductTypeId: needsPallet ? _selectedProductType?.id : null,
-        incompletePalletQuantity:
-            needsPallet ? int.tryParse(_quantityController.text) : null,
+        incompletePalletProductTypeId: needsPallet
+            ? _selectedProductType?.id
+            : null,
+        incompletePalletQuantity: needsPallet
+            ? int.tryParse(_quantityController.text)
+            : null,
         looseBalances: looseBalances,
         notes: _notesController.text.trim().isEmpty
             ? null

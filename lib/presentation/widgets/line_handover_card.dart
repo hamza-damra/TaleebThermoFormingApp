@@ -127,12 +127,14 @@ class LineHandoverCard extends StatelessWidget {
                   _buildInfoSection(
                     context,
                     icon: Icons.inventory_2_outlined,
-                    title: 'مشتاح ناقص',
+                    title: 'طبلية ناقصة',
                     isMobile: isMobile,
                     children: [
                       _buildInfoRow(
                         'المنتج',
-                        ProductType.formatCompactName(handover.incompletePallet!.productTypeName),
+                        ProductType.formatCompactName(
+                          handover.incompletePallet!.productTypeName,
+                        ),
                         isMobile,
                       ),
                       _buildInfoRow(
@@ -150,7 +152,7 @@ class LineHandoverCard extends StatelessWidget {
                   _buildInfoSection(
                     context,
                     icon: Icons.warning_amber_rounded,
-                    title: 'أرصدة المواد الفرطة',
+                    title: 'ملخص الفالت',
                     isMobile: isMobile,
                     iconColor: Colors.orange.shade600,
                     children: [
@@ -168,68 +170,63 @@ class LineHandoverCard extends StatelessWidget {
                 // Resolve actions — only when incoming operator is authorized
                 if (showResolveActions &&
                     (onResolve != null || onReject != null)) ...[
-                  Row(
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       if (onResolve != null)
-                        Expanded(
-                          child: ElevatedButton.icon(
-                            onPressed: isResolving ? null : onResolve,
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.green.shade600,
-                              foregroundColor: Colors.white,
-                              padding: EdgeInsets.symmetric(
-                                vertical: isMobile ? 14 : 18,
-                              ),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              elevation: 0,
+                        ElevatedButton.icon(
+                          onPressed: isResolving ? null : onResolve,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.green.shade600,
+                            foregroundColor: Colors.white,
+                            padding: EdgeInsets.symmetric(
+                              vertical: isMobile ? 14 : 18,
                             ),
-                            icon: isResolving
-                                ? const SizedBox(
-                                    width: 20,
-                                    height: 20,
-                                    child: CircularProgressIndicator(
-                                      color: Colors.white,
-                                      strokeWidth: 2,
-                                    ),
-                                  )
-                                : const Icon(
-                                    Icons.check_circle_outline_rounded,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            elevation: 0,
+                          ),
+                          icon: isResolving
+                              ? const SizedBox(
+                                  width: 20,
+                                  height: 20,
+                                  child: CircularProgressIndicator(
+                                    color: Colors.white,
+                                    strokeWidth: 2,
                                   ),
-                            label: Text(
-                              'تأكيد الاستلام',
-                              style: GoogleFonts.cairo(
-                                fontSize: isMobile ? 15 : 17,
-                                fontWeight: FontWeight.bold,
-                              ),
+                                )
+                              : const Icon(Icons.check_circle_outline_rounded),
+                          label: Text(
+                            'معلومات دقيقة وتأكيد التسليم',
+                            style: GoogleFonts.cairo(
+                              fontSize: isMobile ? 15 : 17,
+                              fontWeight: FontWeight.bold,
                             ),
                           ),
                         ),
                       if (onResolve != null && onReject != null)
-                        SizedBox(width: isMobile ? 10 : 14),
+                        SizedBox(height: isMobile ? 10 : 14),
                       if (onReject != null)
-                        Expanded(
-                          child: ElevatedButton.icon(
-                            onPressed: isResolving ? null : onReject,
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.red.shade600,
-                              foregroundColor: Colors.white,
-                              padding: EdgeInsets.symmetric(
-                                vertical: isMobile ? 14 : 18,
-                              ),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              elevation: 0,
+                        ElevatedButton.icon(
+                          onPressed: isResolving ? null : onReject,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.red.shade600,
+                            foregroundColor: Colors.white,
+                            padding: EdgeInsets.symmetric(
+                              vertical: isMobile ? 14 : 18,
                             ),
-                            icon: const Icon(Icons.cancel_outlined),
-                            label: Text(
-                              'رفض التسليم',
-                              style: GoogleFonts.cairo(
-                                fontSize: isMobile ? 15 : 17,
-                                fontWeight: FontWeight.bold,
-                              ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            elevation: 0,
+                          ),
+                          icon: const Icon(Icons.cancel_outlined),
+                          label: Text(
+                            'تسليم غير دقيق وتأكيد الاستلام',
+                            style: GoogleFonts.cairo(
+                              fontSize: isMobile ? 15 : 17,
+                              fontWeight: FontWeight.bold,
                             ),
                           ),
                         ),
@@ -292,11 +289,11 @@ class LineHandoverCard extends StatelessWidget {
       case 'NONE':
         return 'تسليم نظيف';
       case 'INCOMPLETE_PALLET_ONLY':
-        return 'مشاتيح ناقصة فقط';
+        return 'طبليات ناقصة فقط';
       case 'LOOSE_BALANCES_ONLY':
         return 'فالت فقط';
       case 'BOTH':
-        return 'مشاتيح ناقصة وفالت';
+        return 'طبليات ناقصة وفالت';
       default:
         return type;
     }

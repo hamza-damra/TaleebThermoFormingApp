@@ -92,7 +92,7 @@ class SummaryCard extends StatelessWidget {
                   child: _buildStatCard(
                     context,
                     icon: Icons.inventory_2_rounded,
-                    label: 'المشاتيح',
+                    label: 'الطبليات',
                     value: '$palletCount',
                   ),
                 ),
@@ -126,10 +126,7 @@ class SummaryCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: line.color.withValues(alpha: 0.06),
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(
-          color: line.color.withValues(alpha: 0.12),
-          width: 1,
-        ),
+        border: Border.all(color: line.color.withValues(alpha: 0.12), width: 1),
       ),
       child: Column(
         children: [
@@ -139,11 +136,7 @@ class SummaryCard extends StatelessWidget {
               color: line.color.withValues(alpha: 0.12),
               shape: BoxShape.circle,
             ),
-            child: Icon(
-              icon,
-              color: line.color,
-              size: isMobile ? 24 : 28,
-            ),
+            child: Icon(icon, color: line.color, size: isMobile ? 24 : 28),
           ),
           SizedBox(height: isMobile ? 12 : 16),
           Text(
