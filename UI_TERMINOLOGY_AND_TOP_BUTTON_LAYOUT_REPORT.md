@@ -37,9 +37,9 @@ Applied user-facing terminology changes and button layout restructuring across t
 ### Open Items Button & Screen Title
 | Old | New |
 |-----|-----|
-| `العناصر المفتوحة` | `غير مكتمل` |
+| `العناصر المفتوحة` | `فالت` |
 | `فشل في تحميل العناصر المفتوحة` | `فشل في تحميل العناصر غير المكتملة` |
-| `لا توجد عناصر مفتوحة` | `لا توجد عناصر غير مكتملة` |
+| `لا توجد عناصر مفتوحة` | `لا توجد عناصر فالتة` |
 
 **Files updated:**
 - `lib/presentation/widgets/production_line_section.dart` — Button label
@@ -92,7 +92,7 @@ All user-facing occurrences of `مشتاح` (singular) and `مشاتيح` (plura
 ## 2. Button Layout Changes
 
 ### What Changed
-The two action buttons (`غير مكتمل` and `تسليم مناوبة`) were moved from their previous mid-screen positions (between the form card and the session table) to the **top of each line screen**, before the form card.
+The two action buttons (`فالت` and `تسليم مناوبة`) were moved from their previous mid-screen positions (between the form card and the session table) to the **top of each line screen**, before the form card.
 
 ### Previous Layout
 ```
@@ -109,7 +109,7 @@ The two action buttons (`غير مكتمل` and `تسليم مناوبة`) were 
 ### New Layout
 ```
 ┌─────────────────────────────────┐
-│  [غير مكتمل] [تسليم مناوبة]     │  ← Now here (same row, equal width)
+│  [فالت] [تسليم مناوبة]     │  ← Now here (same row, equal width)
 │  Form Card                      │
 │  ────────────                   │
 │  Pending Handover Card          │
@@ -122,11 +122,11 @@ The two action buttons (`غير مكتمل` and `تسليم مناوبة`) were 
 - Removed old `_buildHandoverButton()` and `_buildOpenItemsButton()` standalone methods (eliminated dead code)
 - Both buttons placed in a `Row` with `Expanded` wrappers for **equal sizing**
 - In RTL (Arabic), first child in `Row` = right side visually:
-  - **`غير مكتمل`** (OutlinedButton) → **RIGHT** side
+  - **`فالت`** (OutlinedButton) → **RIGHT** side
   - **`تسليم مناوبة`** (ElevatedButton, orange) → **LEFT** side
 - `SizedBox(width: 10-14)` gap between buttons (responsive)
 - Buttons are conditionally shown based on the same authorization logic as before:
-  - `غير مكتمل`: visible when `isLineAuthorized && !isLineBlocked`
+  - `فالت`: visible when `isLineAuthorized && !isLineBlocked`
   - `تسليم مناوبة`: visible when `canInitiateHandover`
 - When only one button is visible, it still fills its `Expanded` space
 - When neither button should show, `SizedBox.shrink()` is returned
@@ -181,7 +181,7 @@ The two action buttons (`غير مكتمل` and `تسليم مناوبة`) were 
 | App title shows `تكوين طبليات` | ✅ Verified in code |
 | Tabs show `ماكنة 1` and `ماكنة 2` | ✅ Verified in code |
 | Buttons in same-size Row at top | ✅ Both wrapped in `Expanded` |
-| `غير مكتمل` on RIGHT (RTL first child) | ✅ First in Row |
+| `فالت` on RIGHT (RTL first child) | ✅ First in Row |
 | `تسليم مناوبة` on LEFT (RTL second child) | ✅ Second in Row |
 | Phone-friendly font sizes (14-16) | ✅ Responsive sizing |
 | No workflow/navigation changes | ✅ Only labels and layout |

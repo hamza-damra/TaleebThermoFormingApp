@@ -2,7 +2,7 @@
 
 ## Overview
 
-Fixed the "تسليم المناوبة - مشاتيح غير مكتملة" dialog to be self-sufficient with proper operator selection, removed illogical pallet code field, and ensured Arabic-only production line display.
+Fixed the "تسليم المناوبة - مشاتيح فالتة" dialog to be self-sufficient with proper operator selection, removed illogical pallet code field, and ensured Arabic-only production line display.
 
 ## Changes Made
 

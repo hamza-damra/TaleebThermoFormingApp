@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:provider/provider.dart';
-
 import 'core/di.dart';
 import 'core/theme.dart';
 import 'data/datasources/auth_local_storage.dart';

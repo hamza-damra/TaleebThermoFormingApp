@@ -323,20 +323,12 @@ class _LineAuthOverlayState extends State<LineAuthOverlay> {
               handover.outgoingOperatorName!,
               isMobile,
             ),
-          if (handover.handoverType != null)
-            _buildSummaryRow(
-              'نوع التسليم',
-              _handoverTypeLabel(handover.handoverType!),
-              isMobile,
-            ),
           if (handover.createdAtDisplay != null)
             _buildSummaryRow('الوقت', handover.createdAtDisplay!, isMobile),
-          if (handover.hasIncompletePallet)
-            _buildSummaryRow('طبلية ناقصة', 'نعم', isMobile),
-          if (handover.looseBalanceCount > 0)
+          if (handover.hasFalet)
             _buildSummaryRow(
-              'أرصدة فرطة',
-              '${handover.looseBalanceCount} نوع',
+              'عناصر فالت',
+              '${handover.faletItemCount} نوع',
               isMobile,
             ),
           if (handover.notes != null && handover.notes!.isNotEmpty)
@@ -370,21 +362,6 @@ class _LineAuthOverlayState extends State<LineAuthOverlay> {
         ],
       ),
     );
-  }
-
-  String _handoverTypeLabel(String type) {
-    switch (type) {
-      case 'NONE':
-        return 'تسليم نظيف';
-      case 'INCOMPLETE_PALLET_ONLY':
-        return 'طبليات ناقصة فقط';
-      case 'LOOSE_BALANCES_ONLY':
-        return 'فالت فقط';
-      case 'BOTH':
-        return 'طبليات ناقصة وفالت';
-      default:
-        return type;
-    }
   }
 
   void _handleSubmit() {

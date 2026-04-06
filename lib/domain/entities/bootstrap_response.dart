@@ -31,6 +31,8 @@ class BootstrapLineState {
   final bool canInitiateHandover;
   final bool canConfirmHandover;
   final bool canRejectHandover;
+  final bool hasOpenFalet;
+  final int openFaletCount;
 
   const BootstrapLineState({
     required this.lineId,
@@ -47,5 +49,7 @@ class BootstrapLineState {
     this.canInitiateHandover = false,
     this.canConfirmHandover = false,
     this.canRejectHandover = false,
+    this.hasOpenFalet = false,
+    this.openFaletCount = 0,
   });
 }

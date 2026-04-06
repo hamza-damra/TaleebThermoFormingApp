@@ -5,6 +5,7 @@ import '../../core/constants.dart';
 import '../../core/responsive.dart';
 import '../../domain/entities/product_type.dart';
 import '../../domain/entities/session_table_row.dart';
+import 'session_drilldown_dialog.dart';
 
 class SessionTableWidget extends StatelessWidget {
   final ProductionLine line;
@@ -16,27 +17,29 @@ class SessionTableWidget extends StatelessWidget {
   Widget build(BuildContext context) {
     final isMobile = ResponsiveHelper.isMobile(context);
 
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(isMobile ? 16 : 20),
-        boxShadow: [
-          BoxShadow(
-            color: line.color.withValues(alpha: 0.1),
-            blurRadius: 20,
-            offset: const Offset(0, 8),
-          ),
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Column(
-        children: [
-          // Header
-          Container(
+    return GestureDetector(
+      onTap: () => SessionDrilldownDialog.show(context: context, line: line),
+      child: Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(isMobile ? 16 : 20),
+          boxShadow: [
+            BoxShadow(
+              color: line.color.withValues(alpha: 0.1),
+              blurRadius: 20,
+              offset: const Offset(0, 8),
+            ),
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.04),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Column(
+          children: [
+            // Header
+            Container(
             width: double.infinity,
             padding: EdgeInsets.symmetric(
               horizontal: isMobile ? 16 : 24,
@@ -80,11 +83,12 @@ class SessionTableWidget extends StatelessWidget {
             ),
           ),
           // Table content
-          if (rows.isEmpty)
-            _buildEmptyState(context, isMobile)
-          else
-            _buildTable(context, isMobile),
-        ],
+            if (rows.isEmpty)
+              _buildEmptyState(context, isMobile)
+            else
+              _buildTable(context, isMobile),
+          ],
+        ),
       ),
     );
   }

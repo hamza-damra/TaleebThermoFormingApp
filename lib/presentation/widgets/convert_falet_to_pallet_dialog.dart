@@ -3,67 +3,53 @@ import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../../core/responsive.dart';
-import '../../domain/entities/loose_balance_item.dart';
+import '../../domain/entities/falet_item.dart';
 import '../../domain/entities/product_type.dart';
 
-class ProducePalletFromLooseDialog extends StatefulWidget {
-  final LooseBalanceItem looseBalance;
-  final int packageQuantity;
+class ConvertFaletToPalletDialog extends StatefulWidget {
+  final FaletItem faletItem;
   final Color themeColor;
 
-  const ProducePalletFromLooseDialog({
+  const ConvertFaletToPalletDialog({
     super.key,
-    required this.looseBalance,
-    required this.packageQuantity,
+    required this.faletItem,
     required this.themeColor,
   });
 
-  /// Returns null if cancelled, or a map with looseQuantityToUse and freshQuantityToAdd.
-  static Future<Map<String, int>?> show({
+  /// Returns null if cancelled, or the additionalFreshQuantity (0 if none).
+  static Future<int?> show({
     required BuildContext context,
-    required LooseBalanceItem looseBalance,
-    required int packageQuantity,
+    required FaletItem faletItem,
     required Color themeColor,
   }) {
-    return showDialog<Map<String, int>>(
+    return showDialog<int>(
       context: context,
-      builder: (context) => ProducePalletFromLooseDialog(
-        looseBalance: looseBalance,
-        packageQuantity: packageQuantity,
+      builder: (context) => ConvertFaletToPalletDialog(
+        faletItem: faletItem,
         themeColor: themeColor,
       ),
     );
   }
 
   @override
-  State<ProducePalletFromLooseDialog> createState() =>
-      _ProducePalletFromLooseDialogState();
+  State<ConvertFaletToPalletDialog> createState() =>
+      _ConvertFaletToPalletDialogState();
 }
 
-class _ProducePalletFromLooseDialogState
-    extends State<ProducePalletFromLooseDialog> {
-  late final TextEditingController _looseController;
-  final _freshController = TextEditingController(text: '0');
+class _ConvertFaletToPalletDialogState
+    extends State<ConvertFaletToPalletDialog> {
+  bool _addFresh = false;
+  final _freshController = TextEditingController();
   String? _validationError;
 
   @override
-  void initState() {
-    super.initState();
-    _looseController = TextEditingController(
-      text: widget.looseBalance.loosePackageCount.toString(),
-    );
-  }
-
-  @override
   void dispose() {
-    _looseController.dispose();
     _freshController.dispose();
     super.dispose();
   }
 
-  int get _looseValue => int.tryParse(_looseController.text.trim()) ?? 0;
   int get _freshValue => int.tryParse(_freshController.text.trim()) ?? 0;
-  int get _totalQuantity => _looseValue + _freshValue;
+  int get _totalQuantity => widget.faletItem.quantity + _freshValue;
 
   @override
   Widget build(BuildContext context) {
@@ -93,7 +79,7 @@ class _ProducePalletFromLooseDialogState
                   shape: BoxShape.circle,
                 ),
                 child: Icon(
-                  Icons.inventory_2_rounded,
+                  Icons.check_circle_outline_rounded,
                   color: widget.themeColor,
                   size: isMobile ? 36 : 44,
                 ),
@@ -102,7 +88,7 @@ class _ProducePalletFromLooseDialogState
 
               // Title
               Text(
-                'إنشاء طبلية من الفالت',
+                'تحويل الفالت إلى طبلية',
                 style: GoogleFonts.cairo(
                   fontSize: isMobile ? 20 : 24,
                   fontWeight: FontWeight.bold,
@@ -126,7 +112,7 @@ class _ProducePalletFromLooseDialogState
                   children: [
                     Text(
                       ProductType.formatCompactName(
-                        widget.looseBalance.productTypeName,
+                        widget.faletItem.productTypeName,
                       ),
                       style: GoogleFonts.cairo(
                         fontSize: isMobile ? 16 : 18,
@@ -136,65 +122,120 @@ class _ProducePalletFromLooseDialogState
                       textAlign: TextAlign.center,
                     ),
                     SizedBox(height: isMobile ? 4 : 6),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        _buildInfoChip(
-                          'الرصيد المتاح',
-                          '${widget.looseBalance.loosePackageCount}',
-                          isMobile,
-                        ),
-                        SizedBox(width: isMobile ? 8 : 12),
-                        _buildInfoChip(
-                          'حجم الطبلية',
-                          '${widget.packageQuantity}',
-                          isMobile,
-                        ),
-                      ],
-                    ),
-                    if (widget.looseBalance.isFromHandover) ...[
-                      SizedBox(height: isMobile ? 6 : 8),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 10,
-                          vertical: 4,
-                        ),
-                        decoration: BoxDecoration(
-                          color: Colors.orange.shade50,
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: Colors.orange.shade200),
-                        ),
-                        child: Text(
-                          'من تسليم سابق',
-                          style: GoogleFonts.cairo(
-                            fontSize: isMobile ? 11 : 12,
-                            color: Colors.orange.shade700,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
+                    Container(
+                      padding: EdgeInsets.symmetric(
+                        horizontal: isMobile ? 10 : 14,
+                        vertical: isMobile ? 4 : 6,
                       ),
-                    ],
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.grey.shade200),
+                      ),
+                      child: Column(
+                        children: [
+                          Text(
+                            'كمية الفالت',
+                            style: GoogleFonts.cairo(
+                              fontSize: isMobile ? 10 : 11,
+                              color: Colors.grey.shade600,
+                            ),
+                          ),
+                          Text(
+                            '${widget.faletItem.quantity}',
+                            style: GoogleFonts.cairo(
+                              fontSize: isMobile ? 16 : 18,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.black87,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
                   ],
                 ),
               ),
-              SizedBox(height: isMobile ? 20 : 24),
+              SizedBox(height: isMobile ? 16 : 20),
 
-              // Loose quantity input
-              _buildInputField(
-                controller: _looseController,
-                label: 'عدد العبوات الفالتة للاستخدام',
-                hint: 'أدخل العدد',
-                isMobile: isMobile,
+              // Add fresh toggle
+              Container(
+                decoration: BoxDecoration(
+                  color: _addFresh
+                      ? widget.themeColor.withValues(alpha: 0.08)
+                      : Colors.grey.shade50,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: _addFresh
+                        ? widget.themeColor.withValues(alpha: 0.4)
+                        : Colors.grey.shade300,
+                  ),
+                ),
+                child: SwitchListTile(
+                  value: _addFresh,
+                  onChanged: (v) => setState(() {
+                    _addFresh = v;
+                    if (!v) _freshController.clear();
+                    _validationError = null;
+                  }),
+                  title: Text(
+                    'إضافة كمية جديدة؟',
+                    style: GoogleFonts.cairo(
+                      fontSize: isMobile ? 14 : 15,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  activeTrackColor: widget.themeColor.withValues(alpha: 0.5),
+                  thumbColor: WidgetStatePropertyAll(widget.themeColor),
+                  dense: true,
+                  contentPadding: EdgeInsets.symmetric(
+                    horizontal: isMobile ? 12 : 16,
+                    vertical: 2,
+                  ),
+                ),
               ),
-              SizedBox(height: isMobile ? 14 : 18),
 
               // Fresh quantity input
-              _buildInputField(
-                controller: _freshController,
-                label: 'عبوات جديدة إضافية (اختياري)',
-                hint: '0',
-                isMobile: isMobile,
-              ),
+              if (_addFresh) ...[
+                SizedBox(height: isMobile ? 14 : 18),
+                TextField(
+                  controller: _freshController,
+                  keyboardType: TextInputType.number,
+                  textAlign: TextAlign.center,
+                  inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                  style: GoogleFonts.cairo(
+                    fontSize: isMobile ? 20 : 24,
+                    fontWeight: FontWeight.bold,
+                    color: widget.themeColor,
+                  ),
+                  decoration: InputDecoration(
+                    labelText: 'الكمية الجديدة الإضافية',
+                    labelStyle: GoogleFonts.cairo(
+                      fontSize: isMobile ? 14 : 16,
+                      color: Colors.grey.shade600,
+                    ),
+                    filled: true,
+                    fillColor: Colors.grey.shade50,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(color: Colors.grey.shade300),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(
+                        color: widget.themeColor.withValues(alpha: 0.6),
+                        width: 2,
+                      ),
+                    ),
+                    contentPadding: EdgeInsets.symmetric(
+                      vertical: isMobile ? 14 : 18,
+                      horizontal: 16,
+                    ),
+                  ),
+                  onChanged: (_) {
+                    setState(() => _validationError = null);
+                  },
+                ),
+              ],
               SizedBox(height: isMobile ? 12 : 16),
 
               // Total display
@@ -210,7 +251,7 @@ class _ProducePalletFromLooseDialogState
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Text(
-                      'الكمية الإجمالية:',
+                      'الكمية الإجمالية للطبلية:',
                       style: GoogleFonts.cairo(
                         fontSize: isMobile ? 14 : 16,
                         fontWeight: FontWeight.w600,
@@ -296,7 +337,7 @@ class _ProducePalletFromLooseDialogState
                         ),
                       ),
                       child: Text(
-                        'إنشاء الطبلية',
+                        'تحويل لطبلية',
                         style: GoogleFonts.cairo(
                           fontSize: isMobile ? 16 : 18,
                           fontWeight: FontWeight.bold,
@@ -313,122 +354,16 @@ class _ProducePalletFromLooseDialogState
     );
   }
 
-  Widget _buildInputField({
-    required TextEditingController controller,
-    required String label,
-    required String hint,
-    required bool isMobile,
-  }) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          label,
-          style: GoogleFonts.cairo(
-            fontSize: isMobile ? 13 : 15,
-            fontWeight: FontWeight.w600,
-            color: Colors.grey.shade700,
-          ),
-        ),
-        SizedBox(height: isMobile ? 6 : 8),
-        TextField(
-          controller: controller,
-          keyboardType: TextInputType.number,
-          textAlign: TextAlign.center,
-          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-          style: GoogleFonts.cairo(
-            fontSize: isMobile ? 18 : 22,
-            fontWeight: FontWeight.bold,
-            color: widget.themeColor,
-          ),
-          decoration: InputDecoration(
-            hintText: hint,
-            hintStyle: GoogleFonts.cairo(color: Colors.grey.shade400),
-            filled: true,
-            fillColor: Colors.grey.shade50,
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(color: Colors.grey.shade300),
-            ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(
-                color: widget.themeColor.withValues(alpha: 0.6),
-                width: 2,
-              ),
-            ),
-            contentPadding: EdgeInsets.symmetric(
-              vertical: isMobile ? 12 : 16,
-              horizontal: 16,
-            ),
-          ),
-          onChanged: (_) {
-            setState(() => _validationError = null);
-          },
-        ),
-      ],
-    );
-  }
-
-  Widget _buildInfoChip(String label, String value, bool isMobile) {
-    return Container(
-      padding: EdgeInsets.symmetric(
-        horizontal: isMobile ? 10 : 14,
-        vertical: isMobile ? 4 : 6,
-      ),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.grey.shade200),
-      ),
-      child: Column(
-        children: [
-          Text(
-            label,
-            style: GoogleFonts.cairo(
-              fontSize: isMobile ? 10 : 11,
-              color: Colors.grey.shade600,
-            ),
-          ),
-          Text(
-            value,
-            style: GoogleFonts.cairo(
-              fontSize: isMobile ? 16 : 18,
-              fontWeight: FontWeight.bold,
-              color: Colors.black87,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
   void _handleConfirm() {
-    final looseQty = _looseValue;
-    final freshQty = _freshValue;
+    final freshQty = _addFresh ? _freshValue : 0;
 
-    if (looseQty <= 0) {
-      setState(() => _validationError = 'يرجى إدخال عدد صحيح أكبر من صفر');
-      return;
-    }
-
-    if (looseQty > widget.looseBalance.loosePackageCount) {
+    if (_addFresh && freshQty <= 0) {
       setState(
-        () => _validationError =
-            'الكمية المطلوبة ($looseQty) أكبر من الرصيد المتاح (${widget.looseBalance.loosePackageCount})',
+        () => _validationError = 'يرجى إدخال كمية إضافية أكبر من صفر',
       );
       return;
     }
 
-    if (freshQty < 0) {
-      setState(
-        () => _validationError = 'الكمية الإضافية لا يمكن أن تكون سالبة',
-      );
-      return;
-    }
-
-    Navigator.of(
-      context,
-    ).pop({'looseQuantityToUse': looseQty, 'freshQuantityToAdd': freshQty});
+    Navigator.of(context).pop(freshQty);
   }
 }

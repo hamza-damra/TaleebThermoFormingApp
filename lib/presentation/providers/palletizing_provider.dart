@@ -1,13 +1,14 @@
 import 'package:flutter/foundation.dart';
 
 import '../../core/exceptions/api_exception.dart';
-import '../../domain/entities/complete_incomplete_pallet_response.dart';
+import '../../domain/entities/falet_convert_to_pallet_response.dart';
+import '../../domain/entities/falet_dispose_response.dart';
+import '../../domain/entities/falet_response.dart';
 import '../../domain/entities/line_authorization_state.dart';
 import '../../domain/entities/line_handover_info.dart';
-import '../../domain/entities/open_items_response.dart';
 import '../../domain/entities/operator.dart';
 import '../../domain/entities/pallet_create_response.dart';
-import '../../domain/entities/produce_pallet_from_loose_response.dart';
+import '../../domain/entities/session_production_detail.dart';
 import '../../domain/entities/product_type.dart';
 import '../../domain/entities/production_line.dart';
 import '../../domain/entities/session_table_row.dart';
@@ -42,8 +43,10 @@ class PalletizingProvider extends ChangeNotifier {
   final Map<int, bool> _canInitiateHandovers = {};
   final Map<int, bool> _canConfirmHandovers = {};
   final Map<int, bool> _canRejectHandovers = {};
-  final Map<int, OpenItemsResponse?> _openItems = {};
-  final Map<int, bool> _openItemsLoading = {};
+  final Map<int, FaletResponse?> _faletItems = {};
+  final Map<int, bool> _faletItemsLoading = {};
+  final Map<int, bool> _hasOpenFalet = {};
+  final Map<int, int> _openFaletCount = {};
 
   // ── Global getters ──
   PalletizingState get state => _state;
@@ -101,10 +104,14 @@ class PalletizingProvider extends ChangeNotifier {
   bool canRejectHandover(int lineNumber) =>
       _canRejectHandovers[lineNumber] ?? false;
 
-  OpenItemsResponse? getOpenItems(int lineNumber) => _openItems[lineNumber];
+  FaletResponse? getFaletItems(int lineNumber) => _faletItems[lineNumber];
 
-  bool isOpenItemsLoading(int lineNumber) =>
-      _openItemsLoading[lineNumber] ?? false;
+  bool isFaletItemsLoading(int lineNumber) =>
+      _faletItemsLoading[lineNumber] ?? false;
+
+  bool hasOpenFalet(int lineNumber) => _hasOpenFalet[lineNumber] ?? false;
+
+  int getOpenFaletCount(int lineNumber) => _openFaletCount[lineNumber] ?? 0;
 
   bool isLineBlocked(int lineNumber) {
     final uiMode = _lineUiModes[lineNumber];
@@ -343,10 +350,12 @@ class PalletizingProvider extends ChangeNotifier {
         _selectedProductTypes[lineNumber] = lineState.selectedProductType;
       }
 
+      _hasOpenFalet[lineNumber] = lineState.hasOpenFalet;
+      _openFaletCount[lineNumber] = lineState.openFaletCount;
+
       // In PENDING_HANDOVER_REVIEW mode the line state only contains a
-      // summary (LineHandoverSummary) which lacks the nested incompletePallet
-      // object and looseBalances array.  Fetch the full handover details so
-      // the review card can display complete information.
+      // summary — fetch the full handover details so the review card can
+      // display complete information.
       if (lineState.lineUiMode == 'PENDING_HANDOVER_REVIEW') {
         try {
           final fullHandover = await _repository.getLineHandover(lineId);
@@ -489,13 +498,24 @@ class PalletizingProvider extends ChangeNotifier {
     }
   }
 
+  // ── Session production detail (drill-down) ──
+
+  Future<SessionProductionDetail> fetchSessionProductionDetail(
+    int lineNumber,
+  ) async {
+    final lineId = getLineIdForNumber(lineNumber);
+    if (lineId == null) {
+      throw StateError('No lineId found for lineNumber $lineNumber');
+    }
+    return await _repository.getSessionProductionDetail(lineId);
+  }
+
   // ── Line handover ──
 
   Future<LineHandoverInfo?> createLineHandover(
     int lineNumber, {
-    int? incompletePalletProductTypeId,
-    int? incompletePalletQuantity,
-    List<Map<String, dynamic>>? looseBalances,
+    int? lastActiveProductTypeId,
+    int? lastActiveProductFaletQuantity,
     String? notes,
   }) async {
     final lineId = getLineIdForNumber(lineNumber);
@@ -504,9 +524,8 @@ class PalletizingProvider extends ChangeNotifier {
     try {
       final handover = await _repository.createLineHandover(
         lineId,
-        incompletePalletProductTypeId: incompletePalletProductTypeId,
-        incompletePalletQuantity: incompletePalletQuantity,
-        looseBalances: looseBalances,
+        lastActiveProductTypeId: lastActiveProductTypeId,
+        lastActiveProductFaletQuantity: lastActiveProductFaletQuantity,
         notes: notes,
       );
       _pendingHandovers[lineNumber] = handover;
@@ -577,50 +596,48 @@ class PalletizingProvider extends ChangeNotifier {
     }
   }
 
-  // ── Open Items ──
+  // ── FALET Items ──
 
-  Future<void> fetchOpenItems(int lineNumber) async {
+  Future<void> fetchFaletItems(int lineNumber) async {
     final lineId = getLineIdForNumber(lineNumber);
     if (lineId == null) return;
 
-    _openItemsLoading[lineNumber] = true;
+    _faletItemsLoading[lineNumber] = true;
     notifyListeners();
 
     try {
-      final result = await _repository.getOpenItems(lineId);
-      _openItems[lineNumber] = result;
+      final result = await _repository.getFaletItems(lineId);
+      _faletItems[lineNumber] = result;
     } on ApiException catch (e) {
       _lineErrors[lineNumber] = e.displayMessage;
-      debugPrint('fetchOpenItems error: ${e.code} - ${e.message}');
+      debugPrint('fetchFaletItems error: ${e.code} - ${e.message}');
     } catch (e) {
-      _lineErrors[lineNumber] = 'فشل في تحميل العناصر غير المكتملة';
-      debugPrint('fetchOpenItems unexpected error: $e');
+      _lineErrors[lineNumber] = 'فشل في تحميل عناصر الفالت';
+      debugPrint('fetchFaletItems unexpected error: $e');
     }
 
-    _openItemsLoading[lineNumber] = false;
+    _faletItemsLoading[lineNumber] = false;
     notifyListeners();
   }
 
-  Future<ProducePalletFromLooseResponse?> producePalletFromLoose({
+  Future<FaletConvertToPalletResponse?> convertFaletToPallet({
     required int lineNumber,
-    required int productTypeId,
-    required int looseQuantityToUse,
-    int freshQuantityToAdd = 0,
+    required int faletId,
+    int additionalFreshQuantity = 0,
   }) async {
     final lineId = getLineIdForNumber(lineNumber);
     if (lineId == null) return null;
 
     try {
-      final result = await _repository.producePalletFromLoose(
+      final result = await _repository.convertFaletToPallet(
         lineId: lineId,
-        productTypeId: productTypeId,
-        looseQuantityToUse: looseQuantityToUse,
-        freshQuantityToAdd: freshQuantityToAdd,
+        faletId: faletId,
+        additionalFreshQuantity: additionalFreshQuantity,
       );
 
-      // Refresh open items and line state
+      // Refresh FALET items and line state
       await Future.wait([
-        fetchOpenItems(lineNumber),
+        fetchFaletItems(lineNumber),
         _refreshLineStateFromBackend(lineNumber, lineId),
       ]);
       notifyListeners();
@@ -632,22 +649,24 @@ class PalletizingProvider extends ChangeNotifier {
     }
   }
 
-  Future<CompleteIncompletePalletResponse?> completeIncompletePallet({
+  Future<FaletDisposeResponse?> disposeFalet({
     required int lineNumber,
-    int additionalFreshQuantity = 0,
+    required int faletId,
+    String? reason,
   }) async {
     final lineId = getLineIdForNumber(lineNumber);
     if (lineId == null) return null;
 
     try {
-      final result = await _repository.completeIncompletePallet(
+      final result = await _repository.disposeFalet(
         lineId: lineId,
-        additionalFreshQuantity: additionalFreshQuantity,
+        faletId: faletId,
+        reason: reason,
       );
 
-      // Refresh open items and line state
+      // Refresh FALET items and line state
       await Future.wait([
-        fetchOpenItems(lineNumber),
+        fetchFaletItems(lineNumber),
         _refreshLineStateFromBackend(lineNumber, lineId),
       ]);
       notifyListeners();

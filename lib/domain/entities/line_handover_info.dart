@@ -5,15 +5,13 @@ class LineHandoverInfo {
   final String? lineName;
   final String status;
   final String? statusDisplayNameAr;
-  final String? handoverType; // NONE, INCOMPLETE_PALLET_ONLY, LOOSE_BALANCES_ONLY, BOTH
   final String? outgoingOperatorName;
   final int? outgoingOperatorId;
   final String? incomingOperatorName;
   final int? incomingOperatorId;
-  final IncompletePalletInfo? incompletePallet;
-  final List<LooseBalanceItem> looseBalances;
-  final int looseBalanceCount;
-  final bool hasIncompletePallet;
+  final List<HandoverFaletItem> faletItems;
+  final int faletItemCount;
+  final bool hasFalet;
   final String? notes;
   final String? rejectionNotes;
   final String? resolutionNotes;
@@ -31,15 +29,13 @@ class LineHandoverInfo {
     this.lineName,
     required this.status,
     this.statusDisplayNameAr,
-    this.handoverType,
     this.outgoingOperatorName,
     this.outgoingOperatorId,
     this.incomingOperatorName,
     this.incomingOperatorId,
-    this.incompletePallet,
-    this.looseBalances = const [],
-    this.looseBalanceCount = 0,
-    this.hasIncompletePallet = false,
+    this.faletItems = const [],
+    this.faletItemCount = 0,
+    this.hasFalet = false,
     this.notes,
     this.rejectionNotes,
     this.resolutionNotes,
@@ -54,26 +50,18 @@ class LineHandoverInfo {
   bool get isPending => status == 'PENDING';
 }
 
-class IncompletePalletInfo {
-  final int? productTypeId;
-  final String productTypeName;
-  final int quantity;
-
-  const IncompletePalletInfo({
-    this.productTypeId,
-    required this.productTypeName,
-    required this.quantity,
-  });
-}
-
-class LooseBalanceItem {
+class HandoverFaletItem {
+  final int faletId;
   final int productTypeId;
   final String productTypeName;
-  final int loosePackageCount;
+  final int quantity;
+  final bool lastActiveProduct;
 
-  const LooseBalanceItem({
+  const HandoverFaletItem({
+    required this.faletId,
     required this.productTypeId,
     required this.productTypeName,
-    required this.loosePackageCount,
+    required this.quantity,
+    this.lastActiveProduct = false,
   });
 }

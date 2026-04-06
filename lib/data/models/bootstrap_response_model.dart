@@ -55,6 +55,8 @@ class BootstrapLineStateModel extends BootstrapLineState {
     super.canInitiateHandover,
     super.canConfirmHandover,
     super.canRejectHandover,
+    super.hasOpenFalet,
+    super.openFaletCount,
   });
 
   factory BootstrapLineStateModel.fromJson(Map<String, dynamic> json) {
@@ -73,7 +75,6 @@ class BootstrapLineStateModel extends BootstrapLineState {
         authorizedOperator = OperatorModel(
           id: operatorId,
           name: operatorName,
-          code: '',
           displayLabel: operatorName,
         );
       }
@@ -112,6 +113,8 @@ class BootstrapLineStateModel extends BootstrapLineState {
       canInitiateHandover: json['canInitiateHandover'] as bool? ?? false,
       canConfirmHandover: json['canConfirmHandover'] as bool? ?? false,
       canRejectHandover: json['canRejectHandover'] as bool? ?? false,
+      hasOpenFalet: json['hasOpenFalet'] as bool? ?? false,
+      openFaletCount: json['openFaletCount'] as int? ?? 0,
     );
   }
 }

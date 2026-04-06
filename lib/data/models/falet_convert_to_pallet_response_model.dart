@@ -1,25 +1,26 @@
-import '../../domain/entities/produce_pallet_from_loose_response.dart';
+import '../../domain/entities/falet_convert_to_pallet_response.dart';
 import 'pallet_create_response_model.dart';
 
-class ProducePalletFromLooseResponseModel
-    extends ProducePalletFromLooseResponse {
-  const ProducePalletFromLooseResponseModel({
+class FaletConvertToPalletResponseModel extends FaletConvertToPalletResponse {
+  const FaletConvertToPalletResponseModel({
     required super.pallet,
     required super.creationMode,
-    required super.looseQuantityUsed,
+    required super.faletQuantityUsed,
     required super.freshQuantityAdded,
     required super.finalQuantity,
+    required super.faletId,
   });
 
-  factory ProducePalletFromLooseResponseModel.fromJson(
+  factory FaletConvertToPalletResponseModel.fromJson(
       Map<String, dynamic> json) {
-    return ProducePalletFromLooseResponseModel(
+    return FaletConvertToPalletResponseModel(
       pallet: PalletCreateResponseModel.fromJson(
           json['pallet'] as Map<String, dynamic>),
       creationMode: json['creationMode'] as String,
-      looseQuantityUsed: json['looseQuantityUsed'] as int,
+      faletQuantityUsed: json['faletQuantityUsed'] as int,
       freshQuantityAdded: json['freshQuantityAdded'] as int,
       finalQuantity: json['finalQuantity'] as int,
+      faletId: json['faletId'] as int,
     );
   }
 }

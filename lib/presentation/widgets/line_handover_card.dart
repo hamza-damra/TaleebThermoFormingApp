@@ -110,56 +110,25 @@ class LineHandoverCard extends StatelessWidget {
                         handover.createdAtDisplay!,
                         isMobile,
                       ),
-                    if (handover.handoverType != null)
-                      _buildInfoRow(
-                        'نوع التسليم',
-                        _handoverTypeLabel(handover.handoverType!),
-                        isMobile,
-                      ),
                     if (handover.notes != null && handover.notes!.isNotEmpty)
                       _buildInfoRow('ملاحظات', handover.notes!, isMobile),
                   ],
                 ),
                 SizedBox(height: isMobile ? 12 : 16),
 
-                // Incomplete pallet
-                if (handover.incompletePallet != null) ...[
-                  _buildInfoSection(
-                    context,
-                    icon: Icons.inventory_2_outlined,
-                    title: 'طبلية ناقصة',
-                    isMobile: isMobile,
-                    children: [
-                      _buildInfoRow(
-                        'المنتج',
-                        ProductType.formatCompactName(
-                          handover.incompletePallet!.productTypeName,
-                        ),
-                        isMobile,
-                      ),
-                      _buildInfoRow(
-                        'الكمية',
-                        '${handover.incompletePallet!.quantity}',
-                        isMobile,
-                      ),
-                    ],
-                  ),
-                  SizedBox(height: isMobile ? 12 : 16),
-                ],
-
-                // Loose balances
-                if (handover.looseBalances.isNotEmpty) ...[
+                // FALET items
+                if (handover.faletItems.isNotEmpty) ...[
                   _buildInfoSection(
                     context,
                     icon: Icons.warning_amber_rounded,
-                    title: 'ملخص الفالت',
+                    title: 'عناصر الفالت',
                     isMobile: isMobile,
                     iconColor: Colors.orange.shade600,
                     children: [
-                      for (final lb in handover.looseBalances)
+                      for (final item in handover.faletItems)
                         _buildInfoRow(
-                          ProductType.formatCompactName(lb.productTypeName),
-                          '${lb.loosePackageCount} عبوة',
+                          '${ProductType.formatCompactName(item.productTypeName)}${item.lastActiveProduct ? ' (نشط)' : ''}',
+                          '${item.quantity} عبوة',
                           isMobile,
                         ),
                     ],
@@ -282,21 +251,6 @@ class LineHandoverCard extends StatelessWidget {
         ],
       ),
     );
-  }
-
-  String _handoverTypeLabel(String type) {
-    switch (type) {
-      case 'NONE':
-        return 'تسليم نظيف';
-      case 'INCOMPLETE_PALLET_ONLY':
-        return 'طبليات ناقصة فقط';
-      case 'LOOSE_BALANCES_ONLY':
-        return 'فالت فقط';
-      case 'BOTH':
-        return 'طبليات ناقصة وفالت';
-      default:
-        return type;
-    }
   }
 
   Widget _buildInfoRow(String label, String value, bool isMobile) {

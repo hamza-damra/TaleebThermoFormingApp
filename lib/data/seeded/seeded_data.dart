@@ -3,11 +3,11 @@ import '../models/product_model.dart';
 
 class SeededData {
   static const List<OperatorModel> operators = [
-    OperatorModel(id: 1, name: 'أحمد', code: 'OP001'),
-    OperatorModel(id: 2, name: 'محمد', code: 'OP002'),
-    OperatorModel(id: 3, name: 'ياسر', code: 'OP003'),
-    OperatorModel(id: 4, name: 'خالد', code: 'OP004'),
-    OperatorModel(id: 5, name: 'إبراهيم', code: 'OP005'),
+    OperatorModel(id: 1, name: 'أحمد'),
+    OperatorModel(id: 2, name: 'محمد'),
+    OperatorModel(id: 3, name: 'ياسر'),
+    OperatorModel(id: 4, name: 'خالد'),
+    OperatorModel(id: 5, name: 'إبراهيم'),
   ];
 
   static const List<ProductModel> products = [

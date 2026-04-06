@@ -8,15 +8,13 @@ class LineHandoverInfoModel extends LineHandoverInfo {
     super.lineName,
     required super.status,
     super.statusDisplayNameAr,
-    super.handoverType,
     super.outgoingOperatorName,
     super.outgoingOperatorId,
     super.incomingOperatorName,
     super.incomingOperatorId,
-    super.incompletePallet,
-    super.looseBalances,
-    super.looseBalanceCount,
-    super.hasIncompletePallet,
+    super.faletItems,
+    super.faletItemCount,
+    super.hasFalet,
     super.notes,
     super.rejectionNotes,
     super.resolutionNotes,
@@ -29,9 +27,7 @@ class LineHandoverInfoModel extends LineHandoverInfo {
   });
 
   factory LineHandoverInfoModel.fromJson(Map<String, dynamic> json) {
-    final incompletePalletJson =
-        json['incompletePallet'] as Map<String, dynamic>?;
-    final looseBalancesJson = json['looseBalances'] as List<dynamic>? ?? [];
+    final faletItemsJson = json['faletItems'] as List<dynamic>? ?? [];
 
     return LineHandoverInfoModel(
       handoverId: json['handoverId'] as int? ?? json['id'] as int,
@@ -40,22 +36,18 @@ class LineHandoverInfoModel extends LineHandoverInfo {
       lineName: json['lineName'] as String?,
       status: json['status'] as String? ?? 'PENDING',
       statusDisplayNameAr: json['statusDisplayNameAr'] as String?,
-      handoverType: json['handoverType'] as String?,
       outgoingOperatorName: json['outgoingOperatorName'] as String?,
       outgoingOperatorId: json['outgoingOperatorId'] as int?,
       incomingOperatorName: json['incomingOperatorName'] as String?,
       incomingOperatorId: json['incomingOperatorId'] as int?,
-      incompletePallet: incompletePalletJson != null
-          ? IncompletePalletInfoModel.fromJson(incompletePalletJson)
-          : null,
-      looseBalances: looseBalancesJson
+      faletItems: faletItemsJson
           .map(
-            (item) =>
-                LooseBalanceItemModel.fromJson(item as Map<String, dynamic>),
+            (item) => HandoverFaletItemModel.fromJson(
+                item as Map<String, dynamic>),
           )
           .toList(),
-      looseBalanceCount: json['looseBalanceCount'] as int? ?? 0,
-      hasIncompletePallet: json['hasIncompletePallet'] as bool? ?? false,
+      faletItemCount: json['faletItemCount'] as int? ?? 0,
+      hasFalet: json['hasFalet'] as bool? ?? false,
       notes: json['notes'] as String?,
       rejectionNotes: json['rejectionNotes'] as String?,
       resolutionNotes: json['resolutionNotes'] as String?,
@@ -71,34 +63,22 @@ class LineHandoverInfoModel extends LineHandoverInfo {
   }
 }
 
-class IncompletePalletInfoModel extends IncompletePalletInfo {
-  const IncompletePalletInfoModel({
-    super.productTypeId,
-    required super.productTypeName,
-    required super.quantity,
-  });
-
-  factory IncompletePalletInfoModel.fromJson(Map<String, dynamic> json) {
-    return IncompletePalletInfoModel(
-      productTypeId: json['productTypeId'] as int?,
-      productTypeName: json['productTypeName'] as String? ?? '',
-      quantity: json['quantity'] as int? ?? 0,
-    );
-  }
-}
-
-class LooseBalanceItemModel extends LooseBalanceItem {
-  const LooseBalanceItemModel({
+class HandoverFaletItemModel extends HandoverFaletItem {
+  const HandoverFaletItemModel({
+    required super.faletId,
     required super.productTypeId,
     required super.productTypeName,
-    required super.loosePackageCount,
+    required super.quantity,
+    super.lastActiveProduct,
   });
 
-  factory LooseBalanceItemModel.fromJson(Map<String, dynamic> json) {
-    return LooseBalanceItemModel(
+  factory HandoverFaletItemModel.fromJson(Map<String, dynamic> json) {
+    return HandoverFaletItemModel(
+      faletId: json['faletId'] as int,
       productTypeId: json['productTypeId'] as int,
       productTypeName: json['productTypeName'] as String? ?? '',
-      loosePackageCount: json['loosePackageCount'] as int? ?? 0,
+      quantity: json['quantity'] as int? ?? 0,
+      lastActiveProduct: json['lastActiveProduct'] as bool? ?? false,
     );
   }
 }

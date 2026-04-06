@@ -16,7 +16,7 @@ import 'pallet_success_dialog.dart';
 import 'product_switch_dialog.dart';
 import 'product_type_image.dart';
 import 'searchable_picker_dialog.dart';
-import 'open_items_screen.dart';
+import 'falet_screen.dart';
 import 'session_table_widget.dart';
 
 class ProductionLineSection extends StatelessWidget {
@@ -78,7 +78,7 @@ class ProductionLineSection extends StatelessWidget {
                                   _buildHeader(context),
                                   const SizedBox(height: 32),
                                 ],
-                                // Top action buttons row (غير مكتمل + تسليم مناوبة)
+                                // Top action buttons row (فالت + تسليم مناوبة)
                                 _buildTopActionButtons(
                                   context,
                                   provider,
@@ -418,12 +418,12 @@ class ProductionLineSection extends StatelessWidget {
       padding: EdgeInsets.only(bottom: isMobile ? 12 : 16),
       child: Row(
         children: [
-          // غير مكتمل — RIGHT side (first in RTL Row = right visually)
+          // فالت — RIGHT side (first in RTL Row = right visually)
           if (showOpenItems)
             Expanded(
               child: OutlinedButton.icon(
                 onPressed: () =>
-                    OpenItemsScreen.show(context: context, line: line),
+                    FaletScreen.show(context: context, line: line),
                 style: OutlinedButton.styleFrom(
                   foregroundColor: line.color,
                   side: BorderSide(color: line.color, width: 1.5),
@@ -437,7 +437,7 @@ class ProductionLineSection extends StatelessWidget {
                   size: isMobile ? 18 : 20,
                 ),
                 label: Text(
-                  'غير مكتمل',
+                  'فالت',
                   style: GoogleFonts.cairo(
                     fontSize: isMobile ? 14 : 16,
                     fontWeight: FontWeight.bold,
@@ -992,6 +992,7 @@ class ProductionLineSection extends StatelessWidget {
       context: context,
       productTypes: provider.productTypes,
       themeColor: line.color,
+      currentProduct: provider.getSelectedProductType(line.number),
     );
 
     if (result == null || !context.mounted) return;
@@ -999,11 +1000,8 @@ class ProductionLineSection extends StatelessWidget {
     try {
       await provider.createLineHandover(
         line.number,
-        incompletePalletProductTypeId: result.incompletePalletProductTypeId,
-        incompletePalletQuantity: result.incompletePalletQuantity,
-        looseBalances: result.looseBalances.isNotEmpty
-            ? result.looseBalances
-            : null,
+        lastActiveProductTypeId: result.lastActiveProductTypeId,
+        lastActiveProductFaletQuantity: result.lastActiveProductFaletQuantity,
         notes: result.notes,
       );
       if (context.mounted) {

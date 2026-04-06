@@ -1,27 +1,29 @@
 import '../../domain/entities/bootstrap_response.dart';
-import '../../domain/entities/complete_incomplete_pallet_response.dart';
+import '../../domain/entities/falet_convert_to_pallet_response.dart';
+import '../../domain/entities/falet_dispose_response.dart';
+import '../../domain/entities/falet_response.dart';
 import '../../domain/entities/line_authorization_state.dart';
 import '../../domain/entities/line_handover_info.dart';
-import '../../domain/entities/open_items_response.dart';
 import '../../domain/entities/operator.dart';
 import '../../domain/entities/pallet_create_response.dart';
 import '../../domain/entities/print_attempt_result.dart';
-import '../../domain/entities/produce_pallet_from_loose_response.dart';
+import '../../domain/entities/session_production_detail.dart';
 import '../../domain/entities/product_type.dart';
 import '../../domain/entities/production_line.dart';
 import '../../domain/entities/session_table_row.dart';
 import '../../domain/repositories/palletizing_repository.dart';
 import '../datasources/api_client.dart';
 import '../models/bootstrap_response_model.dart';
-import '../models/complete_incomplete_pallet_response_model.dart';
+import '../models/falet_convert_to_pallet_response_model.dart';
+import '../models/falet_dispose_response_model.dart';
+import '../models/falet_response_model.dart';
 import '../models/line_handover_info_model.dart';
-import '../models/open_items_response_model.dart';
 import '../models/operator_model.dart';
 import '../models/pallet_create_response_model.dart';
 import '../models/print_attempt_result_model.dart';
-import '../models/produce_pallet_from_loose_response_model.dart';
 import '../models/product_type_model.dart';
 import '../models/production_line_model.dart';
+import '../models/session_production_detail_model.dart';
 import '../models/session_table_row_model.dart';
 
 class PalletizingRepositoryImpl implements PalletizingRepository {
@@ -92,7 +94,6 @@ class PalletizingRepositoryImpl implements PalletizingRepository {
             operator = OperatorModel(
               id: operatorId ?? 0,
               name: operatorName,
-              code: '',
               displayLabel: operatorName,
             );
           }
@@ -165,34 +166,39 @@ class PalletizingRepositoryImpl implements PalletizingRepository {
     required int previousProductTypeId,
     required int looseCount,
   }) async {
-    return await _apiClient.requestList<SessionTableRow>(
+    return await _apiClient.request<List<SessionTableRow>>(
       path: '/palletizing-line/lines/$lineId/product-switch',
       method: 'POST',
       data: {
         'previousProductTypeId': previousProductTypeId,
         'loosePackageCount': looseCount,
       },
-      itemParser: (json) => SessionTableRowModel.fromJson(json),
+      parser: (json) {
+        final data = json['data'] as Map<String, dynamic>;
+        final sessionTableJson = data['sessionTable'] as List<dynamic>? ?? [];
+        return sessionTableJson
+            .map(
+              (item) =>
+                  SessionTableRowModel.fromJson(item as Map<String, dynamic>),
+            )
+            .toList();
+      },
     );
   }
 
   @override
   Future<LineHandoverInfo> createLineHandover(
     int lineId, {
-    int? incompletePalletProductTypeId,
-    int? incompletePalletQuantity,
-    List<Map<String, dynamic>>? looseBalances,
+    int? lastActiveProductTypeId,
+    int? lastActiveProductFaletQuantity,
     String? notes,
   }) async {
     final data = <String, dynamic>{};
-    if (incompletePalletProductTypeId != null) {
-      data['incompletePalletProductTypeId'] = incompletePalletProductTypeId;
+    if (lastActiveProductTypeId != null) {
+      data['lastActiveProductTypeId'] = lastActiveProductTypeId;
     }
-    if (incompletePalletQuantity != null) {
-      data['incompletePalletQuantity'] = incompletePalletQuantity;
-    }
-    if (looseBalances != null && looseBalances.isNotEmpty) {
-      data['looseBalances'] = looseBalances;
+    if (lastActiveProductFaletQuantity != null) {
+      data['lastActiveProductFaletQuantity'] = lastActiveProductFaletQuantity;
     }
     if (notes != null && notes.isNotEmpty) {
       data['notes'] = notes;
@@ -258,46 +264,60 @@ class PalletizingRepositoryImpl implements PalletizingRepository {
   }
 
   @override
-  Future<OpenItemsResponse> getOpenItems(int lineId) async {
-    return await _apiClient.request<OpenItemsResponse>(
-      path: '/palletizing-line/lines/$lineId/open-items',
+  Future<FaletResponse> getFaletItems(int lineId) async {
+    return await _apiClient.request<FaletResponse>(
+      path: '/palletizing-line/lines/$lineId/falet',
       method: 'GET',
       parser: (json) =>
-          OpenItemsResponseModel.fromJson(json['data'] as Map<String, dynamic>),
+          FaletResponseModel.fromJson(json['data'] as Map<String, dynamic>),
     );
   }
 
   @override
-  Future<ProducePalletFromLooseResponse> producePalletFromLoose({
+  Future<FaletConvertToPalletResponse> convertFaletToPallet({
     required int lineId,
-    required int productTypeId,
-    required int looseQuantityToUse,
-    int freshQuantityToAdd = 0,
+    required int faletId,
+    int additionalFreshQuantity = 0,
   }) async {
-    return await _apiClient.request<ProducePalletFromLooseResponse>(
-      path: '/palletizing-line/lines/$lineId/loose-balances/produce-pallet',
+    return await _apiClient.request<FaletConvertToPalletResponse>(
+      path: '/palletizing-line/lines/$lineId/falet/convert-to-pallet',
       method: 'POST',
       data: {
-        'productTypeId': productTypeId,
-        'looseQuantityToUse': looseQuantityToUse,
-        'freshQuantityToAdd': freshQuantityToAdd,
+        'faletId': faletId,
+        'additionalFreshQuantity': additionalFreshQuantity,
       },
-      parser: (json) => ProducePalletFromLooseResponseModel.fromJson(
+      parser: (json) => FaletConvertToPalletResponseModel.fromJson(
         json['data'] as Map<String, dynamic>,
       ),
     );
   }
 
   @override
-  Future<CompleteIncompletePalletResponse> completeIncompletePallet({
+  Future<FaletDisposeResponse> disposeFalet({
     required int lineId,
-    int additionalFreshQuantity = 0,
+    required int faletId,
+    String? reason,
   }) async {
-    return await _apiClient.request<CompleteIncompletePalletResponse>(
-      path: '/palletizing-line/lines/$lineId/incomplete-pallet/complete',
+    final data = <String, dynamic>{'faletId': faletId};
+    if (reason != null && reason.isNotEmpty) {
+      data['reason'] = reason;
+    }
+    return await _apiClient.request<FaletDisposeResponse>(
+      path: '/palletizing-line/lines/$lineId/falet/dispose',
       method: 'POST',
-      data: {'additionalFreshQuantity': additionalFreshQuantity},
-      parser: (json) => CompleteIncompletePalletResponseModel.fromJson(
+      data: data,
+      parser: (json) => FaletDisposeResponseModel.fromJson(
+        json['data'] as Map<String, dynamic>,
+      ),
+    );
+  }
+
+  @override
+  Future<SessionProductionDetail> getSessionProductionDetail(int lineId) async {
+    return await _apiClient.request<SessionProductionDetail>(
+      path: '/palletizing-line/lines/$lineId/session-production-detail',
+      method: 'GET',
+      parser: (json) => SessionProductionDetailModel.fromJson(
         json['data'] as Map<String, dynamic>,
       ),
     );

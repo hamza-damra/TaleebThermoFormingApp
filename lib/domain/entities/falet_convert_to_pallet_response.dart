@@ -1,19 +1,19 @@
 import 'pallet_create_response.dart';
 
-class CompleteIncompletePalletResponse {
+class FaletConvertToPalletResponse {
   final PalletCreateResponse pallet;
   final String creationMode;
-  final int incompleteQuantityUsed;
+  final int faletQuantityUsed;
   final int freshQuantityAdded;
   final int finalQuantity;
-  final int sourceHandoverId;
+  final int faletId;
 
-  const CompleteIncompletePalletResponse({
+  const FaletConvertToPalletResponse({
     required this.pallet,
     required this.creationMode,
-    required this.incompleteQuantityUsed,
+    required this.faletQuantityUsed,
     required this.freshQuantityAdded,
     required this.finalQuantity,
-    required this.sourceHandoverId,
+    required this.faletId,
   });
 }

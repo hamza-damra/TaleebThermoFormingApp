@@ -29,7 +29,6 @@ class PalletCreateResponseModel extends PalletCreateResponse {
       operator: Operator(
         id: operatorJson['id'] as int,
         name: operatorJson['name'] as String,
-        code: operatorJson['code'] as String? ?? '',
       ),
       productType: ProductType(
         id: productTypeJson['id'] as int,

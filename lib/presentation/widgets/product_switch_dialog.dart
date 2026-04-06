@@ -135,7 +135,7 @@ class _ProductSwitchDialogState extends State<ProductSwitchDialog> {
                 border: Border.all(color: Colors.orange.shade200),
               ),
               child: Text(
-                'هل يوجد عبوات فالتة (غير مكتملة) من المنتج السابق؟',
+                'هل يوجد عبوات فالتة (فالتة) من المنتج السابق؟',
                 style: GoogleFonts.cairo(
                   fontSize: isMobile ? 14 : 16,
                   fontWeight: FontWeight.w600,

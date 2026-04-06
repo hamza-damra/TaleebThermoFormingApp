@@ -1,15 +1,13 @@
 class Operator {
   final int id;
   final String name;
-  final String code;
   final String displayLabel;
 
   const Operator({
     required this.id,
     required this.name,
-    required this.code,
     String? displayLabel,
-  }) : displayLabel = displayLabel ?? '$name ($code)';
+  }) : displayLabel = displayLabel ?? name;
 
   @override
   bool operator ==(Object other) =>

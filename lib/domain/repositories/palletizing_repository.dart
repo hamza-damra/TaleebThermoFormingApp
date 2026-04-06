@@ -1,11 +1,12 @@
 import '../entities/bootstrap_response.dart';
-import '../entities/complete_incomplete_pallet_response.dart';
+import '../entities/falet_convert_to_pallet_response.dart';
+import '../entities/falet_dispose_response.dart';
+import '../entities/falet_response.dart';
 import '../entities/line_authorization_state.dart';
 import '../entities/line_handover_info.dart';
-import '../entities/open_items_response.dart';
 import '../entities/pallet_create_response.dart';
 import '../entities/print_attempt_result.dart';
-import '../entities/produce_pallet_from_loose_response.dart';
+import '../entities/session_production_detail.dart';
 import '../entities/session_table_row.dart';
 
 abstract class PalletizingRepository {
@@ -49,9 +50,8 @@ abstract class PalletizingRepository {
   /// POST /palletizing-line/lines/{lineId}/handover
   Future<LineHandoverInfo> createLineHandover(
     int lineId, {
-    int? incompletePalletProductTypeId,
-    int? incompletePalletQuantity,
-    List<Map<String, dynamic>>? looseBalances,
+    int? lastActiveProductTypeId,
+    int? lastActiveProductFaletQuantity,
     String? notes,
   });
 
@@ -71,20 +71,23 @@ abstract class PalletizingRepository {
     String? notes,
   });
 
-  /// GET /palletizing-line/lines/{lineId}/open-items
-  Future<OpenItemsResponse> getOpenItems(int lineId);
+  /// GET /palletizing-line/lines/{lineId}/falet
+  Future<FaletResponse> getFaletItems(int lineId);
 
-  /// POST /palletizing-line/lines/{lineId}/loose-balances/produce-pallet
-  Future<ProducePalletFromLooseResponse> producePalletFromLoose({
+  /// POST /palletizing-line/lines/{lineId}/falet/convert-to-pallet
+  Future<FaletConvertToPalletResponse> convertFaletToPallet({
     required int lineId,
-    required int productTypeId,
-    required int looseQuantityToUse,
-    int freshQuantityToAdd,
-  });
-
-  /// POST /palletizing-line/lines/{lineId}/incomplete-pallet/complete
-  Future<CompleteIncompletePalletResponse> completeIncompletePallet({
-    required int lineId,
+    required int faletId,
     int additionalFreshQuantity,
   });
+
+  /// POST /palletizing-line/lines/{lineId}/falet/dispose
+  Future<FaletDisposeResponse> disposeFalet({
+    required int lineId,
+    required int faletId,
+    String? reason,
+  });
+
+  /// GET /palletizing-line/lines/{lineId}/session-production-detail
+  Future<SessionProductionDetail> getSessionProductionDetail(int lineId);
 }
