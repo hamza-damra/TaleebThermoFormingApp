@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 
 import '../../core/exceptions/api_exception.dart';
+import '../../domain/entities/bootstrap_response.dart';
 import '../../domain/entities/falet_convert_to_pallet_response.dart';
 import '../../domain/entities/falet_dispose_response.dart';
 import '../../domain/entities/falet_response.dart';
@@ -162,9 +163,8 @@ class PalletizingProvider extends ChangeNotifier {
         _canConfirmHandovers[ln] = lineState.canConfirmHandover;
         _canRejectHandovers[ln] = lineState.canRejectHandover;
 
-        if (lineState.selectedProductType != null) {
-          _selectedProductTypes[ln] = lineState.selectedProductType;
-        }
+        // Server-authoritative current product — resolve full ProductType
+        _selectedProductTypes[ln] = _resolveProductType(lineState);
       }
 
       // Fetch full handover details for lines in review mode.
@@ -174,8 +174,9 @@ class PalletizingProvider extends ChangeNotifier {
       for (final lineState in bootstrap.lines) {
         if (lineState.lineUiMode == 'PENDING_HANDOVER_REVIEW') {
           try {
-            final fullHandover =
-                await _repository.getLineHandover(lineState.lineId);
+            final fullHandover = await _repository.getLineHandover(
+              lineState.lineId,
+            );
             if (fullHandover != null) {
               _pendingHandovers[lineState.lineNumber] = fullHandover;
             }
@@ -346,9 +347,8 @@ class PalletizingProvider extends ChangeNotifier {
       _canConfirmHandovers[lineNumber] = lineState.canConfirmHandover;
       _canRejectHandovers[lineNumber] = lineState.canRejectHandover;
 
-      if (lineState.selectedProductType != null) {
-        _selectedProductTypes[lineNumber] = lineState.selectedProductType;
-      }
+      // Server-authoritative current product — resolve full ProductType
+      _selectedProductTypes[lineNumber] = _resolveProductType(lineState);
 
       _hasOpenFalet[lineNumber] = lineState.hasOpenFalet;
       _openFaletCount[lineNumber] = lineState.openFaletCount;
@@ -373,11 +373,74 @@ class PalletizingProvider extends ChangeNotifier {
     }
   }
 
-  // ── Product selection ──
+  // ── Product selection (server-authoritative) ──
 
-  void selectProductType(int lineNumber, ProductType? productType) {
-    _selectedProductTypes[lineNumber] = productType;
+  /// Resolve a full ProductType from a BootstrapLineState, preferring the
+  /// local reference list (which has complete labels/images) over the
+  /// possibly-minimal object in the response.
+  ProductType? _resolveProductType(BootstrapLineState lineState) {
+    final id = lineState.currentProductTypeId;
+    if (id != null) {
+      // Try to find the full object in our reference list
+      final match = _productTypes.where((p) => p.id == id).firstOrNull;
+      if (match != null) return match;
+    }
+    // Fall back to whatever the model parsed (may be full or minimal)
+    return lineState.selectedProductType;
+  }
+
+  /// Hydrate all per-line state maps from a BootstrapLineState response.
+  void _hydrateLineState(int lineNumber, BootstrapLineState lineState) {
+    _sessionTables[lineNumber] = lineState.sessionTable;
+    _pendingHandovers[lineNumber] = lineState.pendingHandover;
+    _blockedReasons[lineNumber] = lineState.blockedReason;
+    _lineUiModes[lineNumber] = lineState.lineUiMode;
+    _canInitiateHandovers[lineNumber] = lineState.canInitiateHandover;
+    _canConfirmHandovers[lineNumber] = lineState.canConfirmHandover;
+    _canRejectHandovers[lineNumber] = lineState.canRejectHandover;
+    _hasOpenFalet[lineNumber] = lineState.hasOpenFalet;
+    _openFaletCount[lineNumber] = lineState.openFaletCount;
+    _selectedProductTypes[lineNumber] = _resolveProductType(lineState);
+  }
+
+  /// First-time product selection — calls POST /select-product.
+  /// Returns true on success or if the product was already set (auto-refresh).
+  Future<bool> selectProductOnLine({
+    required int lineNumber,
+    required int productTypeId,
+  }) async {
+    final lineId = getLineIdForNumber(lineNumber);
+    if (lineId == null) return false;
+
+    _lineSwitchingProduct[lineNumber] = true;
     notifyListeners();
+
+    try {
+      final lineState = await _repository.selectProduct(
+        lineId: lineId,
+        productTypeId: productTypeId,
+      );
+      _hydrateLineState(lineNumber, lineState);
+      _lineSwitchingProduct[lineNumber] = false;
+      notifyListeners();
+      return true;
+    } on ApiException catch (e) {
+      _lineSwitchingProduct[lineNumber] = false;
+      if (e.code == 'PRODUCT_ALREADY_SELECTED') {
+        // Another device already set it — refresh to get the real state
+        await refreshLineState(lineNumber);
+        return false;
+      }
+      _lineErrors[lineNumber] = e.displayMessage;
+      notifyListeners();
+      return false;
+    } catch (e) {
+      debugPrint('SelectProduct error (line $lineNumber): $e');
+      _lineErrors[lineNumber] = 'فشل في اختيار المنتج';
+      _lineSwitchingProduct[lineNumber] = false;
+      notifyListeners();
+      return false;
+    }
   }
 
   // ── Product switch with loose balance ──
@@ -385,6 +448,7 @@ class PalletizingProvider extends ChangeNotifier {
   Future<bool> switchProduct({
     required int lineNumber,
     required int previousProductTypeId,
+    required int newProductTypeId,
     required int looseCount,
   }) async {
     final lineId = getLineIdForNumber(lineNumber);
@@ -394,19 +458,25 @@ class PalletizingProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
-      final updatedTable = await _repository.switchProduct(
+      final lineState = await _repository.switchProduct(
         lineId: lineId,
         previousProductTypeId: previousProductTypeId,
+        newProductTypeId: newProductTypeId,
         looseCount: looseCount,
       );
 
-      _sessionTables[lineNumber] = updatedTable;
+      _hydrateLineState(lineNumber, lineState);
       _lineSwitchingProduct[lineNumber] = false;
       notifyListeners();
       return true;
     } on ApiException catch (e) {
-      _lineErrors[lineNumber] = e.displayMessage;
       _lineSwitchingProduct[lineNumber] = false;
+      if (e.code == 'CURRENT_PRODUCT_MISMATCH' ||
+          e.code == 'NO_CURRENT_PRODUCT') {
+        // Stale state — refresh from server
+        await refreshLineState(lineNumber);
+      }
+      _lineErrors[lineNumber] = e.displayMessage;
       notifyListeners();
       return false;
     } catch (e) {

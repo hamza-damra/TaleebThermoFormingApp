@@ -145,7 +145,7 @@ class _SettingCard extends StatelessWidget {
                     ],
                   ),
                 ),
-                Icon(Icons.chevron_left, color: Colors.grey[400], size: 28),
+                Icon(Icons.chevron_right, color: Colors.grey[400], size: 28),
               ],
             ),
           ),

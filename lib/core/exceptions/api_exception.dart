@@ -110,6 +110,14 @@ class ApiException implements Exception {
         return 'لا يوجد طبلية ناقصة معلقة';
       case 'INCOMPLETE_PALLET_ALREADY_RESOLVED':
         return 'تم معالجة الطبلية الناقصة مسبقاً';
+      case 'PRODUCT_ALREADY_SELECTED':
+        return 'تم اختيار منتج بالفعل — استخدم تبديل المنتج';
+      case 'NO_CURRENT_PRODUCT':
+        return 'لا يوجد منتج محدد — يجب اختيار منتج أولاً';
+      case 'CURRENT_PRODUCT_MISMATCH':
+        return 'تم تغيير المنتج من جهاز آخر';
+      case 'SAME_PRODUCT_SWITCH':
+        return 'لا يمكن التبديل إلى نفس المنتج';
       case 'INTERNAL_ERROR':
         return 'حدث خطأ في الخادم. حاول مرة أخرى';
       default:

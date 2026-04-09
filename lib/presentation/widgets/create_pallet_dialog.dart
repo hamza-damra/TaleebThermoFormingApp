@@ -126,7 +126,8 @@ class _CreatePalletDialogState extends State<CreatePalletDialog> {
               searchHint: 'ابحث عن المنتج...',
               items: widget.productTypes,
               selectedItem: _selectedProductType,
-              displayTextExtractor: (pt) => pt.compactLabel,
+              displayTextExtractor: (pt) => pt.productName,
+              subtitleExtractor: (pt) => pt.description ?? '',
               searchMatcher: (pt, query) {
                 final queryLower = query.toLowerCase();
                 return pt.name.toLowerCase().contains(queryLower) ||
@@ -158,15 +159,31 @@ class _CreatePalletDialogState extends State<CreatePalletDialog> {
             child: Row(
               children: [
                 Expanded(
-                  child: Text(
-                    _selectedProductType?.compactLabel ?? 'اختر نوع المنتج',
-                    style: GoogleFonts.cairo(
-                      fontSize: fontSize,
-                      color: _selectedProductType != null
-                          ? Colors.black87
-                          : Colors.grey.shade600,
-                    ),
-                    overflow: TextOverflow.ellipsis,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        _selectedProductType?.productName ?? 'اختر نوع المنتج',
+                        style: GoogleFonts.cairo(
+                          fontSize: fontSize,
+                          color: _selectedProductType != null
+                              ? Colors.black87
+                              : Colors.grey.shade600,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      if (_selectedProductType?.description != null &&
+                          _selectedProductType!.description!.trim().isNotEmpty)
+                        Text(
+                          _selectedProductType!.description!,
+                          style: GoogleFonts.cairo(
+                            fontSize: fontSize - 2,
+                            color: Colors.grey.shade500,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                          maxLines: 2,
+                        ),
+                    ],
                   ),
                 ),
                 Icon(Icons.arrow_drop_down, color: Colors.grey.shade600),

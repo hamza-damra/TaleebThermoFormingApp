@@ -9,6 +9,7 @@ class ProductType {
   final String packageUnitDisplayName;
   final String displayLabel;
   final String? imageUrl;
+  final String? description;
 
   ProductType({
     required this.id,
@@ -21,6 +22,7 @@ class ProductType {
     required this.packageUnitDisplayName,
     String? displayLabel,
     this.imageUrl,
+    this.description,
   }) : displayLabel = displayLabel ?? '$productName - $color ($packageQuantity $packageUnitDisplayName)';
 
   /// Short compact label for UI display: e.g. "TT-20 Black 30"

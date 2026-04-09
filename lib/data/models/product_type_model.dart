@@ -12,6 +12,7 @@ class ProductTypeModel extends ProductType {
     required super.packageUnitDisplayName,
     super.displayLabel,
     super.imageUrl,
+    super.description,
   });
 
   factory ProductTypeModel.fromJson(Map<String, dynamic> json) {
@@ -26,6 +27,22 @@ class ProductTypeModel extends ProductType {
       packageUnitDisplayName: json['packageUnitDisplayName'] as String? ?? '',
       displayLabel: json['displayLabel'] as String?,
       imageUrl: json['imageUrl'] as String?,
+      description: json['description'] as String?,
+    );
+  }
+
+  /// Construct a minimal ProductType from just id + name (e.g. from
+  /// `currentProductTypeId` / `currentProductTypeName` in LineStateResponse).
+  factory ProductTypeModel.minimal({required int id, required String name}) {
+    return ProductTypeModel(
+      id: id,
+      name: name,
+      productName: name,
+      prefix: '',
+      color: '',
+      packageQuantity: 0,
+      packageUnit: '',
+      packageUnitDisplayName: '',
     );
   }
 }

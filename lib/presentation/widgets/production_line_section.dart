@@ -422,8 +422,7 @@ class ProductionLineSection extends StatelessWidget {
           if (showOpenItems)
             Expanded(
               child: OutlinedButton.icon(
-                onPressed: () =>
-                    FaletScreen.show(context: context, line: line),
+                onPressed: () => FaletScreen.show(context: context, line: line),
                 style: OutlinedButton.styleFrom(
                   foregroundColor: line.color,
                   side: BorderSide(color: line.color, width: 1.5),
@@ -505,7 +504,8 @@ class ProductionLineSection extends StatelessWidget {
             searchHint: 'ابحث عن المنتج...',
             items: provider.productTypes,
             selectedItem: selectedProductType,
-            displayTextExtractor: (pt) => pt.compactLabel,
+            displayTextExtractor: (pt) => pt.productName,
+            subtitleExtractor: (pt) => pt.description ?? '',
             searchMatcher: (pt, query) {
               final queryLower = query.toLowerCase();
               return pt.name.toLowerCase().contains(queryLower) ||
@@ -534,16 +534,32 @@ class ProductionLineSection extends StatelessWidget {
           child: Row(
             children: [
               Expanded(
-                child: Text(
-                  selectedProductType?.compactLabel ?? 'اختر نوع المنتج',
-                  style: GoogleFonts.cairo(
-                    fontSize: isMobile ? 15 : 17,
-                    fontWeight: FontWeight.w500,
-                    color: selectedProductType != null
-                        ? Colors.black87
-                        : Colors.grey.shade400,
-                  ),
-                  overflow: TextOverflow.ellipsis,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      selectedProductType?.productName ?? 'اختر نوع المنتج',
+                      style: GoogleFonts.cairo(
+                        fontSize: isMobile ? 15 : 17,
+                        fontWeight: FontWeight.w500,
+                        color: selectedProductType != null
+                            ? Colors.black87
+                            : Colors.grey.shade400,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    if (selectedProductType?.description != null &&
+                        selectedProductType!.description!.trim().isNotEmpty)
+                      Text(
+                        selectedProductType.description!,
+                        style: GoogleFonts.cairo(
+                          fontSize: isMobile ? 12 : 14,
+                          color: Colors.grey.shade600,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                        maxLines: 2,
+                      ),
+                  ],
                 ),
               ),
               Icon(
@@ -566,14 +582,34 @@ class ProductionLineSection extends StatelessWidget {
     final provider = context.read<PalletizingProvider>();
     final currentProduct = provider.getSelectedProductType(line.number);
 
-    // First selection or same product — just confirm and set
-    if (currentProduct == null || currentProduct.id == newProduct.id) {
+    // Same product — nothing to do
+    if (currentProduct != null && currentProduct.id == newProduct.id) {
+      return;
+    }
+
+    // First-time selection (no product set on line) — confirm then POST /select-product
+    if (currentProduct == null) {
       final confirmed = await _showProductTypeConfirmationDialog(
         context,
         newProduct,
       );
       if (confirmed == true && context.mounted) {
-        provider.selectProductType(line.number, newProduct);
+        final success = await provider.selectProductOnLine(
+          lineNumber: line.number,
+          productTypeId: newProduct.id,
+        );
+        if (!success && context.mounted) {
+          final error = provider.getLineError(line.number);
+          if (error != null) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(error, style: GoogleFonts.cairo()),
+                backgroundColor: Colors.red,
+              ),
+            );
+            provider.clearLineError(line.number);
+          }
+        }
       }
       return;
     }
@@ -589,16 +625,15 @@ class ProductionLineSection extends StatelessWidget {
 
     if (looseCount == null || !context.mounted) return; // Cancelled
 
-    // Submit product switch to backend
+    // Submit product switch to backend (provider hydrates state from response)
     final success = await provider.switchProduct(
       lineNumber: line.number,
       previousProductTypeId: currentProduct.id,
+      newProductTypeId: newProduct.id,
       looseCount: looseCount,
     );
 
-    if (success && context.mounted) {
-      provider.selectProductType(line.number, newProduct);
-    } else if (!success && context.mounted) {
+    if (!success && context.mounted) {
       final error = provider.getLineError(line.number);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -773,6 +808,21 @@ class ProductionLineSection extends StatelessWidget {
                               ),
                               textAlign: TextAlign.center,
                             ),
+                            if (productType.description != null &&
+                                productType.description!.trim().isNotEmpty) ...
+                              [
+                                SizedBox(height: isMobile ? 4 : 6),
+                                Text(
+                                  productType.description!,
+                                  style: GoogleFonts.cairo(
+                                    fontSize: isMobile ? 13 : 15,
+                                    color: Colors.grey.shade600,
+                                  ),
+                                  textAlign: TextAlign.center,
+                                  maxLines: 3,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ],
                           ],
                         ),
                       ),

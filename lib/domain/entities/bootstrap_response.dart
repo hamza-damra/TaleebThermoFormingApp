@@ -27,6 +27,8 @@ class BootstrapLineState {
   final LineHandoverInfo? pendingHandover;
   final String? blockedReason;
   final ProductType? selectedProductType;
+  final int? currentProductTypeId;
+  final String? currentProductTypeName;
   final String? lineUiMode;
   final bool canInitiateHandover;
   final bool canConfirmHandover;
@@ -45,6 +47,8 @@ class BootstrapLineState {
     this.pendingHandover,
     this.blockedReason,
     this.selectedProductType,
+    this.currentProductTypeId,
+    this.currentProductTypeName,
     this.lineUiMode,
     this.canInitiateHandover = false,
     this.canConfirmHandover = false,

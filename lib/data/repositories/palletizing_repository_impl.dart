@@ -9,9 +9,8 @@ import '../../domain/entities/pallet_create_response.dart';
 import '../../domain/entities/print_attempt_result.dart';
 import '../../domain/entities/session_production_detail.dart';
 import '../../domain/entities/product_type.dart';
-import '../../domain/entities/production_line.dart';
-import '../../domain/entities/session_table_row.dart';
 import '../../domain/repositories/palletizing_repository.dart';
+import '../../domain/entities/production_line.dart';
 import '../datasources/api_client.dart';
 import '../models/bootstrap_response_model.dart';
 import '../models/falet_convert_to_pallet_response_model.dart';
@@ -24,7 +23,6 @@ import '../models/print_attempt_result_model.dart';
 import '../models/product_type_model.dart';
 import '../models/production_line_model.dart';
 import '../models/session_production_detail_model.dart';
-import '../models/session_table_row_model.dart';
 
 class PalletizingRepositoryImpl implements PalletizingRepository {
   final ApiClient _apiClient;
@@ -161,28 +159,38 @@ class PalletizingRepositoryImpl implements PalletizingRepository {
   }
 
   @override
-  Future<List<SessionTableRow>> switchProduct({
+  Future<BootstrapLineState> selectProduct({
+    required int lineId,
+    required int productTypeId,
+  }) async {
+    return await _apiClient.request<BootstrapLineState>(
+      path: '/palletizing-line/lines/$lineId/select-product',
+      method: 'POST',
+      data: {'productTypeId': productTypeId},
+      parser: (json) => BootstrapLineStateModel.fromJson(
+        json['data'] as Map<String, dynamic>,
+      ),
+    );
+  }
+
+  @override
+  Future<BootstrapLineState> switchProduct({
     required int lineId,
     required int previousProductTypeId,
+    required int newProductTypeId,
     required int looseCount,
   }) async {
-    return await _apiClient.request<List<SessionTableRow>>(
+    return await _apiClient.request<BootstrapLineState>(
       path: '/palletizing-line/lines/$lineId/product-switch',
       method: 'POST',
       data: {
         'previousProductTypeId': previousProductTypeId,
+        'newProductTypeId': newProductTypeId,
         'loosePackageCount': looseCount,
       },
-      parser: (json) {
-        final data = json['data'] as Map<String, dynamic>;
-        final sessionTableJson = data['sessionTable'] as List<dynamic>? ?? [];
-        return sessionTableJson
-            .map(
-              (item) =>
-                  SessionTableRowModel.fromJson(item as Map<String, dynamic>),
-            )
-            .toList();
-      },
+      parser: (json) => BootstrapLineStateModel.fromJson(
+        json['data'] as Map<String, dynamic>,
+      ),
     );
   }
 

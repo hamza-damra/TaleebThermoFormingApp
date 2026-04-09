@@ -323,10 +323,10 @@ class _PalletizingScreenState extends State<PalletizingScreen>
           child: RefreshIndicator(
             onRefresh: _refreshData,
             child: Container(
-              color: ProductionLine.line2.lightColor,
+              color: ProductionLine.line1.lightColor,
               child: ProductionLineSection(
-                line: ProductionLine.line2,
-                productionLineEntity: line2Entity,
+                line: ProductionLine.line1,
+                productionLineEntity: line1Entity,
               ),
             ),
           ),
@@ -336,10 +336,10 @@ class _PalletizingScreenState extends State<PalletizingScreen>
           child: RefreshIndicator(
             onRefresh: _refreshData,
             child: Container(
-              color: ProductionLine.line1.lightColor,
+              color: ProductionLine.line2.lightColor,
               child: ProductionLineSection(
-                line: ProductionLine.line1,
-                productionLineEntity: line1Entity,
+                line: ProductionLine.line2,
+                productionLineEntity: line2Entity,
               ),
             ),
           ),

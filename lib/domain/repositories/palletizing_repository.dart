@@ -7,7 +7,6 @@ import '../entities/line_handover_info.dart';
 import '../entities/pallet_create_response.dart';
 import '../entities/print_attempt_result.dart';
 import '../entities/session_production_detail.dart';
-import '../entities/session_table_row.dart';
 
 abstract class PalletizingRepository {
   // ── Line-scoped endpoints (/palletizing-line) ──
@@ -40,10 +39,17 @@ abstract class PalletizingRepository {
     String? failureReason,
   });
 
+  /// POST /palletizing-line/lines/{lineId}/select-product
+  Future<BootstrapLineState> selectProduct({
+    required int lineId,
+    required int productTypeId,
+  });
+
   /// POST /palletizing-line/lines/{lineId}/product-switch
-  Future<List<SessionTableRow>> switchProduct({
+  Future<BootstrapLineState> switchProduct({
     required int lineId,
     required int previousProductTypeId,
+    required int newProductTypeId,
     required int looseCount,
   });
 

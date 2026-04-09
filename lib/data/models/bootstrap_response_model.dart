@@ -51,6 +51,8 @@ class BootstrapLineStateModel extends BootstrapLineState {
     super.pendingHandover,
     super.blockedReason,
     super.selectedProductType,
+    super.currentProductTypeId,
+    super.currentProductTypeName,
     super.lineUiMode,
     super.canInitiateHandover,
     super.canConfirmHandover,
@@ -89,6 +91,22 @@ class BootstrapLineStateModel extends BootstrapLineState {
     final selectedProductJson =
         json['selectedProductType'] as Map<String, dynamic>?;
 
+    // New server-authoritative current product fields
+    final currentProductTypeId = json['currentProductTypeId'] as int?;
+    final currentProductTypeName = json['currentProductTypeName'] as String?;
+
+    // Resolve selectedProductType: prefer full object from JSON, fall back
+    // to constructing a minimal ProductType from the new id/name fields.
+    ProductTypeModel? resolvedSelectedProduct;
+    if (selectedProductJson != null) {
+      resolvedSelectedProduct = ProductTypeModel.fromJson(selectedProductJson);
+    } else if (currentProductTypeId != null && currentProductTypeName != null) {
+      resolvedSelectedProduct = ProductTypeModel.minimal(
+        id: currentProductTypeId,
+        name: currentProductTypeName,
+      );
+    }
+
     return BootstrapLineStateModel(
       lineId: json['lineId'] as int,
       lineNumber: json['lineNumber'] as int,
@@ -106,9 +124,9 @@ class BootstrapLineStateModel extends BootstrapLineState {
           ? LineHandoverInfoModel.fromJson(handoverJson)
           : null,
       blockedReason: json['blockedReason'] as String?,
-      selectedProductType: selectedProductJson != null
-          ? ProductTypeModel.fromJson(selectedProductJson)
-          : null,
+      selectedProductType: resolvedSelectedProduct,
+      currentProductTypeId: currentProductTypeId,
+      currentProductTypeName: currentProductTypeName,
       lineUiMode: json['lineUiMode'] as String?,
       canInitiateHandover: json['canInitiateHandover'] as bool? ?? false,
       canConfirmHandover: json['canConfirmHandover'] as bool? ?? false,
