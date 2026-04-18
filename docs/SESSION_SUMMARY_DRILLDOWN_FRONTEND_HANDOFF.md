@@ -33,7 +33,7 @@ GET /api/v1/palletizing-line/lines/{lineId}/session-production-detail
     "groups": [
       {
         "productTypeId": 5,
-        "productTypeName": "Red 20kg (100 كرتونة)",
+        "productTypeName": "Red 20kg (100 عبوة)",
         "productTypePrefix": "0001",
         "completedPalletCount": 3,
         "pallets": [
@@ -68,7 +68,7 @@ GET /api/v1/palletizing-line/lines/{lineId}/session-production-detail
       },
       {
         "productTypeId": 6,
-        "productTypeName": "Blue 15kg (50 كرتونة)",
+        "productTypeName": "Blue 15kg (50 عبوة)",
         "productTypePrefix": "0002",
         "completedPalletCount": 1,
         "pallets": [
@@ -194,7 +194,7 @@ POST /api/v1/palletizing-line/lines/{lineId}/pallets/{palletId}/print-attempts
 - Each product type header shows: **product type name** + **pallet count** (`completedPalletCount`)
 - Under each group, show a list of pallets with:
   - **Display the `serialNumber` field** (e.g. `00000042`) — NOT the full `scannedValue` — because the product prefix is already known from the group header
-  - Show `quantity` (e.g. "100 كرتونة")
+  - Show `quantity` (e.g. "100 عبوة")
   - Show `createdAtDisplay` (e.g. "2026-04-06، 08:30 صباحًا")
   - Show a **reprint button** (🖨️ or "إعادة طباعة")
 

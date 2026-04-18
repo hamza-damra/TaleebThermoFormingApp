@@ -7,6 +7,7 @@ class TsplConstants {
   static const String reference = 'REFERENCE 0,0';
   static const String setPeelOff = 'SET PEEL OFF';
   static const String setTearOff = 'SET TEAR OFF';
+  static const String setTearOn = 'SET TEAR ON';
   static const String setCutterOff = 'SET CUTTER OFF';
   static const String cls = 'CLS';
   static const String lineEnding = '\r\n';

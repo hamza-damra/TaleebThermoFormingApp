@@ -105,7 +105,7 @@ class SessionTableWidget extends StatelessWidget {
           ),
           SizedBox(height: isMobile ? 8 : 12),
           Text(
-            'لا توجد بيانات إنتاج في هذه الجلسة',
+            'لا توجد بيانات إنتاج في هذه المناوبة',
             style: GoogleFonts.cairo(
               fontSize: isMobile ? 14 : 16,
               color: Colors.grey.shade500,

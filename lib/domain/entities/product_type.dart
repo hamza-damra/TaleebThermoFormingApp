@@ -29,7 +29,7 @@ class ProductType {
   String get compactLabel => '$productName $packageQuantity';
 
   /// Strips verbose slash-separated metadata from a raw product type name string.
-  /// e.g. "TT-20 Black 500 / أسود / 30 كرتونة" → "TT-20 Black 500"
+  /// e.g. "TT-20 Black 500 / أسود / 30 عبوة" → "TT-20 Black 500"
   static String formatCompactName(String verboseName) {
     if (verboseName.contains('/')) {
       return verboseName.split('/').first.trim();

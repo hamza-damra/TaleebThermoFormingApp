@@ -2,7 +2,7 @@
 
 ## Bug Summary
 
-Product type **TT-20 BLACK 500** (packageQuantity = 500 كرتونة) was incorrectly displaying **20** in the "إنشاء مشتاح جديد" (Create Pallet) dialog and the "تم إنشاء المشتاح بنجاح" (Pallet Created Successfully) dialog.
+Product type **TT-20 BLACK 500** (packageQuantity = 500 عبوة) was incorrectly displaying **20** in the "إنشاء مشتاح جديد" (Create Pallet) dialog and the "تم إنشاء المشتاح بنجاح" (Pallet Created Successfully) dialog.
 
 ---
 

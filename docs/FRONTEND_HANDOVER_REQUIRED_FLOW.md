@@ -93,7 +93,7 @@ The `lineUiMode` field tells the frontend **exactly** which screen to render:
   "hasIncompletePallet": true,
   "incompletePalletProductTypeName": "أحمر 20 كغ",
   "createdAtDisplay": "الأربعاء ١٥ يناير ٢٠٢٥ ٠٢:٣٠ م",
-  "notes": "ملاحظات نهاية الوردية",
+  "notes": "ملاحظات نهاية المناوبة",
   "handoverType": "BOTH"
 }
 ```

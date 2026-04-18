@@ -111,7 +111,7 @@ These endpoints now include `imageUrl` in their response:
 ```json
 {
   "id": 5,
-  "name": "لنش بوكس / أبيض / 500 كرتونة",
+  "name": "لنش بوكس / أبيض / 500 عبوة",
   "productName": "لنش بوكس",
   "prefix": "0005",
   "color": "أبيض",
@@ -145,7 +145,7 @@ Note: When there is no image, the `imageUrl` field is completely absent from the
   "productTypeActive": true,
   "description": "لنش بوكس مقطع",
   "defaultQuantity": 500,
-  "quantityUnit": "كرتونة",
+  "quantityUnit": "عبوة",
   "imageUrl": "/api/v1/product-type-images/pt-img-1711900000000-7a8b9c.jpg"
 }
 ```

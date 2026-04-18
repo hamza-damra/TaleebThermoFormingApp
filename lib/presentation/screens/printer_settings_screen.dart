@@ -30,7 +30,11 @@ class PrinterSettingsScreen extends StatelessWidget {
         builder: (context, provider, _) {
           return ListView(
             padding: const EdgeInsets.all(16),
-            children: [_PrintersSection(provider: provider)],
+            children: [
+              _PrintersSection(provider: provider),
+              const SizedBox(height: 24),
+              _CopiesSection(provider: provider),
+            ],
           );
         },
       ),
@@ -506,7 +510,7 @@ class _EditPrinterDialogState extends State<_EditPrinterDialog> {
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                         elevation: 0,
                       ),
-                      child: Text('حفظ التعديلات', style: GoogleFonts.cairo(fontWeight: FontWeight.bold)),
+                      child: Text('حفظ ', style: GoogleFonts.cairo(fontWeight: FontWeight.bold)),
                     ),
                   ),
                 ],
@@ -552,6 +556,137 @@ class _EditPrinterDialogState extends State<_EditPrinterDialog> {
         filled: true,
         fillColor: Colors.grey.shade50,
       ),
+    );
+  }
+}
+
+// ─── Copies Section ─────────────────────────────────────────────────────────
+
+class _CopiesSection extends StatelessWidget {
+  final PrintingProvider provider;
+
+  const _CopiesSection({required this.provider});
+
+  static const _primaryColor = Color(0xFF1565C0);
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            const Icon(Icons.copy_all_rounded, size: 22, color: _primaryColor),
+            const SizedBox(width: 8),
+            Text(
+              'عدد النسخ',
+              style: GoogleFonts.cairo(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: _primaryColor,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        Card(
+          elevation: 0.5,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+            side: BorderSide(color: Colors.grey.shade200),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: _primaryColor.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Icon(
+                    Icons.print_rounded,
+                    color: _primaryColor,
+                    size: 24,
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'عدد النسخ لكل طبلية',
+                        style: GoogleFonts.cairo(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.black87,
+                        ),
+                      ),
+                      Text(
+                        'عدد الملصقات المطبوعة عند إنشاء طبلية جديدة',
+                        style: GoogleFonts.cairo(
+                          fontSize: 12,
+                          color: Colors.grey.shade600,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Container(
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade100,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      IconButton(
+                        onPressed: provider.copies > 1
+                            ? () => provider.setCopies(provider.copies - 1)
+                            : null,
+                        icon: const Icon(Icons.remove_rounded, size: 20),
+                        constraints: const BoxConstraints(
+                          minWidth: 40,
+                          minHeight: 40,
+                        ),
+                        color: _primaryColor,
+                        disabledColor: Colors.grey.shade400,
+                      ),
+                      Container(
+                        constraints: const BoxConstraints(minWidth: 36),
+                        alignment: Alignment.center,
+                        child: Text(
+                          '${provider.copies}',
+                          style: GoogleFonts.cairo(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: _primaryColor,
+                          ),
+                        ),
+                      ),
+                      IconButton(
+                        onPressed: provider.copies < 10
+                            ? () => provider.setCopies(provider.copies + 1)
+                            : null,
+                        icon: const Icon(Icons.add_rounded, size: 20),
+                        constraints: const BoxConstraints(
+                          minWidth: 40,
+                          minHeight: 40,
+                        ),
+                        color: _primaryColor,
+                        disabledColor: Colors.grey.shade400,
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

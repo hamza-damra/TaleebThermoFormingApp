@@ -45,7 +45,7 @@ class ApiException implements Exception {
   factory ApiException.unauthorized() {
     return ApiException(
       code: 'UNAUTHORIZED',
-      message: 'انتهت صلاحية الجلسة. يرجى تسجيل الدخول مرة أخرى',
+      message: 'انتهت صلاحية المناوبة. يرجى تسجيل الدخول مرة أخرى',
       statusCode: 401,
     );
   }
@@ -118,6 +118,53 @@ class ApiException implements Exception {
         return 'تم تغيير المنتج من جهاز آخر';
       case 'SAME_PRODUCT_SWITCH':
         return 'لا يمكن التبديل إلى نفس المنتج';
+      // ── Handover FALET reconciliation errors ──
+      case 'HANDOVER_FALET_DECISION_REQUIRED':
+        return 'يجب حل جميع عناصر الفالت المفتوحة قبل التسليم';
+      case 'HANDOVER_FALET_DECISION_MISSING':
+        return 'قرار مفقود لبعض عناصر الفالت';
+      case 'HANDOVER_FALET_DECISION_DUPLICATE':
+        return 'عنصر فالت مكرر';
+      case 'HANDOVER_FALET_INVALID_ACTION':
+        return 'إجراء غير صالح';
+      case 'HANDOVER_FALET_PALLETE_REQUIRED':
+        return 'اختر طبلية للضم';
+      case 'HANDOVER_FALET_PALLETE_NOT_FOUND':
+        return 'الطبلية المحددة غير موجودة';
+      case 'HANDOVER_FALET_PALLETE_WRONG_SESSION':
+        return 'الطبلية من مناوبة مختلفة';
+      case 'HANDOVER_FALET_PALLETE_WRONG_LINE':
+        return 'الطبلية من خط مختلف';
+      case 'HANDOVER_FALET_PALLETE_CANCELLED':
+        return 'تم إلغاء الطبلية';
+      case 'HANDOVER_FALET_PALLETE_PRODUCT_MISMATCH':
+        return 'نوع المنتج غير متطابق';
+      case 'HANDOVER_FALET_QUANTITY_EXCEEDS_PALLETE':
+        return 'الكمية تتجاوز سعة الطبلية';
+      case 'HANDOVER_FALET_NO_SESSION_PRODUCTION':
+        return 'لا يوجد إنتاج نشط في هذه المناوبة لنوع المنتج. لا يمكن اعتبار الفالت محسوباً.';
+      case 'NO_ACTIVE_PRODUCT_FOR_UNDECLARED_FALET':
+        return 'لا يوجد منتج نشط على الخط';
+      case 'FALET_NOT_FOUND':
+        return 'الفالت غير موجود';
+      case 'FALET_ALREADY_RESOLVED':
+        return 'الفالت محلول مسبقاً';
+      case 'FALET_LINE_MISMATCH':
+        return 'الفالت لا ينتمي لهذا الخط';
+      case 'FALET_MUST_BE_CONSUMED_FIRST':
+        return 'يوجد فالت مفتوح لهذا المنتج يجب استهلاكه أولاً';
+      case 'FALET_DISPUTE_NOT_FOUND':
+        return 'النزاع غير موجود';
+      case 'FALET_DISPUTE_ALREADY_RESOLVED':
+        return 'تم حل هذا النزاع مسبقاً';
+      case 'FALET_DISPUTE_ITEM_NOT_FOUND':
+        return 'عنصر النزاع غير موجود';
+      case 'FALET_DISPUTE_ITEM_FULLY_RESOLVED':
+        return 'عنصر النزاع محلول بالكامل';
+      case 'FALET_DISPUTE_QUANTITY_EXCEEDS_REMAINING':
+        return 'الكمية تتجاوز المتبقي';
+      case 'FALET_DISPUTE_NO_ACTIVE_AUTH_FOR_PALLETIZE':
+        return 'يتطلب تفويض نشط للتنصيب';
       case 'INTERNAL_ERROR':
         return 'حدث خطأ في الخادم. حاول مرة أخرى';
       default:

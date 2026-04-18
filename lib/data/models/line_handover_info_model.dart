@@ -1,4 +1,5 @@
 import '../../domain/entities/line_handover_info.dart';
+import 'reconciled_falet_item_model.dart';
 
 class LineHandoverInfoModel extends LineHandoverInfo {
   const LineHandoverInfoModel({
@@ -15,8 +16,14 @@ class LineHandoverInfoModel extends LineHandoverInfo {
     super.faletItems,
     super.faletItemCount,
     super.hasFalet,
+    super.reconciledFaletItems,
     super.notes,
     super.rejectionNotes,
+    super.receiptNotes,
+    super.rejectionIncorrectQuantity,
+    super.rejectionOtherReason,
+    super.rejectionOtherReasonNotes,
+    super.rejectionUndeclaredFalet,
     super.resolutionNotes,
     super.resolvedByUserName,
     super.createdAt,
@@ -28,6 +35,7 @@ class LineHandoverInfoModel extends LineHandoverInfo {
 
   factory LineHandoverInfoModel.fromJson(Map<String, dynamic> json) {
     final faletItemsJson = json['faletItems'] as List<dynamic>? ?? [];
+    final reconciledJson = json['reconciledFaletItems'] as List<dynamic>? ?? [];
 
     return LineHandoverInfoModel(
       handoverId: json['handoverId'] as int? ?? json['id'] as int,
@@ -42,14 +50,25 @@ class LineHandoverInfoModel extends LineHandoverInfo {
       incomingOperatorId: json['incomingOperatorId'] as int?,
       faletItems: faletItemsJson
           .map(
-            (item) => HandoverFaletItemModel.fromJson(
-                item as Map<String, dynamic>),
+            (item) =>
+                HandoverFaletItemModel.fromJson(item as Map<String, dynamic>),
           )
           .toList(),
       faletItemCount: json['faletItemCount'] as int? ?? 0,
       hasFalet: json['hasFalet'] as bool? ?? false,
+      reconciledFaletItems: reconciledJson
+          .map(
+            (item) =>
+                ReconciledFaletItemModel.fromJson(item as Map<String, dynamic>),
+          )
+          .toList(),
       notes: json['notes'] as String?,
       rejectionNotes: json['rejectionNotes'] as String?,
+      receiptNotes: json['receiptNotes'] as String?,
+      rejectionIncorrectQuantity: json['rejectionIncorrectQuantity'] as bool?,
+      rejectionOtherReason: json['rejectionOtherReason'] as bool?,
+      rejectionOtherReasonNotes: json['rejectionOtherReasonNotes'] as String?,
+      rejectionUndeclaredFalet: json['rejectionUndeclaredFalet'] as bool?,
       resolutionNotes: json['resolutionNotes'] as String?,
       resolvedByUserName: json['resolvedByUserName'] as String?,
       createdAt: json['createdAt'] != null
@@ -69,6 +88,7 @@ class HandoverFaletItemModel extends HandoverFaletItem {
     required super.productTypeId,
     required super.productTypeName,
     required super.quantity,
+    super.observedQuantity,
     super.lastActiveProduct,
   });
 
@@ -78,6 +98,7 @@ class HandoverFaletItemModel extends HandoverFaletItem {
       productTypeId: json['productTypeId'] as int,
       productTypeName: json['productTypeName'] as String? ?? '',
       quantity: json['quantity'] as int? ?? 0,
+      observedQuantity: json['observedQuantity'] as int?,
       lastActiveProduct: json['lastActiveProduct'] as bool? ?? false,
     );
   }

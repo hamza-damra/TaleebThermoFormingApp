@@ -18,7 +18,7 @@ This dialog edits an existing saved printer configuration while preserving the p
   - printer name
   - IP address
   - port
-- cancel and `حفظ التعديلات` actions
+- cancel and `حفظ ` actions
 
 ## 4. State Management
 

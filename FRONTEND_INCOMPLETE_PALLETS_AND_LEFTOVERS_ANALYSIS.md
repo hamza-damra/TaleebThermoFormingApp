@@ -67,7 +67,7 @@ The frontend correctly separates the two at the data/state layer, but the UX bun
 | فالت فقط                         | Case chip                                            | `HandoverCreationDialog._buildCaseChip()`                | LOOSE_BALANCES_ONLY                                |
 | طبليات ناقصة وفالت               | Case chip                                            | `HandoverCreationDialog._buildCaseChip()`                | BOTH                                               |
 | من تسليم                         | Origin badge on loose balance card                   | `OpenItemsScreen._buildOriginBadge()`                    | Loose balance from handover                        |
-| الجلسة الحالية                   | Origin badge on loose balance card                   | `OpenItemsScreen._buildOriginBadge()`                    | Loose balance from current session                 |
+| المناوبة الحالية                   | Origin badge on loose balance card                   | `OpenItemsScreen._buildOriginBadge()`                    | Loose balance from current session                 |
 | من تسليم سابق                    | Sub-badge in produce-pallet dialog                   | `ProducePalletFromLooseDialog`                           | Loose balance transferred from prior handover      |
 | مستلم من تسليم #                 | Source indicator in complete-pallet dialog           | `CompleteIncompletePalletDialog`                         | Received from handover ID                          |
 | الرصيد المتاح                    | Info chip in produce-pallet dialog                   | `ProducePalletFromLooseDialog`                           | Available loose count                              |
@@ -263,7 +263,7 @@ The frontend correctly separates the two at the data/state layer, but the UX bun
 
 1. Tap product dropdown → `SearchablePickerDialog`.
 2. Select different product → `ProductSwitchDialog` opens.
-3. Dialog asks: "هل يوجد عبوات فالتة (فالتة) من المنتج السابق؟"
+3. Dialog asks: "هل يوجد فالت من المنتج السابق؟"
 4. If "لا يوجد فالت" → returns 0.
 5. If "نعم يوجد فالت" → user enters count → returns N.
 6. `provider.switchProduct()` called → `POST /palletizing-line/lines/{lineId}/product-switch` with `{ previousProductTypeId, loosePackageCount }`.
@@ -281,7 +281,7 @@ The frontend correctly separates the two at the data/state layer, but the UX bun
 2. Tap → `OpenItemsScreen.show()` pushes new route.
 3. `initState` → `provider.fetchOpenItems(lineNumber)` → `GET /palletizing-line/lines/{lineId}/open-items`.
 4. Response parsed into `OpenItemsResponse` (list of `LooseBalanceItem` + optional `ReceivedIncompletePallet`).
-5. Loose balances shown as cards with product name, count, origin badge ("من تسليم" or "الجلسة الحالية").
+5. Loose balances shown as cards with product name, count, origin badge ("من تسليم" or "المناوبة الحالية").
 6. Incomplete pallet shown as a purple card with source handover ID.
 7. If both sections empty → "لا توجد عناصر فالتة".
 
@@ -859,7 +859,7 @@ The frontend correctly separates the two at the data/state layer, but the UX bun
 | 1   | **Max one incomplete pallet per line**                    | If backend ever supports multiple, the frontend would only show one                                                                |
 | 2   | **lineUiMode is always one of 4 known values**            | Any unknown mode falls through to normal layout (no explicit "unknown mode" handling)                                              |
 | 3   | **Bootstrap always returns lines for lineNumber 1 and 2** | Constants enum is hardcoded to 2 lines. If backend adds line 3, no tab would appear                                                |
-| 4   | **LooseBalanceItem.origin values**                        | Only `CARRIED_FROM_HANDOVER` is explicitly checked. Any other value defaults to "الجلسة الحالية" badge display                     |
+| 4   | **LooseBalanceItem.origin values**                        | Only `CARRIED_FROM_HANDOVER` is explicitly checked. Any other value defaults to "المناوبة الحالية" badge display                     |
 | 5   | **Product type list is global and shared**                | Product types are not filtered per line. If backend restricts certain products to certain lines, the frontend would still show all |
 
 ### 10.5 UX Ambiguities

@@ -1,12 +1,12 @@
 # Compact Product Label UI Implementation Report
 
 ## Summary
-Successfully refactored the Flutter application to display compact product labels instead of verbose ones across all UI locations. The change replaces verbose labels like `TT-20 Black 500 / أسود / 30 كرتونة` with compact labels like `TT-20 Black 30` throughout the interface.
+Successfully refactored the Flutter application to display compact product labels instead of verbose ones across all UI locations. The change replaces verbose labels like `TT-20 Black 500 / أسود / 30 عبوة` with compact labels like `TT-20 Black 30` throughout the interface.
 
 ## Root Cause
 The verbose product labels were caused by:
 1. `ProductType.displayLabel` field constructed with verbose format: `'$productName - $color ($packageQuantity $packageUnitDisplayName)'`
-2. Backend `name` field containing slash-separated metadata (e.g., `TT-20 Black 500 / أسود / 30 كرتونة`)
+2. Backend `name` field containing slash-separated metadata (e.g., `TT-20 Black 500 / أسود / 30 عبوة`)
 3. UI components using `pt.name` or `productTypeName` directly for display instead of a compact format
 
 ## Solution Implemented
@@ -15,7 +15,7 @@ The verbose product labels were caused by:
 **File:** `lib/domain/entities/product_type.dart`
 - Added `compactLabel` getter: Returns `'$productName $packageQuantity'`
 - Added static `formatCompactName()` helper: Strips slash-separated suffixes from verbose names
-- Example: `"TT-20 Black 500 / أسود / 30 كرتونة"` → `"TT-20 Black 500"`
+- Example: `"TT-20 Black 500 / أسود / 30 عبوة"` → `"TT-20 Black 500"`
 
 ### 2. UI Components Updated
 
@@ -103,7 +103,7 @@ To verify the changes visually:
    - Product names in tables and cards are compact
 
 ### Expected Behavior
-- **Before**: `TT-20 Black 500 / أسود / 30 كرتونة`
+- **Before**: `TT-20 Black 500 / أسود / 30 عبوة`
 - **After**: `TT-20 Black 30`
 
 ## Files Modified

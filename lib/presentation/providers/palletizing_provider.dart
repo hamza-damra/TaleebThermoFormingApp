@@ -4,7 +4,9 @@ import '../../core/exceptions/api_exception.dart';
 import '../../domain/entities/bootstrap_response.dart';
 import '../../domain/entities/falet_convert_to_pallet_response.dart';
 import '../../domain/entities/falet_dispose_response.dart';
+import '../../domain/entities/falet_resolution_entry.dart';
 import '../../domain/entities/falet_response.dart';
+import '../../domain/entities/first_pallet_suggestion.dart';
 import '../../domain/entities/line_authorization_state.dart';
 import '../../domain/entities/line_handover_info.dart';
 import '../../domain/entities/operator.dart';
@@ -48,6 +50,8 @@ class PalletizingProvider extends ChangeNotifier {
   final Map<int, bool> _faletItemsLoading = {};
   final Map<int, bool> _hasOpenFalet = {};
   final Map<int, int> _openFaletCount = {};
+  final Map<int, FirstPalletSuggestion?> _firstPalletSuggestions = {};
+  final Map<int, bool> _firstPalletSuggestionLoading = {};
 
   // ── Global getters ──
   PalletizingState get state => _state;
@@ -114,6 +118,12 @@ class PalletizingProvider extends ChangeNotifier {
 
   int getOpenFaletCount(int lineNumber) => _openFaletCount[lineNumber] ?? 0;
 
+  FirstPalletSuggestion? getFirstPalletSuggestion(int lineNumber) =>
+      _firstPalletSuggestions[lineNumber];
+
+  bool isFirstPalletSuggestionLoading(int lineNumber) =>
+      _firstPalletSuggestionLoading[lineNumber] ?? false;
+
   bool isLineBlocked(int lineNumber) {
     final uiMode = _lineUiModes[lineNumber];
     if (uiMode == 'PENDING_HANDOVER_NEEDS_INCOMING') return true;
@@ -162,6 +172,8 @@ class PalletizingProvider extends ChangeNotifier {
         _canInitiateHandovers[ln] = lineState.canInitiateHandover;
         _canConfirmHandovers[ln] = lineState.canConfirmHandover;
         _canRejectHandovers[ln] = lineState.canRejectHandover;
+        _hasOpenFalet[ln] = lineState.hasOpenFalet;
+        _openFaletCount[ln] = lineState.openFaletCount;
 
         // Server-authoritative current product — resolve full ProductType
         _selectedProductTypes[ln] = _resolveProductType(lineState);
@@ -587,6 +599,7 @@ class PalletizingProvider extends ChangeNotifier {
     int? lastActiveProductTypeId,
     int? lastActiveProductFaletQuantity,
     String? notes,
+    List<FaletResolutionEntry>? faletResolutions,
   }) async {
     final lineId = getLineIdForNumber(lineNumber);
     if (lineId == null) return null;
@@ -597,6 +610,7 @@ class PalletizingProvider extends ChangeNotifier {
         lastActiveProductTypeId: lastActiveProductTypeId,
         lastActiveProductFaletQuantity: lastActiveProductFaletQuantity,
         notes: notes,
+        faletResolutions: faletResolutions,
       );
       _pendingHandovers[lineNumber] = handover;
 
@@ -617,6 +631,7 @@ class PalletizingProvider extends ChangeNotifier {
   Future<void> confirmLineHandover({
     required int lineNumber,
     required int handoverId,
+    String? receiptNotes,
   }) async {
     final lineId = getLineIdForNumber(lineNumber);
     if (lineId == null) return;
@@ -625,6 +640,7 @@ class PalletizingProvider extends ChangeNotifier {
       await _repository.confirmLineHandover(
         lineId: lineId,
         handoverId: handoverId,
+        receiptNotes: receiptNotes,
       );
 
       _pendingHandovers[lineNumber] = null;
@@ -642,7 +658,13 @@ class PalletizingProvider extends ChangeNotifier {
   Future<void> rejectLineHandover({
     required int lineNumber,
     required int handoverId,
-    String? notes,
+    required bool incorrectQuantity,
+    required bool otherReason,
+    String? otherReasonNotes,
+    List<Map<String, dynamic>>? itemObservations,
+    bool undeclaredFaletFound = false,
+    int? undeclaredFaletObservedQuantity,
+    String? undeclaredFaletNotes,
   }) async {
     final lineId = getLineIdForNumber(lineNumber);
     if (lineId == null) return;
@@ -651,13 +673,22 @@ class PalletizingProvider extends ChangeNotifier {
       await _repository.rejectLineHandover(
         lineId: lineId,
         handoverId: handoverId,
-        notes: notes,
+        incorrectQuantity: incorrectQuantity,
+        otherReason: otherReason,
+        otherReasonNotes: otherReasonNotes,
+        itemObservations: itemObservations,
+        undeclaredFaletFound: undeclaredFaletFound,
+        undeclaredFaletObservedQuantity: undeclaredFaletObservedQuantity,
+        undeclaredFaletNotes: undeclaredFaletNotes,
       );
 
       _pendingHandovers[lineNumber] = null;
 
-      // Refresh line state after handover rejection
-      await _refreshLineStateFromBackend(lineNumber, lineId);
+      // Refresh FALET items and line state after handover rejection
+      await Future.wait([
+        fetchFaletItems(lineNumber),
+        _refreshLineStateFromBackend(lineNumber, lineId),
+      ]);
       notifyListeners();
     } on ApiException catch (e) {
       _lineErrors[lineNumber] = e.displayMessage;
@@ -678,6 +709,9 @@ class PalletizingProvider extends ChangeNotifier {
     try {
       final result = await _repository.getFaletItems(lineId);
       _faletItems[lineNumber] = result;
+      // Keep open-falet indicators in sync with fetched data
+      _hasOpenFalet[lineNumber] = result.hasOpenFalet;
+      _openFaletCount[lineNumber] = result.totalOpenFaletCount;
     } on ApiException catch (e) {
       _lineErrors[lineNumber] = e.displayMessage;
       debugPrint('fetchFaletItems error: ${e.code} - ${e.message}');
@@ -746,6 +780,81 @@ class PalletizingProvider extends ChangeNotifier {
       notifyListeners();
       rethrow;
     }
+  }
+
+  // ── First-Pallet Suggestion ──
+
+  Future<FirstPalletSuggestion?> fetchFirstPalletSuggestion(
+    int lineNumber,
+  ) async {
+    final lineId = getLineIdForNumber(lineNumber);
+    if (lineId == null) return null;
+
+    _firstPalletSuggestionLoading[lineNumber] = true;
+    notifyListeners();
+
+    try {
+      final result = await _repository.getFirstPalletSuggestion(lineId);
+      _firstPalletSuggestions[lineNumber] = result;
+      _firstPalletSuggestionLoading[lineNumber] = false;
+      notifyListeners();
+      return result;
+    } on ApiException catch (e) {
+      debugPrint('fetchFirstPalletSuggestion error: ${e.code} - ${e.message}');
+      _firstPalletSuggestions[lineNumber] = null;
+      _firstPalletSuggestionLoading[lineNumber] = false;
+      notifyListeners();
+      return null;
+    } catch (e) {
+      debugPrint('fetchFirstPalletSuggestion unexpected error: $e');
+      _firstPalletSuggestions[lineNumber] = null;
+      _firstPalletSuggestionLoading[lineNumber] = false;
+      notifyListeners();
+      return null;
+    }
+  }
+
+  void clearFirstPalletSuggestion(int lineNumber) {
+    _firstPalletSuggestions[lineNumber] = null;
+    notifyListeners();
+  }
+
+  // ── FALET existence polling ──
+
+  /// Lightweight check for a single line — uses the GET /falet/exists endpoint.
+  /// Silently updates _hasOpenFalet and _openFaletCount maps.
+  Future<void> checkFaletExists(int lineNumber) async {
+    final lineId = getLineIdForNumber(lineNumber);
+    if (lineId == null) return;
+
+    try {
+      final result = await _repository.checkFaletExists(lineId);
+      final changed = _hasOpenFalet[lineNumber] != result.hasOpenFalet ||
+          _openFaletCount[lineNumber] != result.openFaletCount;
+      if (changed) {
+        _hasOpenFalet[lineNumber] = result.hasOpenFalet;
+        _openFaletCount[lineNumber] = result.openFaletCount;
+        notifyListeners();
+      }
+    } catch (e) {
+      // Silently ignore polling errors — don't disrupt the UI
+      debugPrint('checkFaletExists poll error (line $lineNumber): $e');
+    }
+  }
+
+  /// Poll FALET existence for ALL authorized lines in parallel.
+  /// Designed to be called from a periodic timer (e.g. every 30s).
+  Future<void> pollAllLinesFaletStatus() async {
+    final authorizedLines = _lineAuthorizations.entries
+        .where((e) => e.value.isAuthorized)
+        .map((e) => e.key)
+        .toList();
+
+    if (authorizedLines.isEmpty) return;
+
+    await Future.wait(
+      authorizedLines.map((lineNumber) => checkFaletExists(lineNumber)),
+    );
   }
 
   // ── Error management ──

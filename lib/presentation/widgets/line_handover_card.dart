@@ -118,22 +118,50 @@ class LineHandoverCard extends StatelessWidget {
 
                 // FALET items
                 if (handover.faletItems.isNotEmpty) ...[
+                  _buildFaletSection(context, isMobile),
+                  SizedBox(height: isMobile ? 16 : 20),
+                ],
+
+                // Rejection reasons (for REJECTED/RESOLVED past handovers)
+                if (_hasStructuredRejection) ...[
+                  _buildRejectionSection(context, isMobile),
+                  SizedBox(height: isMobile ? 12 : 16),
+                ] else if (_hasLegacyRejection) ...[
                   _buildInfoSection(
                     context,
-                    icon: Icons.warning_amber_rounded,
-                    title: 'عناصر الفالت',
+                    icon: Icons.cancel_outlined,
+                    title: 'سبب الرفض',
                     isMobile: isMobile,
-                    iconColor: Colors.orange.shade600,
+                    iconColor: Colors.red.shade600,
                     children: [
-                      for (final item in handover.faletItems)
-                        _buildInfoRow(
-                          '${ProductType.formatCompactName(item.productTypeName)}${item.lastActiveProduct ? ' (نشط)' : ''}',
-                          '${item.quantity} عبوة',
-                          isMobile,
-                        ),
+                      _buildInfoRow(
+                        'ملاحظات',
+                        handover.rejectionNotes!,
+                        isMobile,
+                      ),
                     ],
                   ),
-                  SizedBox(height: isMobile ? 16 : 20),
+                  SizedBox(height: isMobile ? 12 : 16),
+                ],
+
+                // Receipt notes (for CONFIRMED past handovers)
+                if (handover.receiptNotes != null &&
+                    handover.receiptNotes!.isNotEmpty) ...[
+                  _buildInfoSection(
+                    context,
+                    icon: Icons.receipt_long_rounded,
+                    title: 'ملاحظات الاستلام',
+                    isMobile: isMobile,
+                    iconColor: Colors.green.shade600,
+                    children: [
+                      _buildInfoRow(
+                        'ملاحظات',
+                        handover.receiptNotes!,
+                        isMobile,
+                      ),
+                    ],
+                  ),
+                  SizedBox(height: isMobile ? 12 : 16),
                 ],
 
                 // Resolve actions — only when incoming operator is authorized
@@ -207,6 +235,256 @@ class LineHandoverCard extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+
+  /// True when the backend returned structured rejection fields (V37+).
+  bool get _hasStructuredRejection =>
+      handover.rejectionIncorrectQuantity == true ||
+      handover.rejectionOtherReason == true ||
+      handover.rejectionUndeclaredFalet == true;
+
+  /// True for legacy rejected handovers (pre-V37) that only have plain notes.
+  bool get _hasLegacyRejection =>
+      !_hasStructuredRejection &&
+      handover.rejectionNotes != null &&
+      handover.rejectionNotes!.isNotEmpty;
+
+  /// Whether any falet item has an observed quantity (i.e. this is a rejected
+  /// handover with "incorrect quantity" data).
+  bool get _hasObservedQuantities =>
+      handover.faletItems.any((item) => item.observedQuantity != null);
+
+  Widget _buildFaletSection(BuildContext context, bool isMobile) {
+    final fontSize = isMobile ? 13.0 : 15.0;
+    if (_hasObservedQuantities) {
+      // Declared vs Observed table
+      return _buildInfoSection(
+        context,
+        icon: Icons.warning_amber_rounded,
+        title: 'عناصر الفالت',
+        isMobile: isMobile,
+        iconColor: Colors.orange.shade600,
+        children: [
+          // Table header
+          Padding(
+            padding: const EdgeInsets.only(bottom: 6),
+            child: Row(
+              children: [
+                Expanded(
+                  flex: 3,
+                  child: Text(
+                    'المنتج',
+                    style: GoogleFonts.cairo(
+                      fontSize: fontSize,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.grey.shade700,
+                    ),
+                  ),
+                ),
+                Expanded(
+                  flex: 2,
+                  child: Text(
+                    'المُعلنة',
+                    textAlign: TextAlign.center,
+                    style: GoogleFonts.cairo(
+                      fontSize: fontSize,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.grey.shade700,
+                    ),
+                  ),
+                ),
+                Expanded(
+                  flex: 2,
+                  child: Text(
+                    'المُلاحظة',
+                    textAlign: TextAlign.center,
+                    style: GoogleFonts.cairo(
+                      fontSize: fontSize,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.grey.shade700,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Divider(color: Colors.grey.shade300, height: 1),
+          const SizedBox(height: 4),
+          for (final item in handover.faletItems)
+            _buildFaletObservedRow(item, isMobile, fontSize),
+        ],
+      );
+    }
+
+    // Simple list (no observed quantities)
+    return _buildInfoSection(
+      context,
+      icon: Icons.warning_amber_rounded,
+      title: 'عناصر الفالت',
+      isMobile: isMobile,
+      iconColor: Colors.orange.shade600,
+      children: [
+        for (final item in handover.faletItems)
+          _buildInfoRow(
+            '${ProductType.formatCompactName(item.productTypeName)}${item.lastActiveProduct ? ' (نشط)' : ''}',
+            '${item.quantity} عبوة',
+            isMobile,
+          ),
+      ],
+    );
+  }
+
+  Widget _buildFaletObservedRow(
+    HandoverFaletItem item,
+    bool isMobile,
+    double fontSize,
+  ) {
+    final observed = item.observedQuantity;
+    final mismatch = observed != null && observed != item.quantity;
+    final rowColor = mismatch ? Colors.red.shade700 : Colors.black87;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 3),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+        decoration: mismatch
+            ? BoxDecoration(
+                color: Colors.red.shade50,
+                borderRadius: BorderRadius.circular(6),
+              )
+            : null,
+        child: Row(
+          children: [
+            Expanded(
+              flex: 3,
+              child: Text(
+                '${ProductType.formatCompactName(item.productTypeName)}${item.lastActiveProduct ? ' (نشط)' : ''}',
+                style: GoogleFonts.cairo(
+                  fontSize: fontSize,
+                  fontWeight: FontWeight.w500,
+                  color: rowColor,
+                ),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            Expanded(
+              flex: 2,
+              child: Text(
+                '${item.quantity}',
+                textAlign: TextAlign.center,
+                style: GoogleFonts.cairo(
+                  fontSize: fontSize,
+                  fontWeight: FontWeight.bold,
+                  color: rowColor,
+                ),
+              ),
+            ),
+            Expanded(
+              flex: 2,
+              child: Text(
+                observed != null ? '$observed' : '—',
+                textAlign: TextAlign.center,
+                style: GoogleFonts.cairo(
+                  fontSize: fontSize,
+                  fontWeight: FontWeight.bold,
+                  color: rowColor,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildRejectionSection(BuildContext context, bool isMobile) {
+    final fontSize = isMobile ? 12.0 : 13.0;
+    return _buildInfoSection(
+      context,
+      icon: Icons.cancel_outlined,
+      title: 'أسباب الرفض',
+      isMobile: isMobile,
+      iconColor: Colors.red.shade600,
+      children: [
+        // Rejection reason badges
+        Wrap(
+          spacing: 8,
+          runSpacing: 6,
+          children: [
+            if (handover.rejectionIncorrectQuantity == true)
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 4,
+                ),
+                decoration: BoxDecoration(
+                  color: Colors.red.shade100,
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: Colors.red.shade300),
+                ),
+                child: Text(
+                  'عدد غير صحيح',
+                  style: GoogleFonts.cairo(
+                    fontSize: fontSize,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.red.shade700,
+                  ),
+                ),
+              ),
+            if (handover.rejectionOtherReason == true)
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 4,
+                ),
+                decoration: BoxDecoration(
+                  color: Colors.orange.shade100,
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: Colors.orange.shade300),
+                ),
+                child: Text(
+                  'سبب آخر',
+                  style: GoogleFonts.cairo(
+                    fontSize: fontSize,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.orange.shade700,
+                  ),
+                ),
+              ),
+            if (handover.rejectionUndeclaredFalet == true)
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 4,
+                ),
+                decoration: BoxDecoration(
+                  color: Colors.deepOrange.shade100,
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: Colors.deepOrange.shade300),
+                ),
+                child: Text(
+                  'فالت غير مصرح عنه',
+                  style: GoogleFonts.cairo(
+                    fontSize: fontSize,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.deepOrange.shade700,
+                  ),
+                ),
+              ),
+          ],
+        ),
+        // Other reason notes text
+        if (handover.rejectionOtherReasonNotes != null &&
+            handover.rejectionOtherReasonNotes!.isNotEmpty) ...[
+          SizedBox(height: isMobile ? 8 : 10),
+          _buildInfoRow(
+            'تفاصيل',
+            handover.rejectionOtherReasonNotes!,
+            isMobile,
+          ),
+        ],
+      ],
     );
   }
 

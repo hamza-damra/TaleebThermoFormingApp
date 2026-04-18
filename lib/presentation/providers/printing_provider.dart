@@ -26,6 +26,10 @@ class PrintingProvider extends ChangeNotifier {
   PrinterConfig? _selectedPrinter;
   LabelPreset? _selectedPreset;
   String? _lastPrintedValue;
+  String? _lastTopText;
+  String? _lastBottomText;
+  String? _lastSideText;
+  int _copies = 1;
 
   PrintingState get state => _state;
   String? get errorMessage => _errorMessage;
@@ -34,6 +38,7 @@ class PrintingProvider extends ChangeNotifier {
   PrinterConfig? get selectedPrinter => _selectedPrinter;
   LabelPreset? get selectedPreset => _selectedPreset;
   String? get lastPrintedValue => _lastPrintedValue;
+  int get copies => _copies;
   bool get isLoading => _state == PrintingState.loading;
   bool get isPrinting => _state == PrintingState.printing;
   bool get hasPrinters => _printers.isNotEmpty;
@@ -62,6 +67,8 @@ class PrintingProvider extends ChangeNotifier {
       );
       _selectedPreset ??= DefaultPresets.preset50x30;
 
+      _copies = settings.lastCopies.clamp(1, 10);
+
       _state = PrintingState.idle;
     } catch (e) {
       _errorMessage = 'فشل في تحميل بيانات الطباعة';
@@ -86,9 +93,18 @@ class PrintingProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  void setCopies(int value) {
+    _copies = value.clamp(1, 10);
+    _saveSettings();
+    notifyListeners();
+  }
+
   Future<PrintResult> print({
     required String scannedValue,
     int copies = 1,
+    String? topText,
+    String? bottomText,
+    String? sideText,
   }) async {
     if (_selectedPrinter == null) {
       return PrintResult.error('لم يتم اختيار طابعة');
@@ -101,6 +117,9 @@ class PrintingProvider extends ChangeNotifier {
     _state = PrintingState.printing;
     _errorMessage = null;
     _lastPrintedValue = scannedValue;
+    _lastTopText = topText;
+    _lastBottomText = bottomText;
+    _lastSideText = sideText;
     notifyListeners();
 
     try {
@@ -109,6 +128,9 @@ class PrintingProvider extends ChangeNotifier {
         value: scannedValue,
         preset: _selectedPreset!,
         copies: copies,
+        topText: topText,
+        bottomText: bottomText,
+        sideText: sideText,
       );
 
       _state = PrintingState.success;
@@ -131,7 +153,13 @@ class PrintingProvider extends ChangeNotifier {
     if (_lastPrintedValue == null) {
       return PrintResult.error('لا توجد قيمة للطباعة');
     }
-    return print(scannedValue: _lastPrintedValue!, copies: copies);
+    return print(
+      scannedValue: _lastPrintedValue!,
+      copies: copies,
+      topText: _lastTopText,
+      bottomText: _lastBottomText,
+      sideText: _lastSideText,
+    );
   }
 
   Future<bool> testConnection(PrinterConfig printer) async {
@@ -224,6 +252,7 @@ class PrintingProvider extends ChangeNotifier {
     final settings = PrintingSettingsModel(
       lastPrinterId: _selectedPrinter?.id,
       lastPresetId: _selectedPreset?.id,
+      lastCopies: _copies,
     );
     await PrintingLocalStorage.saveSettings(settings);
   }

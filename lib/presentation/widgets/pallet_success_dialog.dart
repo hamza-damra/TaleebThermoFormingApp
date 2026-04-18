@@ -25,117 +25,127 @@ class PalletSuccessDialog extends StatefulWidget {
 }
 
 class _PalletSuccessDialogState extends State<PalletSuccessDialog> {
-  bool _isPrinting = false;
+  bool _isPrinting = true;
+  bool _printDone = false;
   bool _printSuccess = false;
   String? _printError;
+
+  /// Before print completes: no X, no back, no outside dismiss.
+  /// After print completes: allow close.
+  bool get _canDismiss => _printDone;
+
+  @override
+  void initState() {
+    super.initState();
+    // Auto-print immediately after dialog appears
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _handlePrint(context);
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
     final screenWidth = MediaQuery.of(context).size.width;
     final isMobile = screenWidth < 600;
 
-    return AlertDialog(
-      contentPadding: EdgeInsets.zero,
-      content: SizedBox(
-        width: isMobile ? screenWidth * 0.9 : null,
-        child: Stack(
-          children: [
-            Padding(
-              padding: EdgeInsets.all(isMobile ? 16 : 24),
-              child: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const SizedBox(height: 12),
-                    _buildStatusIcon(),
-                    const SizedBox(height: 16),
-                    Text(
-                      _printSuccess
-                          ? 'تمت الطباعة بنجاح'
-                          : 'تم إنشاء الطبلية بنجاح',
-                      style: GoogleFonts.cairo(
-                        fontSize: isMobile ? 16 : 20,
-                        fontWeight: FontWeight.bold,
-                        color: _printSuccess ? Colors.green : widget.lineColor,
-                      ),
-                      textAlign: TextAlign.center,
+    return PopScope(
+      canPop: _canDismiss,
+      child: AlertDialog(
+        contentPadding: EdgeInsets.zero,
+        content: SizedBox(
+          width: isMobile ? screenWidth * 0.9 : null,
+          child: Padding(
+            padding: EdgeInsets.all(isMobile ? 16 : 24),
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const SizedBox(height: 12),
+                  _buildStatusIcon(),
+                  const SizedBox(height: 16),
+                  Text(
+                    _printSuccess
+                        ? 'تمت الطباعة بنجاح'
+                        : _printError != null
+                            ? 'فشل في الطباعة'
+                            : _isPrinting
+                                ? 'جاري الطباعة...'
+                                : 'تم إنشاء الطبلية بنجاح',
+                    style: GoogleFonts.cairo(
+                      fontSize: isMobile ? 16 : 20,
+                      fontWeight: FontWeight.bold,
+                      color: _printSuccess
+                          ? Colors.green
+                          : _printError != null
+                              ? Colors.red
+                              : widget.lineColor,
                     ),
-                    const SizedBox(height: 24),
-                    _buildProductTypeImage(isMobile),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 24),
+                  _buildProductTypeImage(isMobile),
+                  const SizedBox(height: 16),
+                  if (_printError != null) ...[
                     const SizedBox(height: 16),
-                    if (_printError != null) ...[
-                      const SizedBox(height: 16),
-                      Container(
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: Colors.red.withValues(alpha: 0.1),
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(
-                            color: Colors.red.withValues(alpha: 0.3),
-                          ),
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.red.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(
+                          color: Colors.red.withValues(alpha: 0.3),
                         ),
-                        child: Row(
-                          children: [
-                            const Icon(
-                              Icons.error_outline,
-                              color: Colors.red,
-                              size: 20,
-                            ),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: Text(
-                                _printError!,
-                                style: GoogleFonts.cairo(
-                                  color: Colors.red.shade700,
-                                  fontSize: isMobile ? 12 : 14,
-                                ),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(
+                            Icons.error_outline,
+                            color: Colors.red,
+                            size: 20,
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              _printError!,
+                              style: GoogleFonts.cairo(
+                                color: Colors.red.shade700,
+                                fontSize: isMobile ? 12 : 14,
                               ),
                             ),
-                          ],
-                        ),
+                          ),
+                        ],
                       ),
-                    ],
-                    const SizedBox(height: 24),
-                    _buildInfoRow(
-                      'المنتج',
-                      widget.pallet.productType.compactLabel,
                     ),
-                    _buildInfoRow(
-                      'الكمية',
-                      '${widget.pallet.quantity} ${widget.pallet.productType.packageUnitDisplayName}',
-                    ),
-                    _buildInfoRow(
-                      'خط الإنتاج',
-                      widget.pallet.productionLine.name,
-                    ),
-                    _buildInfoRow('المشغل', widget.pallet.operator.name),
-                    _buildInfoRow(
-                      'التاريخ',
-                      widget.pallet.createdAtDisplay,
-                      showDivider: false,
-                    ),
-                    _buildPrinterInfo(),
                   ],
-                ),
+                  const SizedBox(height: 24),
+                  _buildInfoRow(
+                    'المنتج',
+                    widget.pallet.productType.compactLabel,
+                  ),
+                  _buildInfoRow(
+                    'الكمية',
+                    '${widget.pallet.quantity} ${widget.pallet.productType.packageUnitDisplayName}',
+                  ),
+                  _buildInfoRow(
+                    'خط الإنتاج',
+                    widget.pallet.productionLine.name,
+                  ),
+                  _buildInfoRow('المشغل', widget.pallet.operator.name),
+                  _buildInfoRow(
+                    'التاريخ',
+                    widget.pallet.createdAtDisplay,
+                    showDivider: false,
+                  ),
+                  _buildPrinterInfo(),
+                ],
               ),
             ),
-            Positioned(
-              top: 8,
-              left: 8,
-              child: IconButton(
-                onPressed: () => Navigator.of(context).pop(),
-                icon: const Icon(Icons.close, color: Colors.grey),
-                style: IconButton.styleFrom(
-                  backgroundColor: Colors.grey.withValues(alpha: 0.1),
-                ),
-              ),
-            ),
-          ],
+          ),
         ),
+        actionsAlignment: MainAxisAlignment.center,
+        actionsOverflowDirection: VerticalDirection.down,
+        actions: _buildActions(context),
       ),
-      actionsAlignment: MainAxisAlignment.center,
-      actionsOverflowDirection: VerticalDirection.down,
-      actions: _buildActions(context),
     );
   }
 
@@ -226,40 +236,106 @@ class _PalletSuccessDialogState extends State<PalletSuccessDialog> {
   }
 
   List<Widget> _buildActions(BuildContext context) {
-    if (_printSuccess) return [];
-
-    return [
-      Padding(
-        padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-        child: ElevatedButton.icon(
-          onPressed: _isPrinting ? null : () => _handlePrint(context),
-          style: ElevatedButton.styleFrom(
-            backgroundColor: widget.lineColor,
-            foregroundColor: Colors.white,
-            padding: const EdgeInsets.symmetric(vertical: 16),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
+    // After print failed: show retry + close buttons
+    if (_printDone && _printError != null) {
+      return [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
+          child: SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              onPressed: _isPrinting ? null : () => _handleRetryPrint(context),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: widget.lineColor,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                elevation: 2,
+                minimumSize: const Size.fromHeight(52),
+              ),
+              icon: _isPrinting
+                  ? const SizedBox(
+                      width: 22,
+                      height: 22,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Colors.white,
+                      ),
+                    )
+                  : const Icon(Icons.refresh, size: 22),
+              label: Text(
+                'إعادة المحاولة',
+                style: GoogleFonts.cairo(
+                  fontSize: 17,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
             ),
-            elevation: 2,
-            minimumSize: const Size.fromHeight(56),
-          ),
-          icon: _isPrinting
-              ? const SizedBox(
-                  width: 24,
-                  height: 24,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2,
-                    color: Colors.white,
-                  ),
-                )
-              : const Icon(Icons.print, size: 28),
-          label: Text(
-            _printError != null ? 'إعادة المحاولة' : 'طباعة الملصق',
-            style: GoogleFonts.cairo(fontSize: 20, fontWeight: FontWeight.bold),
           ),
         ),
-      ),
-    ];
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+          child: SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: _isPrinting ? null : () => Navigator.of(context).pop(),
+              style: OutlinedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                side: BorderSide(color: Colors.grey.shade400, width: 1.5),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+              icon: const Icon(Icons.close, size: 22),
+              label: Text(
+                'إغلاق',
+                style: GoogleFonts.cairo(
+                  fontSize: 17,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.grey.shade700,
+                ),
+              ),
+            ),
+          ),
+        ),
+      ];
+    }
+
+    // After print succeeded: show close button only
+    if (_printDone) {
+      return [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+          child: SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: () => Navigator.of(context).pop(),
+              style: OutlinedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                side: BorderSide(color: Colors.grey.shade400, width: 1.5),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+              icon: const Icon(Icons.close, size: 22),
+              label: Text(
+                'إغلاق',
+                style: GoogleFonts.cairo(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.grey.shade700,
+                ),
+              ),
+            ),
+          ),
+        ),
+      ];
+    }
+
+    // Auto-printing in progress — no action buttons, just spinner in the header
+    return [];
   }
 
   Future<void> _handlePrint(BuildContext context) async {
@@ -270,6 +346,7 @@ class _PalletSuccessDialogState extends State<PalletSuccessDialog> {
       if (!context.mounted) return;
       if (!printingProvider.hasPrinters) {
         setState(() {
+          _printDone = true;
           _printError = 'لم يتم إضافة طابعة';
         });
         return;
@@ -289,9 +366,35 @@ class _PalletSuccessDialogState extends State<PalletSuccessDialog> {
       _printError = null;
     });
 
+    // Top: productName (sessionProductSequence) or just productName
+    final seq = widget.pallet.sessionProductSequence;
+    final topText = seq != null
+        ? '${widget.pallet.productType.productName} ($seq)'
+        : widget.pallet.productType.productName;
+
+    // Bottom: description with fallback to full name
+    final description = widget.pallet.productType.description;
+    debugPrint('[LABEL DEBUG] productType.description = "$description"');
+    debugPrint('[LABEL DEBUG] productType.name = "${widget.pallet.productType.name}"');
+    debugPrint('[LABEL DEBUG] productType.productName = "${widget.pallet.productType.productName}"');
+    debugPrint('[LABEL DEBUG] sessionProductSequence = $seq');
+    final bottomText = (description != null && description.isNotEmpty)
+        ? description
+        : widget.pallet.productType.name;
+    debugPrint('[LABEL DEBUG] resolved bottomText = "$bottomText"');
+    debugPrint('[LABEL DEBUG] resolved topText = "$topText"');
+
+    // Sides: scannedValue (lineLetter)
+    final lineLetter = widget.lineNumber == 1 ? 'A' : 'B';
+    final sideText = '${widget.pallet.scannedValue} ($lineLetter)';
+    debugPrint('[LABEL DEBUG] resolved sideText = "$sideText"');
+
     final result = await printingProvider.print(
       scannedValue: widget.pallet.scannedValue,
-      copies: 1,
+      copies: printingProvider.copies,
+      topText: topText,
+      bottomText: bottomText,
+      sideText: sideText,
     );
 
     if (!mounted) return;
@@ -306,15 +409,23 @@ class _PalletSuccessDialogState extends State<PalletSuccessDialog> {
       failureReason: result.errorMessage,
     );
 
+    if (!mounted) return;
+
     setState(() {
       _isPrinting = false;
-      if (result.isSuccess) {
-        _printSuccess = true;
-        _printError = null;
-      } else {
-        _printError = result.errorMessage;
-      }
+      _printDone = true;
+      _printSuccess = result.isSuccess;
+      _printError = result.isSuccess ? null : result.errorMessage;
     });
+  }
+
+  Future<void> _handleRetryPrint(BuildContext context) async {
+    setState(() {
+      _printDone = false;
+      _printSuccess = false;
+      _printError = null;
+    });
+    await _handlePrint(context);
   }
 
   Future<void> _showPrinterSelector(BuildContext context) async {

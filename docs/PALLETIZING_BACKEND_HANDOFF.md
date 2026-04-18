@@ -102,13 +102,13 @@ Authorization: Bearer <token>
   "data": [
     {
       "id": 1,
-      "name": "لنش بوكس / أسود / 500 كرتونة",
+      "name": "لنش بوكس / أسود / 500 عبوة",
       "productName": "لنش بوكس",
       "prefix": "0732",
       "color": "أسود",
       "packageQuantity": 500,
       "packageUnit": "CARTON",
-      "packageUnitDisplayName": "كرتونة"
+      "packageUnitDisplayName": "عبوة"
     },
     {
       "id": 2,
@@ -205,7 +205,7 @@ Content-Type: application/json
     },
     "productType": {
       "id": 2,
-      "name": "لنش بوكس / أسود / 500 كرتونة",
+      "name": "لنش بوكس / أسود / 500 عبوة",
       "productName": "لنش بوكس",
       "prefix": "0732",
       "color": "أسود",

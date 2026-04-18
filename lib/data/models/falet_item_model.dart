@@ -7,6 +7,10 @@ class FaletItemModel extends FaletItem {
     required super.productTypeName,
     required super.quantity,
     required super.status,
+    super.originType,
+    super.sourceOperatorName,
+    super.authorizationId,
+    super.managerResolved,
     super.createdAt,
     super.createdAtDisplay,
     super.updatedAt,
@@ -20,6 +24,10 @@ class FaletItemModel extends FaletItem {
       productTypeName: json['productTypeName'] as String? ?? '',
       quantity: json['quantity'] as int? ?? 0,
       status: json['status'] as String? ?? 'OPEN',
+      originType: json['originType'] as String?,
+      sourceOperatorName: json['sourceOperatorName'] as String?,
+      authorizationId: json['authorizationId'] as int?,
+      managerResolved: json['managerResolved'] as bool? ?? false,
       createdAt: json['createdAt'] != null
           ? DateTime.tryParse(json['createdAt'] as String)
           : null,

@@ -6,6 +6,7 @@ class FaletResponseModel extends FaletResponse {
     required super.faletItems,
     required super.totalOpenFaletCount,
     required super.hasOpenFalet,
+    super.managerResolvedFaletCount,
   });
 
   factory FaletResponseModel.fromJson(Map<String, dynamic> json) {
@@ -20,6 +21,8 @@ class FaletResponseModel extends FaletResponse {
           .toList(),
       totalOpenFaletCount: json['totalOpenFaletCount'] as int? ?? 0,
       hasOpenFalet: json['hasOpenFalet'] as bool? ?? false,
+      managerResolvedFaletCount:
+          json['managerResolvedFaletCount'] as int? ?? 0,
     );
   }
 }

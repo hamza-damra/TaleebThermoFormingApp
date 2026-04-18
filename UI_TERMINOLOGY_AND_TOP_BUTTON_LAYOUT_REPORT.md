@@ -34,7 +34,7 @@ Applied user-facing terminology changes and button layout restructuring across t
 
 | Old           | New             |
 | ------------- | --------------- |
-| `ملخص الجلسة` | `ملخص المناوبة` |
+| `ملخص المناوبة` | `ملخص المناوبة` |
 
 **File updated:**
 
@@ -189,7 +189,7 @@ The two action buttons (`غير مكتمل` and `تسليم مناوبة`) were 
 | Grep for `المشاتيح` in lib/                    | ✅ 0 matches                  |
 | Grep for `مشتاح` in lib/                       | ✅ 0 matches                  |
 | Grep for `مشاتيح` in lib/                      | ✅ 0 matches                  |
-| Grep for `ملخص الجلسة` in lib/                 | ✅ 0 matches                  |
+| Grep for `ملخص المناوبة` in lib/                 | ✅ 0 matches                  |
 | Grep for `العناصر المفتوحة` in lib/            | ✅ 0 matches                  |
 | Grep for `خط 1` / `خط 2` as tab labels in lib/ | ✅ 0 matches                  |
 | App title shows `تكوين طبليات`                 | ✅ Verified in code           |

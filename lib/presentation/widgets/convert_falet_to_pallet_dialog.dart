@@ -9,11 +9,19 @@ import '../../domain/entities/product_type.dart';
 class ConvertFaletToPalletDialog extends StatefulWidget {
   final FaletItem faletItem;
   final Color themeColor;
+  final int suggestedAdditionalQuantity;
+
+  /// Full pallet capacity for the product type (e.g. cartons per pallet).
+  /// When provided, the dialog auto-calculates the quantity needed to
+  /// complete a full pallet and pre-fills it.
+  final int? fullPalletCapacity;
 
   const ConvertFaletToPalletDialog({
     super.key,
     required this.faletItem,
     required this.themeColor,
+    this.suggestedAdditionalQuantity = 0,
+    this.fullPalletCapacity,
   });
 
   /// Returns null if cancelled, or the additionalFreshQuantity (0 if none).
@@ -21,12 +29,16 @@ class ConvertFaletToPalletDialog extends StatefulWidget {
     required BuildContext context,
     required FaletItem faletItem,
     required Color themeColor,
+    int suggestedAdditionalQuantity = 0,
+    int? fullPalletCapacity,
   }) {
     return showDialog<int>(
       context: context,
       builder: (context) => ConvertFaletToPalletDialog(
         faletItem: faletItem,
         themeColor: themeColor,
+        suggestedAdditionalQuantity: suggestedAdditionalQuantity,
+        fullPalletCapacity: fullPalletCapacity,
       ),
     );
   }
@@ -38,9 +50,63 @@ class ConvertFaletToPalletDialog extends StatefulWidget {
 
 class _ConvertFaletToPalletDialogState
     extends State<ConvertFaletToPalletDialog> {
-  bool _addFresh = false;
+  late bool _addFresh;
   final _freshController = TextEditingController();
   String? _validationError;
+
+  /// True when the pre-filled value was auto-suggested from pallet capacity.
+  bool _isAutoSuggested = false;
+
+  /// True when the FALET already equals full pallet capacity.
+  bool _isAlreadyComplete = false;
+
+  @override
+  void initState() {
+    super.initState();
+
+    // Priority 1: explicit suggestedAdditionalQuantity (e.g. from first-pallet suggestion)
+    final suggested = widget.suggestedAdditionalQuantity;
+    if (suggested > 0) {
+      _addFresh = true;
+      _freshController.text = '$suggested';
+      _isAutoSuggested = true;
+      return;
+    }
+
+    // Priority 2: auto-calculate from fullPalletCapacity
+    final capacity = widget.fullPalletCapacity;
+    final faletQty = widget.faletItem.quantity;
+
+    if (capacity != null && capacity > 0) {
+      if (faletQty == capacity) {
+        // Edge case: FALET already equals full pallet — no addition needed
+        _addFresh = false;
+        _isAlreadyComplete = true;
+        return;
+      }
+
+      if (faletQty > capacity) {
+        // Edge case: FALET exceeds capacity — should not normally happen
+        debugPrint(
+          '[ConvertFaletToPalletDialog] WARNING: FALET quantity ($faletQty) '
+          'exceeds pallet capacity ($capacity) for product '
+          '${widget.faletItem.productTypeName}',
+        );
+        _addFresh = false;
+        return;
+      }
+
+      // Normal case: auto-fill the required quantity to complete a full pallet
+      final requiredQuantity = capacity - faletQty;
+      _addFresh = true;
+      _freshController.text = '$requiredQuantity';
+      _isAutoSuggested = true;
+      return;
+    }
+
+    // Fallback: no capacity info — default to OFF (safe)
+    _addFresh = false;
+  }
 
   @override
   void dispose() {
@@ -49,7 +115,8 @@ class _ConvertFaletToPalletDialogState
   }
 
   int get _freshValue => int.tryParse(_freshController.text.trim()) ?? 0;
-  int get _totalQuantity => widget.faletItem.quantity + _freshValue;
+  int get _totalQuantity =>
+      widget.faletItem.quantity + (_addFresh ? _freshValue : 0);
 
   @override
   Widget build(BuildContext context) {
@@ -194,6 +261,40 @@ class _ConvertFaletToPalletDialogState
                 ),
               ),
 
+              // Hint when FALET already completes a full pallet
+              if (_isAlreadyComplete) ...[
+                SizedBox(height: isMobile ? 10 : 14),
+                Container(
+                  width: double.infinity,
+                  padding: EdgeInsets.all(isMobile ? 10 : 12),
+                  decoration: BoxDecoration(
+                    color: Colors.green.shade50,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: Colors.green.shade200),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.check_circle_rounded,
+                        color: Colors.green.shade600,
+                        size: isMobile ? 18 : 20,
+                      ),
+                      SizedBox(width: isMobile ? 8 : 10),
+                      Expanded(
+                        child: Text(
+                          'الكمية مكتملة لطبلية',
+                          style: GoogleFonts.cairo(
+                            fontSize: isMobile ? 13 : 14,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.green.shade700,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+
               // Fresh quantity input
               if (_addFresh) ...[
                 SizedBox(height: isMobile ? 14 : 18),
@@ -232,9 +333,36 @@ class _ConvertFaletToPalletDialogState
                     ),
                   ),
                   onChanged: (_) {
-                    setState(() => _validationError = null);
+                    setState(() {
+                      _validationError = null;
+                      // User manually edited — no longer auto-suggested
+                      _isAutoSuggested = false;
+                    });
                   },
                 ),
+                // Helper text when value was auto-suggested
+                if (_isAutoSuggested) ...[
+                  SizedBox(height: isMobile ? 6 : 8),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        Icons.auto_awesome,
+                        size: isMobile ? 14 : 16,
+                        color: widget.themeColor.withValues(alpha: 0.7),
+                      ),
+                      SizedBox(width: isMobile ? 4 : 6),
+                      Text(
+                        'تم اقتراح الكمية لإكمال طبلية كاملة',
+                        style: GoogleFonts.cairo(
+                          fontSize: isMobile ? 11 : 12,
+                          color: widget.themeColor.withValues(alpha: 0.7),
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
               ],
               SizedBox(height: isMobile ? 12 : 16),
 

@@ -1,7 +1,10 @@
 import '../../domain/entities/bootstrap_response.dart';
 import '../../domain/entities/falet_convert_to_pallet_response.dart';
+import '../../domain/entities/falet_exists_response.dart';
 import '../../domain/entities/falet_dispose_response.dart';
+import '../../domain/entities/falet_resolution_entry.dart';
 import '../../domain/entities/falet_response.dart';
+import '../../domain/entities/first_pallet_suggestion.dart';
 import '../../domain/entities/line_authorization_state.dart';
 import '../../domain/entities/line_handover_info.dart';
 import '../../domain/entities/operator.dart';
@@ -14,8 +17,10 @@ import '../../domain/entities/production_line.dart';
 import '../datasources/api_client.dart';
 import '../models/bootstrap_response_model.dart';
 import '../models/falet_convert_to_pallet_response_model.dart';
+import '../models/falet_exists_response_model.dart';
 import '../models/falet_dispose_response_model.dart';
 import '../models/falet_response_model.dart';
+import '../models/first_pallet_suggestion_model.dart';
 import '../models/line_handover_info_model.dart';
 import '../models/operator_model.dart';
 import '../models/pallet_create_response_model.dart';
@@ -200,6 +205,7 @@ class PalletizingRepositoryImpl implements PalletizingRepository {
     int? lastActiveProductTypeId,
     int? lastActiveProductFaletQuantity,
     String? notes,
+    List<FaletResolutionEntry>? faletResolutions,
   }) async {
     final data = <String, dynamic>{};
     if (lastActiveProductTypeId != null) {
@@ -210,6 +216,11 @@ class PalletizingRepositoryImpl implements PalletizingRepository {
     }
     if (notes != null && notes.isNotEmpty) {
       data['notes'] = notes;
+    }
+    if (faletResolutions != null && faletResolutions.isNotEmpty) {
+      data['faletResolutions'] = faletResolutions
+          .map((e) => e.toJson())
+          .toList();
     }
     return await _apiClient.request<LineHandoverInfo>(
       path: '/palletizing-line/lines/$lineId/handover',
@@ -242,11 +253,16 @@ class PalletizingRepositoryImpl implements PalletizingRepository {
   Future<LineHandoverInfo> confirmLineHandover({
     required int lineId,
     required int handoverId,
+    String? receiptNotes,
   }) async {
+    final data = <String, dynamic>{};
+    if (receiptNotes != null && receiptNotes.isNotEmpty) {
+      data['receiptNotes'] = receiptNotes;
+    }
     return await _apiClient.request<LineHandoverInfo>(
       path: '/palletizing-line/lines/$lineId/handover/$handoverId/confirm',
       method: 'POST',
-      data: {},
+      data: data,
       parser: (json) =>
           LineHandoverInfoModel.fromJson(json['data'] as Map<String, dynamic>),
     );
@@ -256,11 +272,33 @@ class PalletizingRepositoryImpl implements PalletizingRepository {
   Future<LineHandoverInfo> rejectLineHandover({
     required int lineId,
     required int handoverId,
-    String? notes,
+    required bool incorrectQuantity,
+    required bool otherReason,
+    String? otherReasonNotes,
+    List<Map<String, dynamic>>? itemObservations,
+    bool undeclaredFaletFound = false,
+    int? undeclaredFaletObservedQuantity,
+    String? undeclaredFaletNotes,
   }) async {
-    final data = <String, dynamic>{};
-    if (notes != null && notes.isNotEmpty) {
-      data['notes'] = notes;
+    final data = <String, dynamic>{
+      'incorrectQuantity': incorrectQuantity,
+      'otherReason': otherReason,
+    };
+    if (otherReasonNotes != null && otherReasonNotes.isNotEmpty) {
+      data['otherReasonNotes'] = otherReasonNotes;
+    }
+    if (itemObservations != null) {
+      data['itemObservations'] = itemObservations;
+    }
+    if (undeclaredFaletFound) {
+      data['undeclaredFaletFound'] = true;
+      if (undeclaredFaletObservedQuantity != null) {
+        data['undeclaredFaletObservedQuantity'] =
+            undeclaredFaletObservedQuantity;
+      }
+      if (undeclaredFaletNotes != null && undeclaredFaletNotes.isNotEmpty) {
+        data['undeclaredFaletNotes'] = undeclaredFaletNotes;
+      }
     }
     return await _apiClient.request<LineHandoverInfo>(
       path: '/palletizing-line/lines/$lineId/handover/$handoverId/reject',
@@ -278,6 +316,17 @@ class PalletizingRepositoryImpl implements PalletizingRepository {
       method: 'GET',
       parser: (json) =>
           FaletResponseModel.fromJson(json['data'] as Map<String, dynamic>),
+    );
+  }
+
+  @override
+  Future<FirstPalletSuggestion> getFirstPalletSuggestion(int lineId) async {
+    return await _apiClient.request<FirstPalletSuggestion>(
+      path: '/palletizing-line/lines/$lineId/falet/first-pallet-suggestion',
+      method: 'GET',
+      parser: (json) => FirstPalletSuggestionModel.fromJson(
+        json['data'] as Map<String, dynamic>,
+      ),
     );
   }
 
@@ -326,6 +375,17 @@ class PalletizingRepositoryImpl implements PalletizingRepository {
       path: '/palletizing-line/lines/$lineId/session-production-detail',
       method: 'GET',
       parser: (json) => SessionProductionDetailModel.fromJson(
+        json['data'] as Map<String, dynamic>,
+      ),
+    );
+  }
+
+  @override
+  Future<FaletExistsResponse> checkFaletExists(int lineId) async {
+    return await _apiClient.request<FaletExistsResponse>(
+      path: '/palletizing-line/lines/$lineId/falet/exists',
+      method: 'GET',
+      parser: (json) => FaletExistsResponseModel.fromJson(
         json['data'] as Map<String, dynamic>,
       ),
     );

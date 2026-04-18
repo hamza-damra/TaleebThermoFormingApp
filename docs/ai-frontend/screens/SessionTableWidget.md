@@ -51,7 +51,7 @@ This widget gives the operator a compact per-product summary of the current sess
 
 ## 8. Edge Cases
 
-- An empty row list shows a dedicated `لا توجد بيانات إنتاج في هذه الجلسة` state.
+- An empty row list shows a dedicated `لا توجد بيانات إنتاج في هذه المناوبة` state.
 - The widget does not defend against malformed row data; it trusts `SessionTableRow`.
 - Very long product names can truncate because cell text uses `ellipsis`.
 

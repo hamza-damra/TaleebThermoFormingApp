@@ -206,6 +206,212 @@ class _FaletScreenState extends State<FaletScreen> {
     FaletItem item,
     bool isMobile,
   ) {
+    if (item.managerResolved) {
+      return _buildManagerResolvedCard(context, item, isMobile);
+    }
+    return _buildOrdinaryFaletCard(context, item, isMobile);
+  }
+
+  Widget _buildManagerResolvedCard(
+    BuildContext context,
+    FaletItem item,
+    bool isMobile,
+  ) {
+    final accentColor = Colors.deepPurple;
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(isMobile ? 14 : 18),
+        border: Border.all(color: accentColor.shade300, width: 1.5),
+        boxShadow: [
+          BoxShadow(
+            color: accentColor.withValues(alpha: 0.1),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // Manager-resolved header badge
+          Container(
+            padding: EdgeInsets.symmetric(
+              horizontal: isMobile ? 14 : 18,
+              vertical: isMobile ? 10 : 12,
+            ),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [accentColor.shade600, accentColor.shade400],
+                begin: Alignment.topRight,
+                end: Alignment.bottomLeft,
+              ),
+              borderRadius: BorderRadius.only(
+                topLeft: Radius.circular(isMobile ? 12.5 : 16.5),
+                topRight: Radius.circular(isMobile ? 12.5 : 16.5),
+              ),
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  Icons.admin_panel_settings_rounded,
+                  color: Colors.white,
+                  size: isMobile ? 20 : 24,
+                ),
+                SizedBox(width: isMobile ? 8 : 10),
+                Expanded(
+                  child: Text(
+                    'فالت معالج من المدير',
+                    style: GoogleFonts.cairo(
+                      fontSize: isMobile ? 14 : 16,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          Padding(
+            padding: EdgeInsets.all(isMobile ? 14 : 18),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // Instruction message
+                Container(
+                  width: double.infinity,
+                  padding: EdgeInsets.all(isMobile ? 10 : 12),
+                  decoration: BoxDecoration(
+                    color: accentColor.shade50,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: accentColor.shade200),
+                  ),
+                  child: Text(
+                    'هذه الكمية تم اعتمادها للإنتاج بقرار من المدير',
+                    style: GoogleFonts.cairo(
+                      fontSize: isMobile ? 13 : 15,
+                      fontWeight: FontWeight.w600,
+                      color: accentColor.shade800,
+                    ),
+                    textAlign: TextAlign.center,
+                    textDirection: TextDirection.rtl,
+                  ),
+                ),
+                SizedBox(height: isMobile ? 10 : 12),
+
+                // Product name
+                Text(
+                  ProductType.formatCompactName(item.productTypeName),
+                  style: GoogleFonts.cairo(
+                    fontSize: isMobile ? 16 : 18,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.black87,
+                  ),
+                ),
+                SizedBox(height: isMobile ? 8 : 10),
+
+                // Quantity + source operator
+                Row(
+                  children: [
+                    Container(
+                      padding: EdgeInsets.symmetric(
+                        horizontal: isMobile ? 14 : 18,
+                        vertical: isMobile ? 8 : 10,
+                      ),
+                      decoration: BoxDecoration(
+                        color: accentColor.withValues(alpha: 0.08),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.inventory_outlined,
+                            size: isMobile ? 16 : 18,
+                            color: accentColor,
+                          ),
+                          SizedBox(width: isMobile ? 6 : 8),
+                          Text(
+                            '${item.quantity} عبوة',
+                            style: GoogleFonts.cairo(
+                              fontSize: isMobile ? 15 : 17,
+                              fontWeight: FontWeight.bold,
+                              color: accentColor,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+
+                // Source operator
+                if (item.sourceOperatorName != null) ...[
+                  SizedBox(height: isMobile ? 8 : 10),
+                  _buildInfoChip(
+                    icon: Icons.person_outline_rounded,
+                    label: 'المشغل المصدر',
+                    value: item.sourceOperatorName!,
+                    color: accentColor,
+                    isMobile: isMobile,
+                  ),
+                ],
+
+                SizedBox(height: isMobile ? 10 : 12),
+
+                // Action prompt
+                Text(
+                  'أكمل عليها من إنتاج المناوبة الحالية',
+                  style: GoogleFonts.cairo(
+                    fontSize: isMobile ? 12 : 14,
+                    color: Colors.grey.shade600,
+                    fontStyle: FontStyle.italic,
+                  ),
+                  textAlign: TextAlign.center,
+                  textDirection: TextDirection.rtl,
+                ),
+                SizedBox(height: isMobile ? 12 : 14),
+
+                // Action button — convert only (no dispose for manager-resolved)
+                ElevatedButton.icon(
+                  onPressed: () => _handleConvertToPallet(context, item),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: accentColor,
+                    foregroundColor: Colors.white,
+                    elevation: 0,
+                    padding: EdgeInsets.symmetric(
+                      vertical: isMobile ? 12 : 14,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                  ),
+                  icon: Icon(
+                    Icons.add_circle_outline_rounded,
+                    size: isMobile ? 18 : 20,
+                  ),
+                  label: Text(
+                    'تحويل لطبلية',
+                    style: GoogleFonts.cairo(
+                      fontSize: isMobile ? 14 : 16,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildOrdinaryFaletCard(
+    BuildContext context,
+    FaletItem item,
+    bool isMobile,
+  ) {
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
@@ -234,7 +440,7 @@ class _FaletScreenState extends State<FaletScreen> {
             ),
             SizedBox(height: isMobile ? 8 : 10),
 
-            // Quantity and timestamps
+            // Quantity
             Row(
               children: [
                 Container(
@@ -268,6 +474,30 @@ class _FaletScreenState extends State<FaletScreen> {
                 ),
               ],
             ),
+
+            // Source operator
+            if (item.sourceOperatorName != null) ...[
+              SizedBox(height: isMobile ? 8 : 10),
+              _buildInfoChip(
+                icon: Icons.person_outline_rounded,
+                label: 'المشغل المصدر',
+                value: item.sourceOperatorName!,
+                color: widget.line.color,
+                isMobile: isMobile,
+              ),
+            ],
+
+            // Origin type label
+            if (item.originType != null) ...[
+              SizedBox(height: isMobile ? 6 : 8),
+              _buildInfoChip(
+                icon: Icons.label_outline_rounded,
+                label: 'المصدر',
+                value: _originTypeLabel(item.originType!),
+                color: widget.line.color,
+                isMobile: isMobile,
+              ),
+            ],
 
             // Timestamps
             if (item.createdAtDisplay != null ||
@@ -365,6 +595,66 @@ class _FaletScreenState extends State<FaletScreen> {
     );
   }
 
+  Widget _buildInfoChip({
+    required IconData icon,
+    required String label,
+    required String value,
+    required Color color,
+    required bool isMobile,
+  }) {
+    return Container(
+      padding: EdgeInsets.symmetric(
+        horizontal: isMobile ? 10 : 14,
+        vertical: isMobile ? 6 : 8,
+      ),
+      decoration: BoxDecoration(
+        color: Colors.grey.shade50,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, size: isMobile ? 14 : 16, color: color),
+          SizedBox(width: isMobile ? 6 : 8),
+          Text(
+            '$label: ',
+            style: GoogleFonts.cairo(
+              fontSize: isMobile ? 11 : 13,
+              color: Colors.grey.shade600,
+            ),
+          ),
+          Expanded(
+            child: Text(
+              value,
+              style: GoogleFonts.cairo(
+                fontSize: isMobile ? 12 : 14,
+                fontWeight: FontWeight.w600,
+                color: Colors.black87,
+              ),
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _originTypeLabel(String originType) {
+    switch (originType) {
+      case 'PRODUCT_SWITCH':
+        return 'تبديل منتج';
+      case 'HANDOVER_LAST_ACTIVE':
+        return 'تسليم آخر منتج';
+      case 'RECEIVED_FROM_HANDOVER':
+        return 'مستلم من التسليم';
+      case 'DISPUTE_RELEASE':
+        return 'إفراج نزاع';
+      case 'UNDECLARED_AT_HANDOVER':
+        return 'غير مصرح عند التسليم';
+      default:
+        return originType;
+    }
+  }
+
   Widget _buildTimestampRow(String label, String value, bool isMobile) {
     return Padding(
       padding: EdgeInsets.symmetric(vertical: isMobile ? 2 : 3),
@@ -397,10 +687,17 @@ class _FaletScreenState extends State<FaletScreen> {
   ) async {
     final provider = context.read<PalletizingProvider>();
 
+    // Look up full pallet capacity from product type reference data
+    final productType = provider.productTypes
+        .where((p) => p.id == item.productTypeId)
+        .firstOrNull;
+    final palletCapacity = productType?.packageQuantity;
+
     final freshQty = await ConvertFaletToPalletDialog.show(
       context: context,
       faletItem: item,
       themeColor: widget.line.color,
+      fullPalletCapacity: palletCapacity,
     );
 
     if (freshQty == null || !context.mounted) return;

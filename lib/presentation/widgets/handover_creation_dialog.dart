@@ -53,12 +53,23 @@ class HandoverCreationDialog extends StatefulWidget {
 }
 
 class _HandoverCreationDialogState extends State<HandoverCreationDialog> {
-  bool _hasFalet = false;
-  final _faletQuantityController = TextEditingController(text: '1');
+  bool? _hasFalet;
+  final _faletQuantityController = TextEditingController();
   final _notesController = TextEditingController();
 
   @override
+  void initState() {
+    super.initState();
+    _faletQuantityController.addListener(_onFieldChanged);
+  }
+
+  void _onFieldChanged() {
+    setState(() {});
+  }
+
+  @override
   void dispose() {
+    _faletQuantityController.removeListener(_onFieldChanged);
     _faletQuantityController.dispose();
     _notesController.dispose();
     super.dispose();
@@ -86,9 +97,20 @@ class _HandoverCreationDialogState extends State<HandoverCreationDialog> {
               ),
             ),
           ),
+          IconButton(
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(),
+            icon: Icon(Icons.close_rounded, color: Colors.grey.shade600),
+            onPressed: () => Navigator.of(context).pop(),
+          ),
         ],
       ),
-      contentPadding: EdgeInsets.all(isMobile ? 16 : 20),
+      contentPadding: EdgeInsets.fromLTRB(
+        isMobile ? 16 : 20, 
+        isMobile ? 16 : 20, 
+        isMobile ? 16 : 20, 
+        isMobile ? 8 : 10
+      ),
       content: SizedBox(
         width: dialogWidth,
         child: SingleChildScrollView(
@@ -141,63 +163,102 @@ class _HandoverCreationDialogState extends State<HandoverCreationDialog> {
           const SizedBox(height: 14),
         ],
 
-        // FALET toggle
-        Container(
-          decoration: BoxDecoration(
-            color: _hasFalet
-                ? widget.themeColor.withValues(alpha: 0.08)
-                : Colors.grey.shade50,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(
-              color: _hasFalet
-                  ? widget.themeColor.withValues(alpha: 0.4)
-                  : Colors.grey.shade300,
+        // FALET explicit yes/no — only shown when there is an active product
+        if (widget.currentProduct != null) ...[
+          // Question label
+          Text(
+            'هل يوجد فالت للمنتج الحالي؟',
+            style: GoogleFonts.cairo(
+              fontSize: isMobile ? 14 : 15,
+              fontWeight: FontWeight.w600,
             ),
+            textAlign: TextAlign.center,
           ),
-          child: SwitchListTile(
-            value: _hasFalet,
-            onChanged: (v) => setState(() {
-              _hasFalet = v;
-              if (!v) _faletQuantityController.text = '1';
-            }),
-            title: Text(
-              'هل يوجد فالت للمنتج النشط؟',
-              style: GoogleFonts.cairo(
-                fontSize: isMobile ? 14 : 15,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-            activeTrackColor: widget.themeColor.withValues(alpha: 0.5),
-            thumbColor: WidgetStatePropertyAll(widget.themeColor),
-            dense: true,
-            contentPadding: EdgeInsets.symmetric(
-              horizontal: isMobile ? 12 : 16,
-              vertical: 2,
-            ),
-          ),
-        ),
+          const SizedBox(height: 10),
 
-        // FALET quantity input
-        if (_hasFalet) ...[
-          const SizedBox(height: 14),
-          TextFormField(
-            controller: _faletQuantityController,
-            keyboardType: TextInputType.number,
-            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-            decoration: InputDecoration(
-              labelText: 'كمية الفالت (عدد العبوات)',
-              labelStyle: GoogleFonts.cairo(fontSize: fontSize),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(10),
+          // Yes / No selection buttons
+          Row(
+            children: [
+              Expanded(
+                child: _buildChoiceButton(
+                  label: 'نعم',
+                  icon: Icons.check_circle_outline,
+                  selected: _hasFalet == true,
+                  onTap: () => setState(() {
+                    _hasFalet = true;
+                  }),
+                  isMobile: isMobile,
+                ),
               ),
-              contentPadding: const EdgeInsets.symmetric(
-                horizontal: 12,
-                vertical: 12,
+              const SizedBox(width: 12),
+              Expanded(
+                child: _buildChoiceButton(
+                  label: 'لا',
+                  icon: Icons.cancel_outlined,
+                  selected: _hasFalet == false,
+                  onTap: () => setState(() {
+                    _hasFalet = false;
+                    _faletQuantityController.clear();
+                  }),
+                  isMobile: isMobile,
+                ),
               ),
-              isDense: true,
-            ),
-            style: GoogleFonts.cairo(fontSize: fontSize),
+            ],
           ),
+
+          // FALET quantity input — only when yes
+          if (_hasFalet == true) ...[
+            const SizedBox(height: 14),
+            Row(
+              children: [
+                Expanded(
+                  flex: 3,
+                  child: Text(
+                    'عدد عبوات الفالت:',
+                    style: GoogleFonts.cairo(
+                      fontSize: fontSize,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+                Expanded(
+                  flex: 4,
+                  child: TextFormField(
+                    controller: _faletQuantityController,
+                    keyboardType: TextInputType.number,
+                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                    textAlign: TextAlign.center,
+                    decoration: InputDecoration(
+                      labelText: 'عدد عبوات الفالت',
+                      labelStyle: GoogleFonts.cairo(
+                        fontSize: isMobile ? 13 : 14,
+                        fontWeight: FontWeight.w600,
+                      ),
+                      hintText: 'أدخل العدد',
+                      hintStyle: GoogleFonts.cairo(
+                        fontSize: isMobile ? 13 : 14,
+                        color: Colors.grey.shade400,
+                      ),
+                      errorText: _faletQuantityError,
+                      errorStyle: GoogleFonts.cairo(fontSize: isMobile ? 11 : 12),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      contentPadding: EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: isMobile ? 14 : 16,
+                      ),
+                    ),
+                    style: GoogleFonts.cairo(
+                      fontSize: isMobile ? 18 : 20,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 2,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
         ],
         const SizedBox(height: 14),
 
@@ -225,33 +286,107 @@ class _HandoverCreationDialogState extends State<HandoverCreationDialog> {
 
   List<Widget> _buildActions(bool isMobile) {
     return [
-      TextButton(
-        onPressed: () => Navigator.of(context).pop(),
-        child: Text('إلغاء', style: GoogleFonts.cairo(color: Colors.grey)),
-      ),
-      ElevatedButton(
-        onPressed: _canSubmit() ? _handleSubmit : null,
-        style: ElevatedButton.styleFrom(
-          backgroundColor: widget.themeColor,
-          foregroundColor: Colors.white,
-          disabledBackgroundColor: widget.themeColor.withValues(alpha: 0.4),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(10),
+      SizedBox(
+        width: double.infinity,
+        child: ElevatedButton(
+          onPressed: _canSubmit() ? _handleSubmit : null,
+          style: ElevatedButton.styleFrom(
+            backgroundColor: widget.themeColor,
+            foregroundColor: Colors.white,
+            disabledBackgroundColor: widget.themeColor.withValues(alpha: 0.4),
+            padding: EdgeInsets.symmetric(vertical: isMobile ? 12 : 14),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10),
+            ),
           ),
-        ),
-        child: Text(
-          'تأكيد التسليم',
-          style: GoogleFonts.cairo(fontWeight: FontWeight.bold),
+          child: Text(
+            'تأكيد التسليم',
+            style: GoogleFonts.cairo(
+              fontWeight: FontWeight.bold,
+              fontSize: isMobile ? 15 : 16,
+            ),
+          ),
         ),
       ),
     ];
   }
 
+  Widget _buildChoiceButton({
+    required String label,
+    required IconData icon,
+    required bool selected,
+    required VoidCallback onTap,
+    required bool isMobile,
+  }) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          padding: EdgeInsets.symmetric(
+            vertical: isMobile ? 12 : 14,
+            horizontal: 8,
+          ),
+          decoration: BoxDecoration(
+            color: selected
+                ? widget.themeColor.withValues(alpha: 0.1)
+                : Colors.grey.shade50,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: selected
+                  ? widget.themeColor
+                  : Colors.grey.shade300,
+              width: selected ? 2 : 1,
+            ),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                icon,
+                color: selected ? widget.themeColor : Colors.grey.shade500,
+                size: isMobile ? 20 : 22,
+              ),
+              const SizedBox(width: 6),
+              Text(
+                label,
+                style: GoogleFonts.cairo(
+                  fontSize: isMobile ? 15 : 16,
+                  fontWeight: selected ? FontWeight.bold : FontWeight.w600,
+                  color: selected ? widget.themeColor : Colors.grey.shade600,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  String? get _faletQuantityError {
+    if (_hasFalet != true) return null;
+    final text = _faletQuantityController.text.trim();
+    if (text.isEmpty) return null;
+    final qty = int.tryParse(text);
+    if (qty == null || qty <= 0) return null;
+    final maxQty = widget.currentProduct?.packageQuantity ?? 0;
+    if (maxQty > 0 && qty > maxQty) {
+      return 'عدد عبوات الفالت يجب أن يكون بين 1 و $maxQty';
+    }
+    return null;
+  }
+
   bool _canSubmit() {
-    if (_hasFalet) {
+    // Must have made an explicit choice
+    if (widget.currentProduct != null && _hasFalet == null) return false;
+    if (_hasFalet == true) {
       if (widget.currentProduct == null) return false;
       final qty = int.tryParse(_faletQuantityController.text) ?? 0;
       if (qty <= 0) return false;
+      final maxQty = widget.currentProduct!.packageQuantity;
+      if (maxQty > 0 && qty > maxQty) return false;
     }
     return true;
   }
@@ -259,10 +394,10 @@ class _HandoverCreationDialogState extends State<HandoverCreationDialog> {
   void _handleSubmit() {
     Navigator.of(context).pop(
       HandoverCreationResult(
-        lastActiveProductTypeId: _hasFalet
+        lastActiveProductTypeId: _hasFalet == true
             ? widget.currentProduct?.id
             : null,
-        lastActiveProductFaletQuantity: _hasFalet
+        lastActiveProductFaletQuantity: _hasFalet == true
             ? int.tryParse(_faletQuantityController.text)
             : null,
         notes: _notesController.text.trim().isEmpty

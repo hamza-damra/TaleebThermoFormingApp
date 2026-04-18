@@ -8,6 +8,7 @@ import '../../core/constants.dart';
 import '../../core/responsive.dart';
 import '../providers/palletizing_provider.dart';
 import '../widgets/production_line_section.dart';
+import '../widgets/reprint_by_id_dialog.dart';
 import '../widgets/shimmer/palletizing_shimmer.dart';
 import 'settings_hub_screen.dart';
 
@@ -21,6 +22,7 @@ class PalletizingScreen extends StatefulWidget {
 class _PalletizingScreenState extends State<PalletizingScreen>
     with SingleTickerProviderStateMixin {
   late Timer _timer;
+  Timer? _faletPollTimer;
   String _currentDateTime = '';
   TabController? _tabController;
   int _activeTabIndex = 0;
@@ -37,6 +39,12 @@ class _PalletizingScreenState extends State<PalletizingScreen>
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       final palletizingProvider = context.read<PalletizingProvider>();
       await palletizingProvider.loadBootstrap();
+
+      // Start polling FALET existence every 30 seconds
+      _faletPollTimer = Timer.periodic(
+        const Duration(seconds: 30),
+        (_) => context.read<PalletizingProvider>().pollAllLinesFaletStatus(),
+      );
     });
   }
 
@@ -52,6 +60,7 @@ class _PalletizingScreenState extends State<PalletizingScreen>
   @override
   void dispose() {
     _timer.cancel();
+    _faletPollTimer?.cancel();
     _tabController?.animation?.removeListener(_handleTabAnimation);
     _tabController?.dispose();
     super.dispose();
@@ -120,6 +129,14 @@ class _PalletizingScreenState extends State<PalletizingScreen>
         centerTitle: true,
         toolbarHeight: 56,
         actions: [
+          IconButton(
+            icon: const Icon(Icons.print_rounded),
+            onPressed: () => showDialog(
+              context: context,
+              builder: (_) => const ReprintByIdDialog(),
+            ),
+            tooltip: 'إعادة طباعة ملصق',
+          ),
           IconButton(
             icon: const Icon(Icons.settings),
             onPressed: () => Navigator.of(context).push(
@@ -218,6 +235,17 @@ class _PalletizingScreenState extends State<PalletizingScreen>
       centerTitle: true,
       toolbarHeight: 60,
       actions: [
+        Padding(
+          padding: EdgeInsets.symmetric(horizontal: isTablet ? 4 : 8),
+          child: IconButton(
+            icon: const Icon(Icons.print_rounded),
+            onPressed: () => showDialog(
+              context: context,
+              builder: (_) => const ReprintByIdDialog(),
+            ),
+            tooltip: 'إعادة طباعة ملصق',
+          ),
+        ),
         Padding(
           padding: EdgeInsets.symmetric(horizontal: isTablet ? 4 : 8),
           child: IconButton(

@@ -13,6 +13,7 @@ class PalletCreateResponse {
   final String currentDestination;
   final DateTime createdAt;
   final String createdAtDisplay;
+  final int? sessionProductSequence;
 
   const PalletCreateResponse({
     required this.palletId,
@@ -25,5 +26,6 @@ class PalletCreateResponse {
     required this.currentDestination,
     required this.createdAt,
     required this.createdAtDisplay,
+    this.sessionProductSequence,
   });
 }

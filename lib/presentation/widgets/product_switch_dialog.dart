@@ -165,7 +165,7 @@ class _ProductSwitchDialogState extends State<ProductSwitchDialog> {
                   border: Border.all(color: Colors.orange.shade200),
                 ),
                 child: Text(
-                  'هل يوجد عبوات فالتة (فالتة) من المنتج السابق؟',
+                  'هل يوجد فالت من المنتج السابق؟',
                   style: GoogleFonts.cairo(
                     fontSize: isMobile ? 14 : 16,
                     fontWeight: FontWeight.w600,
@@ -245,9 +245,9 @@ class _ProductSwitchDialogState extends State<ProductSwitchDialog> {
                     ),
                   ),
                   onChanged: (_) {
-                    if (_validationError != null) {
-                      setState(() => _validationError = null);
-                    }
+                    setState(() {
+                      _validationError = _computeValidationError();
+                    });
                   },
                 ),
               ],
@@ -354,6 +354,19 @@ class _ProductSwitchDialogState extends State<ProductSwitchDialog> {
     );
   }
 
+  String? _computeValidationError() {
+    if (!_hasLoose) return null;
+    final text = _looseController.text.trim();
+    if (text.isEmpty) return null;
+    final count = int.tryParse(text);
+    if (count == null || count <= 0) return null;
+    final maxQty = widget.previousProduct.packageQuantity;
+    if (maxQty > 0 && count > maxQty) {
+      return 'عدد عبوات الفالت يجب أن يكون بين 1 و $maxQty';
+    }
+    return null;
+  }
+
   void _handleConfirm() {
     if (!_hasLoose) {
       Navigator.of(context).pop(0);
@@ -369,6 +382,12 @@ class _ProductSwitchDialogState extends State<ProductSwitchDialog> {
     final count = int.tryParse(text);
     if (count == null || count <= 0) {
       setState(() => _validationError = 'يرجى إدخال رقم صحيح أكبر من صفر');
+      return;
+    }
+
+    final maxQty = widget.previousProduct.packageQuantity;
+    if (maxQty > 0 && count > maxQty) {
+      setState(() => _validationError = 'عدد عبوات الفالت يجب أن يكون بين 1 و $maxQty');
       return;
     }
 

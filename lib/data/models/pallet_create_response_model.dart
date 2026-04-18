@@ -15,6 +15,7 @@ class PalletCreateResponseModel extends PalletCreateResponse {
     required super.currentDestination,
     required super.createdAt,
     required super.createdAtDisplay,
+    super.sessionProductSequence,
   });
 
   factory PalletCreateResponseModel.fromJson(Map<String, dynamic> json) {
@@ -41,6 +42,7 @@ class PalletCreateResponseModel extends PalletCreateResponse {
         packageUnitDisplayName:
             productTypeJson['packageUnitDisplayName'] as String? ?? '',
         imageUrl: productTypeJson['imageUrl'] as String?,
+        description: productTypeJson['description'] as String?,
       ),
       productionLine: ProductionLine(
         id: productionLineJson['id'] as int,
@@ -52,6 +54,7 @@ class PalletCreateResponseModel extends PalletCreateResponse {
       currentDestination: json['currentDestination'] as String? ?? '',
       createdAt: DateTime.parse(json['createdAt'] as String),
       createdAtDisplay: json['createdAtDisplay'] as String? ?? '',
+      sessionProductSequence: json['sessionProductSequence'] as int?,
     );
   }
 }

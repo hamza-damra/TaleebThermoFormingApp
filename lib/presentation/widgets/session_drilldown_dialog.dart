@@ -525,14 +525,35 @@ class _ReprintDialogState extends State<_ReprintDialog> {
       _printError = null;
     });
 
+    // Look up full product type from bootstrap data for label content
+    final palletizingProvider = context.read<PalletizingProvider>();
+    final productType = palletizingProvider.productTypes
+        .where((p) => p.id == widget.group.productTypeId)
+        .firstOrNull;
+
+    // Top: productName (no sequence available for reprints)
+    final topText = productType?.productName ?? ProductType.formatCompactName(widget.group.productTypeName);
+
+    // Bottom: description with fallback
+    final description = productType?.description;
+    final bottomText = (description != null && description.isNotEmpty)
+        ? description
+        : productType?.name ?? widget.group.productTypeName;
+
+    // Sides: scannedValue (lineLetter)
+    final lineLetter = widget.line.number == 1 ? 'A' : 'B';
+    final sideText = '${widget.pallet.scannedValue} ($lineLetter)';
+
     final result = await printingProvider.print(
       scannedValue: widget.pallet.scannedValue,
-      copies: 1,
+      copies: printingProvider.copies,
+      topText: topText,
+      bottomText: bottomText,
+      sideText: sideText,
     );
 
     if (!mounted) return;
 
-    final palletizingProvider = context.read<PalletizingProvider>();
     await palletizingProvider.logPrintAttempt(
       lineNumber: widget.line.number,
       palletId: widget.pallet.palletId,

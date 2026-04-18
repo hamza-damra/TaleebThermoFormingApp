@@ -1,3 +1,5 @@
+import 'reconciled_falet_item.dart';
+
 class LineHandoverInfo {
   final int handoverId;
   final int lineId;
@@ -12,8 +14,14 @@ class LineHandoverInfo {
   final List<HandoverFaletItem> faletItems;
   final int faletItemCount;
   final bool hasFalet;
+  final List<ReconciledFaletItem> reconciledFaletItems;
   final String? notes;
   final String? rejectionNotes;
+  final String? receiptNotes;
+  final bool? rejectionIncorrectQuantity;
+  final bool? rejectionOtherReason;
+  final String? rejectionOtherReasonNotes;
+  final bool? rejectionUndeclaredFalet;
   final String? resolutionNotes;
   final String? resolvedByUserName;
   final DateTime? createdAt;
@@ -36,8 +44,14 @@ class LineHandoverInfo {
     this.faletItems = const [],
     this.faletItemCount = 0,
     this.hasFalet = false,
+    this.reconciledFaletItems = const [],
     this.notes,
     this.rejectionNotes,
+    this.receiptNotes,
+    this.rejectionIncorrectQuantity,
+    this.rejectionOtherReason,
+    this.rejectionOtherReasonNotes,
+    this.rejectionUndeclaredFalet,
     this.resolutionNotes,
     this.resolvedByUserName,
     this.createdAt,
@@ -55,6 +69,7 @@ class HandoverFaletItem {
   final int productTypeId;
   final String productTypeName;
   final int quantity;
+  final int? observedQuantity;
   final bool lastActiveProduct;
 
   const HandoverFaletItem({
@@ -62,6 +77,7 @@ class HandoverFaletItem {
     required this.productTypeId,
     required this.productTypeName,
     required this.quantity,
+    this.observedQuantity,
     this.lastActiveProduct = false,
   });
 }

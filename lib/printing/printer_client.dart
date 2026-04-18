@@ -16,9 +16,18 @@ class PrinterClient {
     required String value,
     required LabelPreset preset,
     int copies = 1,
+    String? topText,
+    String? bottomText,
+    String? sideText,
   }) async {
     final renderer = LabelRenderer();
-    final renderResult = await renderer.render(value: value, preset: preset);
+    final renderResult = await renderer.render(
+      value: value,
+      preset: preset,
+      topText: topText,
+      bottomText: bottomText,
+      sideText: sideText,
+    );
 
     final tsplBuilder = TsplBuilder();
     final printData = tsplBuilder.createLabelPrint(

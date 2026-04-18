@@ -4,17 +4,14 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../core/constants.dart';
 import '../../core/responsive.dart';
 import '../../domain/entities/product_type.dart';
-import 'searchable_picker_dialog.dart';
 
 class CreatePalletDialog extends StatefulWidget {
   final ProductionLine line;
-  final List<ProductType> productTypes;
   final ProductType? initialProductType;
 
   const CreatePalletDialog({
     super.key,
     required this.line,
-    required this.productTypes,
     this.initialProductType,
   });
 
@@ -118,77 +115,47 @@ class _CreatePalletDialogState extends State<CreatePalletDialog> {
           ),
         ),
         SizedBox(height: isMobile ? 6 : 8),
-        InkWell(
-          onTap: () async {
-            final selected = await SearchablePickerDialog.show<ProductType>(
-              context: context,
-              title: 'اختر نوع المنتج',
-              searchHint: 'ابحث عن المنتج...',
-              items: widget.productTypes,
-              selectedItem: _selectedProductType,
-              displayTextExtractor: (pt) => pt.productName,
-              subtitleExtractor: (pt) => pt.description ?? '',
-              searchMatcher: (pt, query) {
-                final queryLower = query.toLowerCase();
-                return pt.name.toLowerCase().contains(queryLower) ||
-                    pt.productName.toLowerCase().contains(queryLower) ||
-                    pt.color.toLowerCase().contains(queryLower) ||
-                    pt.prefix.toLowerCase().contains(queryLower) ||
-                    pt.displayLabel.toLowerCase().contains(queryLower);
-              },
-              themeColor: widget.line.color,
-            );
-            if (selected != null) {
-              setState(() {
-                _selectedProductType = selected;
-                _quantity = selected.packageQuantity;
-                _quantityController.text = '$_quantity';
-              });
-            }
-          },
-          borderRadius: BorderRadius.circular(12),
-          child: Container(
-            padding: EdgeInsets.symmetric(
-              horizontal: isMobile ? 12 : 16,
-              vertical: isMobile ? 14 : 16,
-            ),
-            decoration: BoxDecoration(
-              border: Border.all(color: Colors.grey.shade400),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
+        Container(
+          padding: EdgeInsets.symmetric(
+            horizontal: isMobile ? 12 : 16,
+            vertical: isMobile ? 14 : 16,
+          ),
+          decoration: BoxDecoration(
+            color: Colors.grey.shade50,
+            border: Border.all(color: Colors.grey.shade300),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      _selectedProductType?.productName ?? 'لا يوجد منتج نشط',
+                      style: GoogleFonts.cairo(
+                        fontSize: fontSize,
+                        color: _selectedProductType != null
+                            ? Colors.black87
+                            : Colors.grey.shade600,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    if (_selectedProductType?.description != null &&
+                        _selectedProductType!.description!.trim().isNotEmpty)
                       Text(
-                        _selectedProductType?.productName ?? 'اختر نوع المنتج',
+                        _selectedProductType!.description!,
                         style: GoogleFonts.cairo(
-                          fontSize: fontSize,
-                          color: _selectedProductType != null
-                              ? Colors.black87
-                              : Colors.grey.shade600,
+                          fontSize: fontSize - 2,
+                          color: Colors.grey.shade500,
                         ),
                         overflow: TextOverflow.ellipsis,
+                        maxLines: 2,
                       ),
-                      if (_selectedProductType?.description != null &&
-                          _selectedProductType!.description!.trim().isNotEmpty)
-                        Text(
-                          _selectedProductType!.description!,
-                          style: GoogleFonts.cairo(
-                            fontSize: fontSize - 2,
-                            color: Colors.grey.shade500,
-                          ),
-                          overflow: TextOverflow.ellipsis,
-                          maxLines: 2,
-                        ),
-                    ],
-                  ),
+                  ],
                 ),
-                Icon(Icons.arrow_drop_down, color: Colors.grey.shade600),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
       ],

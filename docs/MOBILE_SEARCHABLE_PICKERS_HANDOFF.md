@@ -68,14 +68,14 @@ The existing picker endpoints were enhanced in-place. **No new endpoints were cr
   "data": [
     {
       "id": 5,
-      "name": "لنش بوكس مقطع / أبيض / 500 كرتونة",
+      "name": "لنش بوكس مقطع / أبيض / 500 عبوة",
       "productName": "لنش بوكس مقطع",
       "prefix": "0001",
       "color": "أبيض",
       "packageQuantity": 500,
       "packageUnit": "CARTON",
-      "packageUnitDisplayName": "كرتونة",
-      "displayLabel": "لنش بوكس مقطع - أبيض (500 كرتونة)"
+      "packageUnitDisplayName": "عبوة",
+      "displayLabel": "لنش بوكس مقطع - أبيض (500 عبوة)"
     }
   ]
 }
@@ -90,7 +90,7 @@ The existing picker endpoints were enhanced in-place. **No new endpoints were cr
 | `color` | String | Color (e.g. `"أبيض"`, `"أسود"`, `"شفاف"`) |
 | `packageQuantity` | Integer | Items per package (e.g. 500) |
 | `packageUnit` | String (enum) | `"CARTON"` or `"BAG"` |
-| `packageUnitDisplayName` | String | Arabic unit label (`"كرتونة"` or `"كيس"`) |
+| `packageUnitDisplayName` | String | Arabic unit label (`"عبوة"` or `"كيس"`) |
 | `displayLabel` | String | **NEW** — ready-to-use Arabic display label formatted as `"productName - color (quantity unit)"` |
 
 ### Search Behavior
@@ -139,7 +139,7 @@ When the user taps the product field (نوع المنتج):
 
 1. Open a searchable dialog / bottom sheet / full-screen picker
 2. Fetch `GET /api/v1/palletizing/product-types` (full active list)
-3. Display each product type using `displayLabel` (e.g. "لنش بوكس مقطع - أبيض (500 كرتونة)")
+3. Display each product type using `displayLabel` (e.g. "لنش بوكس مقطع - أبيض (500 عبوة)")
 4. Allow typing to filter — match against `productName`, `color`, `prefix`, `name`, or `displayLabel` locally
 5. Optionally show `prefix` as a subtitle or secondary text
 6. On selection: store `id` for the API call, display `displayLabel` on the main form

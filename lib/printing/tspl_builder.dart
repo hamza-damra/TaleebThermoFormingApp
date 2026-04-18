@@ -12,7 +12,7 @@ class TsplBuilder {
   }
 
   TsplBuilder gap(double gapMm) {
-    _commands.write('GAP $gapMm mm,0 mm${TsplConstants.lineEnding}');
+    _commands.write('GAP $gapMm mm,0.0 mm${TsplConstants.lineEnding}');
     return this;
   }
 
@@ -43,6 +43,11 @@ class TsplBuilder {
 
   TsplBuilder setTearOff() {
     _commands.write('${TsplConstants.setTearOff}${TsplConstants.lineEnding}');
+    return this;
+  }
+
+  TsplBuilder setTearOn() {
+    _commands.write('${TsplConstants.setTearOn}${TsplConstants.lineEnding}');
     return this;
   }
 
@@ -87,7 +92,7 @@ class TsplBuilder {
       ..shift()
       ..reference()
       ..setPeelOff()
-      ..setTearOff()
+      ..setTearOn()
       ..setCutterOff()
       ..cls()
       ..bitmap(0, 0, bitmapWidthBytes, bitmapHeight, bitmapData);
