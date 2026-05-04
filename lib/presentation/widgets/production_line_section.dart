@@ -1433,16 +1433,22 @@ class ProductionLineSection extends StatelessWidget {
 
   Future<void> _handleRejectHandover(BuildContext context) async {
     final provider = context.read<PalletizingProvider>();
+
+    // Refresh first so we open the dialog against the current snapshot IDs.
+    // The strict-validation backend rejects observations carrying snapshot IDs
+    // from a previous handover; cached state on this line could otherwise
+    // produce HANDOVER_OBSERVATION_SNAPSHOT_MISMATCH.
+    await provider.refreshLineState(line.number);
+    if (!context.mounted) return;
+
     final handover = provider.getPendingHandover(line.number);
     if (handover == null) return;
 
-    // Show structured rejection dialog
     final result = await HandoverRejectDialog.show(
       context: context,
       faletItems: handover.faletItems,
     );
 
-    // null means user cancelled
     if (result == null || !context.mounted) return;
 
     try {
@@ -1470,6 +1476,12 @@ class ProductionLineSection extends StatelessWidget {
         );
       }
     } on ApiException catch (e) {
+      // Stale snapshot IDs: refresh the handover so the next attempt uses the
+      // current set, and tell the user to retry.
+      if (e.code == 'HANDOVER_OBSERVATION_SNAPSHOT_MISMATCH' ||
+          e.code == 'FALET_STATE_NOT_AVAILABLE_FOR_REJECTION') {
+        await provider.refreshLineState(line.number);
+      }
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(

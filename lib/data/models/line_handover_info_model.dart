@@ -34,7 +34,11 @@ class LineHandoverInfoModel extends LineHandoverInfo {
   });
 
   factory LineHandoverInfoModel.fromJson(Map<String, dynamic> json) {
-    final faletItemsJson = json['faletItems'] as List<dynamic>? ?? [];
+    // Some backend revisions serialize snapshots under `faletSnapshots[]`
+    // instead of (or alongside) `faletItems[]`. Prefer the new key when
+    // present so the reject flow can recover the snapshot row IDs.
+    final faletItemsJson = (json['faletSnapshots'] as List<dynamic>?) ??
+        (json['faletItems'] as List<dynamic>? ?? []);
     final reconciledJson = json['reconciledFaletItems'] as List<dynamic>? ?? [];
 
     return LineHandoverInfoModel(
@@ -84,6 +88,7 @@ class LineHandoverInfoModel extends LineHandoverInfo {
 
 class HandoverFaletItemModel extends HandoverFaletItem {
   const HandoverFaletItemModel({
+    required super.faletSnapshotId,
     required super.faletId,
     required super.productTypeId,
     required super.productTypeName,
@@ -93,8 +98,19 @@ class HandoverFaletItemModel extends HandoverFaletItem {
   });
 
   factory HandoverFaletItemModel.fromJson(Map<String, dynamic> json) {
+    final faletId = json['faletId'] as int;
+    // The snapshot's primary key may be serialized under any of these field
+    // names depending on backend version: `faletSnapshotId`, `snapshotId`,
+    // `id`. Fall back to `faletId` only as a last resort — sending the FALET
+    // FK as the snapshot id is the production-#79 bug this contract was
+    // tightened to prevent.
+    final snapshotId = (json['faletSnapshotId'] as int?) ??
+        (json['snapshotId'] as int?) ??
+        (json['id'] as int?) ??
+        faletId;
     return HandoverFaletItemModel(
-      faletId: json['faletId'] as int,
+      faletSnapshotId: snapshotId,
+      faletId: faletId,
       productTypeId: json['productTypeId'] as int,
       productTypeName: json['productTypeName'] as String? ?? '',
       quantity: json['quantity'] as int? ?? 0,

@@ -165,6 +165,21 @@ class ApiException implements Exception {
         return 'الكمية تتجاوز المتبقي';
       case 'FALET_DISPUTE_NO_ACTIVE_AUTH_FOR_PALLETIZE':
         return 'يتطلب تفويض نشط للتنصيب';
+      // ── Handover rejection strict-validation errors ──
+      case 'HANDOVER_OBSERVATION_SNAPSHOT_MISMATCH':
+        return 'بيانات التسليم قديمة، يرجى تحديث الصفحة والمحاولة مرة أخرى.';
+      case 'HANDOVER_OBSERVATION_DUPLICATE':
+        return 'تم إرسال نفس بند الفالت أكثر من مرة.';
+      case 'HANDOVER_OBSERVATION_MISSING':
+        return 'يجب تحديد الكمية المرصودة لكل بند فالت.';
+      case 'HANDOVER_OBSERVED_QUANTITY_INVALID':
+        return 'الكمية المرصودة غير صحيحة.';
+      case 'HANDOVER_INCORRECT_QUANTITY_NO_MISMATCH':
+        return 'الكمية المرصودة تطابق الكمية المصرح عنها. لا يمكن الرفض.';
+      case 'HANDOVER_REJECTION_REASON_INVALID':
+        return 'سبب الرفض غير كافٍ. يجب اختيار مشكلة كمية أو فالت غير مصرح عنه.';
+      case 'FALET_STATE_NOT_AVAILABLE_FOR_REJECTION':
+        return 'حالة الفالت تغيرت، يرجى تحديث بيانات الخط.';
       case 'INTERNAL_ERROR':
         return 'حدث خطأ في الخادم. حاول مرة أخرى';
       default:

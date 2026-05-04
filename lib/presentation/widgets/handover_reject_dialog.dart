@@ -86,12 +86,32 @@ class _HandoverRejectDialogState extends State<HandoverRejectDialog> {
       faletQuantity = int.parse(_quantityController.text.trim());
     }
 
-    // Build per-item observations using the same format as before
+    // Local mirror of HANDOVER_INCORRECT_QUANTITY_NO_MISMATCH: if the same qty
+    // is applied to every snapshot and matches the declared qty for all of
+    // them, the backend will refuse — surface the message immediately instead
+    // of round-tripping.
+    if (widget.faletItems.isNotEmpty &&
+        widget.faletItems.every((i) => i.quantity == faletQuantity)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'الكمية المرصودة تطابق الكمية المصرح عنها. لا يمكن الرفض.',
+            style: GoogleFonts.cairo(),
+          ),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    // Build per-item observations. `faletSnapshotId` MUST be the snapshot row's
+    // primary key — sending the FALET state FK here is the production-#79 bug
+    // and now triggers HANDOVER_OBSERVATION_SNAPSHOT_MISMATCH on the backend.
     List<Map<String, dynamic>>? observations;
     if (widget.faletItems.isNotEmpty) {
       observations = widget.faletItems
           .map((item) => {
-                'faletSnapshotId': item.faletId,
+                'faletSnapshotId': item.faletSnapshotId,
                 'observedQuantity': faletQuantity,
               })
           .toList();

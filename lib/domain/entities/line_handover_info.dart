@@ -65,6 +65,10 @@ class LineHandoverInfo {
 }
 
 class HandoverFaletItem {
+  /// Primary key of the `line_handover_falet_snapshots` row. This is the value
+  /// that must be sent as `faletSnapshotId` in handover-reject observations —
+  /// never confuse it with [faletId], which is the FALET state FK.
+  final int faletSnapshotId;
   final int faletId;
   final int productTypeId;
   final String productTypeName;
@@ -73,6 +77,7 @@ class HandoverFaletItem {
   final bool lastActiveProduct;
 
   const HandoverFaletItem({
+    required this.faletSnapshotId,
     required this.faletId,
     required this.productTypeId,
     required this.productTypeName,

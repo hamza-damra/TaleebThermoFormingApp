@@ -8,8 +8,8 @@ void main() {
   group('Label content — productName / description / sequence / sides', () {
     test('topText includes sequence when present', () {
       const productName = 'TL-7 B250 Black';
-      const int? seq = 3;
-      final topText = seq != null ? '$productName ($seq)' : productName;
+      const int seq = 3;
+      final topText = '$productName ($seq)';
       expect(topText, 'TL-7 B250 Black (3)');
     });
 
