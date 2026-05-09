@@ -3,14 +3,10 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/constants.dart';
-import '../../core/exceptions/api_exception.dart';
 import '../../core/responsive.dart';
 import '../../domain/entities/falet_item.dart';
 import '../../domain/entities/product_type.dart';
 import '../providers/palletizing_provider.dart';
-import 'convert_falet_to_pallet_dialog.dart';
-import 'dispose_falet_dialog.dart';
-import 'pallet_success_dialog.dart';
 
 class FaletScreen extends StatefulWidget {
   final ProductionLine line;
@@ -80,8 +76,13 @@ class _FaletScreenState extends State<FaletScreen> {
     if (faletResponse == null || faletResponse.isEmpty) {
       return ListView(
         physics: const AlwaysScrollableScrollPhysics(),
+        padding: EdgeInsets.symmetric(
+          horizontal: horizontalPadding,
+          vertical: isMobile ? 20 : 28,
+        ),
         children: [
-          SizedBox(height: MediaQuery.of(context).size.height * 0.25),
+          _buildReadOnlyPointerCard(isMobile),
+          SizedBox(height: MediaQuery.of(context).size.height * 0.18),
           _buildEmptyState(isMobile),
         ],
       );
@@ -94,6 +95,8 @@ class _FaletScreenState extends State<FaletScreen> {
         vertical: isMobile ? 20 : 28,
       ),
       children: [
+        _buildReadOnlyPointerCard(isMobile),
+        SizedBox(height: isMobile ? 16 : 20),
         _buildSectionHeader(
           icon: Icons.warning_amber_rounded,
           title: 'عناصر الفالت المفتوحة',
@@ -109,6 +112,61 @@ class _FaletScreenState extends State<FaletScreen> {
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildReadOnlyPointerCard(bool isMobile) {
+    final accent = widget.line.color;
+    return Container(
+      padding: EdgeInsets.all(isMobile ? 14 : 18),
+      decoration: BoxDecoration(
+        color: accent.withValues(alpha: 0.05),
+        borderRadius: BorderRadius.circular(isMobile ? 12 : 14),
+        border: Border.all(color: accent.withValues(alpha: 0.3)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: EdgeInsets.all(isMobile ? 8 : 10),
+            decoration: BoxDecoration(
+              color: accent.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Icon(
+              Icons.info_outline_rounded,
+              color: accent,
+              size: isMobile ? 18 : 22,
+            ),
+          ),
+          SizedBox(width: isMobile ? 10 : 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'الفالت يُدار من تطبيق التشكيل الحراري',
+                  style: GoogleFonts.cairo(
+                    fontSize: isMobile ? 14 : 16,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.black87,
+                  ),
+                  textDirection: TextDirection.rtl,
+                ),
+                SizedBox(height: isMobile ? 4 : 6),
+                Text(
+                  'لمعالجة الفالت تواصل مع المشغّل',
+                  style: GoogleFonts.cairo(
+                    fontSize: isMobile ? 12 : 14,
+                    color: Colors.grey.shade700,
+                  ),
+                  textDirection: TextDirection.rtl,
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -353,45 +411,6 @@ class _FaletScreenState extends State<FaletScreen> {
                   ),
                 ],
 
-                SizedBox(height: isMobile ? 10 : 12),
-
-                // Action prompt
-                Text(
-                  'أكمل عليها من إنتاج المناوبة الحالية',
-                  style: GoogleFonts.cairo(
-                    fontSize: isMobile ? 12 : 14,
-                    color: Colors.grey.shade600,
-                    fontStyle: FontStyle.italic,
-                  ),
-                  textAlign: TextAlign.center,
-                  textDirection: TextDirection.rtl,
-                ),
-                SizedBox(height: isMobile ? 12 : 14),
-
-                // Action button — convert only (no dispose for manager-resolved)
-                ElevatedButton.icon(
-                  onPressed: () => _handleConvertToPallet(context, item),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: accentColor,
-                    foregroundColor: Colors.white,
-                    elevation: 0,
-                    padding: EdgeInsets.symmetric(vertical: isMobile ? 12 : 14),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                  ),
-                  icon: Icon(
-                    Icons.add_circle_outline_rounded,
-                    size: isMobile ? 18 : 20,
-                  ),
-                  label: Text(
-                    'تحويل لطبلية',
-                    style: GoogleFonts.cairo(
-                      fontSize: isMobile ? 14 : 16,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
               ],
             ),
           ),
@@ -520,68 +539,6 @@ class _FaletScreenState extends State<FaletScreen> {
                 ),
               ),
             ],
-            SizedBox(height: isMobile ? 12 : 14),
-
-            // Action buttons
-            Row(
-              children: [
-                Expanded(
-                  child: ElevatedButton.icon(
-                    onPressed: () => _handleConvertToPallet(context, item),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: widget.line.color,
-                      foregroundColor: Colors.white,
-                      elevation: 0,
-                      padding: EdgeInsets.symmetric(
-                        vertical: isMobile ? 10 : 12,
-                      ),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                    ),
-                    icon: Icon(
-                      Icons.add_circle_outline_rounded,
-                      size: isMobile ? 18 : 20,
-                    ),
-                    label: Text(
-                      'تحويل لطبلية',
-                      style: GoogleFonts.cairo(
-                        fontSize: isMobile ? 13 : 15,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
-                ),
-                SizedBox(width: isMobile ? 8 : 12),
-                Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: () => _handleDispose(context, item),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: Colors.red.shade600,
-                      side: BorderSide(color: Colors.red.shade300),
-                      elevation: 0,
-                      padding: EdgeInsets.symmetric(
-                        vertical: isMobile ? 10 : 12,
-                      ),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                    ),
-                    icon: Icon(
-                      Icons.delete_outline_rounded,
-                      size: isMobile ? 18 : 20,
-                    ),
-                    label: Text(
-                      'إتلاف',
-                      style: GoogleFonts.cairo(
-                        fontSize: isMobile ? 13 : 15,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
           ],
         ),
       ),
@@ -674,91 +631,4 @@ class _FaletScreenState extends State<FaletScreen> {
     );
   }
 
-  Future<void> _handleConvertToPallet(
-    BuildContext context,
-    FaletItem item,
-  ) async {
-    final provider = context.read<PalletizingProvider>();
-
-    // Look up full pallet capacity from product type reference data
-    final productType = provider.productTypes
-        .where((p) => p.id == item.productTypeId)
-        .firstOrNull;
-    final palletCapacity = productType?.packageQuantity;
-
-    final freshQty = await ConvertFaletToPalletDialog.show(
-      context: context,
-      faletItem: item,
-      themeColor: widget.line.color,
-      fullPalletCapacity: palletCapacity,
-    );
-
-    if (freshQty == null || !context.mounted) return;
-
-    try {
-      final response = await provider.convertFaletToPallet(
-        lineNumber: widget.line.number,
-        faletId: item.faletId,
-        additionalFreshQuantity: freshQty,
-      );
-
-      if (response != null && context.mounted) {
-        showDialog(
-          context: context,
-          builder: (context) => PalletSuccessDialog(
-            pallet: response.pallet,
-            lineColor: widget.line.color,
-            lineNumber: widget.line.number,
-          ),
-        );
-      }
-    } on ApiException catch (e) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(e.displayMessage, style: GoogleFonts.cairo()),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    }
-  }
-
-  Future<void> _handleDispose(BuildContext context, FaletItem item) async {
-    final provider = context.read<PalletizingProvider>();
-
-    final reason = await DisposeFaletDialog.show(
-      context: context,
-      faletItem: item,
-      themeColor: widget.line.color,
-    );
-
-    if (reason == null || !context.mounted) return;
-
-    try {
-      await provider.disposeFalet(
-        lineNumber: widget.line.number,
-        faletId: item.faletId,
-        reason: reason.isEmpty ? null : reason,
-      );
-
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('تم إتلاف الفالت بنجاح', style: GoogleFonts.cairo()),
-            backgroundColor: Colors.green,
-          ),
-        );
-      }
-    } on ApiException catch (e) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(e.displayMessage, style: GoogleFonts.cairo()),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    }
-  }
 }

@@ -1,10 +1,7 @@
 import '../../domain/entities/bootstrap_response.dart';
-import '../../domain/entities/falet_convert_to_pallet_response.dart';
 import '../../domain/entities/falet_exists_response.dart';
-import '../../domain/entities/falet_dispose_response.dart';
 import '../../domain/entities/falet_resolution_entry.dart';
 import '../../domain/entities/falet_response.dart';
-import '../../domain/entities/first_pallet_suggestion.dart';
 import '../../domain/entities/line_handover_info.dart';
 import '../../domain/entities/operator.dart';
 import '../../domain/entities/pallet_create_response.dart';
@@ -17,11 +14,8 @@ import '../../domain/repositories/palletizing_repository.dart';
 import '../../domain/entities/production_line.dart';
 import '../datasources/api_client.dart';
 import '../models/bootstrap_response_model.dart';
-import '../models/falet_convert_to_pallet_response_model.dart';
 import '../models/falet_exists_response_model.dart';
-import '../models/falet_dispose_response_model.dart';
 import '../models/falet_response_model.dart';
-import '../models/first_pallet_suggestion_model.dart';
 import '../models/line_handover_info_model.dart';
 import '../models/operator_model.dart';
 import '../models/pallet_create_response_model.dart';
@@ -281,56 +275,6 @@ class PalletizingRepositoryImpl implements PalletizingRepository {
       method: 'GET',
       parser: (json) =>
           FaletResponseModel.fromJson(json['data'] as Map<String, dynamic>),
-    );
-  }
-
-  @override
-  Future<FirstPalletSuggestion> getFirstPalletSuggestion(int lineId) async {
-    return await _apiClient.request<FirstPalletSuggestion>(
-      path: '/api/v1/palletizing-line/lines/$lineId/falet/first-pallet-suggestion',
-      method: 'GET',
-      parser: (json) => FirstPalletSuggestionModel.fromJson(
-        json['data'] as Map<String, dynamic>,
-      ),
-    );
-  }
-
-  @override
-  Future<FaletConvertToPalletResponse> convertFaletToPallet({
-    required int lineId,
-    required int faletId,
-    int additionalFreshQuantity = 0,
-  }) async {
-    return await _apiClient.request<FaletConvertToPalletResponse>(
-      path: '/api/v1/palletizing-line/lines/$lineId/falet/convert-to-pallet',
-      method: 'POST',
-      data: {
-        'faletId': faletId,
-        'additionalFreshQuantity': additionalFreshQuantity,
-      },
-      parser: (json) => FaletConvertToPalletResponseModel.fromJson(
-        json['data'] as Map<String, dynamic>,
-      ),
-    );
-  }
-
-  @override
-  Future<FaletDisposeResponse> disposeFalet({
-    required int lineId,
-    required int faletId,
-    String? reason,
-  }) async {
-    final data = <String, dynamic>{'faletId': faletId};
-    if (reason != null && reason.isNotEmpty) {
-      data['reason'] = reason;
-    }
-    return await _apiClient.request<FaletDisposeResponse>(
-      path: '/api/v1/palletizing-line/lines/$lineId/falet/dispose',
-      method: 'POST',
-      data: data,
-      parser: (json) => FaletDisposeResponseModel.fromJson(
-        json['data'] as Map<String, dynamic>,
-      ),
     );
   }
 

@@ -8,7 +8,6 @@ import '../../core/responsive.dart';
 import '../../domain/entities/falet_item.dart';
 import '../../domain/entities/falet_resolution_entry.dart';
 import '../../domain/entities/handover_falet_action.dart';
-import '../../domain/entities/first_pallet_suggestion.dart';
 import '../../domain/entities/line_handover_info.dart';
 import '../../domain/entities/product_type.dart';
 import '../../domain/entities/production_line.dart' as entity;
@@ -19,7 +18,6 @@ import 'handover_confirm_dialog.dart';
 import 'handover_reject_dialog.dart';
 import 'line_context_strip.dart';
 import 'line_handover_card.dart';
-import 'mandatory_falet_pallet_dialog.dart';
 import 'pallet_success_dialog.dart';
 import 'palletizer_pin_screen.dart';
 import 'falet_screen.dart';
@@ -431,30 +429,13 @@ class ProductionLineSection extends StatelessWidget {
   Future<void> _showCreateDialog(BuildContext context) async {
     final provider = context.read<PalletizingProvider>();
 
-    // ── Proactive check: eligible mandatory FALET for current product? ──
-    final suggestion = await provider.fetchFirstPalletSuggestion(line.number);
-    if (!context.mounted) return;
-
-    if (suggestion != null && suggestion.available) {
-      // Show guided first-pallet dialog directly inside the create flow
-      await _handleMandatoryFaletConversion(context, provider, suggestion);
+    // Hard block: pallet creation is not allowed while open FALET exists on the
+    // line. FALET is owned by the Thermoforming Operator App.
+    if (provider.hasOpenFalet(line.number)) {
+      _showFaletBlockedMessage(context);
       return;
     }
 
-    // ── Fallback: suggestion endpoint failed but open FALET may still exist ──
-    // Check GET /falet items for current product match
-    final faletFallback = await _findMatchingFaletItem(provider);
-    if (!context.mounted) return;
-    if (faletFallback != null) {
-      await _handleMandatoryFaletConversionFromItem(
-        context,
-        provider,
-        faletFallback,
-      );
-      return;
-    }
-
-    // ── Normal pallet creation (no eligible FALET) ──
     final initialProductType = provider.getSelectedProductType(line.number);
 
     final result = await showDialog<Map<String, dynamic>>(
@@ -465,211 +446,58 @@ class ProductionLineSection extends StatelessWidget {
       ),
     );
 
-    if (result != null && context.mounted) {
-      final productType = result['productType'] as ProductType;
-      final quantity = result['quantity'] as int;
+    if (result == null || !context.mounted) return;
 
-      try {
-        final palletResponse = await context
-            .read<PalletizingProvider>()
-            .createPallet(
-              lineNumber: line.number,
-              productTypeId: productType.id,
-              quantity: quantity,
-            );
+    final productType = result['productType'] as ProductType;
+    final quantity = result['quantity'] as int;
 
-        if (context.mounted) {
-          _showSuccessDialog(context, palletResponse);
-        }
-      } on ApiException catch (e) {
-        if (context.mounted) {
-          // ── 409 fallback: FALET appeared between proactive check and creation ──
-          if (e.code == 'FALET_MUST_BE_CONSUMED_FIRST') {
-            await _handleFaletMustBeConsumedFallback(context, provider);
-          } else {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(e.displayMessage, style: GoogleFonts.cairo()),
-                backgroundColor: Colors.red,
-              ),
-            );
-          }
-        }
-      } catch (e) {
-        if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('فشل في إنشاء الطبلية', style: GoogleFonts.cairo()),
-              backgroundColor: Colors.red,
-            ),
-          );
-        }
-      }
-    }
-  }
-
-  /// Primary path: eligible mandatory FALET detected proactively.
-  /// Shows the purpose-built MandatoryFaletPalletDialog directly inside the
-  /// create-pallet flow — guided completion, not a generic conversion tool.
-  Future<void> _handleMandatoryFaletConversion(
-    BuildContext context,
-    PalletizingProvider provider,
-    FirstPalletSuggestion suggestion,
-  ) async {
-    final freshQty = await MandatoryFaletPalletDialog.show(
-      context: context,
-      suggestion: suggestion,
-      themeColor: line.color,
-    );
-
-    if (freshQty != null && context.mounted) {
-      try {
-        final response = await provider.convertFaletToPallet(
-          lineNumber: line.number,
-          faletId: suggestion.faletId!,
-          additionalFreshQuantity: freshQty,
-        );
-
-        if (response != null && context.mounted) {
-          provider.clearFirstPalletSuggestion(line.number);
-          showDialog(
-            context: context,
-            barrierDismissible: false,
-            builder: (context) => PalletSuccessDialog(
-              pallet: response.pallet,
-              lineColor: line.color,
-              lineNumber: line.number,
-            ),
-          );
-        }
-      } on ApiException catch (e) {
-        if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(e.displayMessage, style: GoogleFonts.cairo()),
-              backgroundColor: Colors.red,
-            ),
-          );
-        }
-      }
-    }
-  }
-
-  /// Fallback: 409 FALET_MUST_BE_CONSUMED_FIRST hit during normal createPallet.
-  /// Re-fetches suggestion and offers inline FALET conversion as recovery.
-  /// If suggestion endpoint also fails, falls back to GET /falet items.
-  Future<void> _handleFaletMustBeConsumedFallback(
-    BuildContext context,
-    PalletizingProvider provider,
-  ) async {
-    // Try suggestion endpoint first
-    final suggestion = await provider.fetchFirstPalletSuggestion(line.number);
-    if (!context.mounted) return;
-
-    if (suggestion != null && suggestion.available) {
-      await _handleMandatoryFaletConversion(context, provider, suggestion);
-      return;
-    }
-
-    // Suggestion endpoint failed — try FALET items fallback
-    final faletItem = await _findMatchingFaletItem(provider);
-    if (!context.mounted) return;
-
-    if (faletItem != null) {
-      await _handleMandatoryFaletConversionFromItem(
-        context,
-        provider,
-        faletItem,
+    try {
+      final palletResponse = await provider.createPallet(
+        lineNumber: line.number,
+        productTypeId: productType.id,
+        quantity: quantity,
       );
-      return;
+      if (context.mounted) {
+        _showSuccessDialog(context, palletResponse);
+      }
+    } on ApiException catch (e) {
+      if (!context.mounted) return;
+      // Race-safety: server says FALET appeared between our local check and
+      // the create call. Same hard-block message — FALET is operator-owned.
+      if (e.code == 'FALET_MUST_BE_CONSUMED_FIRST') {
+        _showFaletBlockedMessage(context);
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(e.displayMessage, style: GoogleFonts.cairo()),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('فشل في إنشاء الطبلية', style: GoogleFonts.cairo()),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     }
+  }
 
+  void _showFaletBlockedMessage(BuildContext context) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
-          'يوجد فالت مفتوح لهذا المنتج يجب استهلاكه أولاً',
+          'يوجد فالت مفتوح، يجب على المشغّل معالجته من تطبيق التشكيل الحراري',
           style: GoogleFonts.cairo(),
+          textDirection: TextDirection.rtl,
         ),
         backgroundColor: Colors.orange,
         duration: const Duration(seconds: 4),
       ),
     );
-  }
-
-  /// Find an OPEN FALET item matching the current product on this line.
-  /// Uses GET /falet data (fetches if needed). Returns null if no match.
-  Future<FaletItem?> _findMatchingFaletItem(
-    PalletizingProvider provider,
-  ) async {
-    await provider.fetchFaletItems(line.number);
-    final faletResponse = provider.getFaletItems(line.number);
-    if (faletResponse == null || faletResponse.isEmpty) return null;
-
-    final currentProduct = provider.getSelectedProductType(line.number);
-    if (currentProduct == null) return null;
-
-    // Find first OPEN item matching current product
-    return faletResponse.faletItems
-        .where(
-          (item) =>
-              item.status == 'OPEN' &&
-              item.productTypeId == currentProduct.id &&
-              !item.managerResolved,
-        )
-        .firstOrNull;
-  }
-
-  /// Fallback conversion path using a raw FaletItem (when suggestion endpoint
-  /// is unavailable). Uses MandatoryFaletPalletDialog.showFromFaletItem.
-  Future<void> _handleMandatoryFaletConversionFromItem(
-    BuildContext context,
-    PalletizingProvider provider,
-    FaletItem item,
-  ) async {
-    // Look up pallet capacity from product type reference
-    final productType = provider.productTypes
-        .where((p) => p.id == item.productTypeId)
-        .firstOrNull;
-    final palletCapacity = productType?.packageQuantity;
-
-    final freshQty = await MandatoryFaletPalletDialog.showFromFaletItem(
-      context: context,
-      item: item,
-      themeColor: line.color,
-      fullPalletCapacity: palletCapacity,
-    );
-
-    if (freshQty != null && context.mounted) {
-      try {
-        final response = await provider.convertFaletToPallet(
-          lineNumber: line.number,
-          faletId: item.faletId,
-          additionalFreshQuantity: freshQty,
-        );
-
-        if (response != null && context.mounted) {
-          provider.clearFirstPalletSuggestion(line.number);
-          showDialog(
-            context: context,
-            barrierDismissible: false,
-            builder: (context) => PalletSuccessDialog(
-              pallet: response.pallet,
-              lineColor: line.color,
-              lineNumber: line.number,
-            ),
-          );
-        }
-      } on ApiException catch (e) {
-        if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(e.displayMessage, style: GoogleFonts.cairo()),
-              backgroundColor: Colors.red,
-            ),
-          );
-        }
-      }
-    }
   }
 
   void _showSuccessDialog(BuildContext context, dynamic palletResponse) {

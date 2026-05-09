@@ -1,10 +1,7 @@
 import '../entities/bootstrap_response.dart';
-import '../entities/falet_convert_to_pallet_response.dart';
 import '../entities/falet_exists_response.dart';
-import '../entities/falet_dispose_response.dart';
 import '../entities/falet_resolution_entry.dart';
 import '../entities/falet_response.dart';
-import '../entities/first_pallet_suggestion.dart';
 import '../entities/line_handover_info.dart';
 import '../entities/pallet_create_response.dart';
 import '../entities/palletizer_auth_result.dart';
@@ -91,23 +88,6 @@ abstract class PalletizingRepository {
 
   /// GET /palletizing-line/lines/{lineId}/falet
   Future<FaletResponse> getFaletItems(int lineId);
-
-  /// GET /palletizing-line/lines/{lineId}/falet/first-pallet-suggestion
-  Future<FirstPalletSuggestion> getFirstPalletSuggestion(int lineId);
-
-  /// POST /palletizing-line/lines/{lineId}/falet/convert-to-pallet
-  Future<FaletConvertToPalletResponse> convertFaletToPallet({
-    required int lineId,
-    required int faletId,
-    int additionalFreshQuantity,
-  });
-
-  /// POST /palletizing-line/lines/{lineId}/falet/dispose
-  Future<FaletDisposeResponse> disposeFalet({
-    required int lineId,
-    required int faletId,
-    String? reason,
-  });
 
   /// GET /palletizing-line/lines/{lineId}/session-production-detail
   Future<SessionProductionDetail> getSessionProductionDetail(int lineId);

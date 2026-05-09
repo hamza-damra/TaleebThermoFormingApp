@@ -3,11 +3,8 @@ import 'package:flutter/foundation.dart';
 import '../../core/exceptions/api_exception.dart';
 import '../../data/datasources/auth_local_storage.dart';
 import '../../domain/entities/bootstrap_response.dart';
-import '../../domain/entities/falet_convert_to_pallet_response.dart';
-import '../../domain/entities/falet_dispose_response.dart';
 import '../../domain/entities/falet_resolution_entry.dart';
 import '../../domain/entities/falet_response.dart';
-import '../../domain/entities/first_pallet_suggestion.dart';
 import '../../domain/entities/line_handover_info.dart';
 import '../../domain/entities/operator.dart';
 import '../../domain/entities/pallet_create_response.dart';
@@ -72,8 +69,6 @@ class PalletizingProvider extends ChangeNotifier {
   final Map<int, bool> _faletItemsLoading = {};
   final Map<int, bool> _hasOpenFalet = {};
   final Map<int, int> _openFaletCount = {};
-  final Map<int, FirstPalletSuggestion?> _firstPalletSuggestions = {};
-  final Map<int, bool> _firstPalletSuggestionLoading = {};
 
   // ── Global getters ──
   PalletizingState get state => _state;
@@ -150,12 +145,6 @@ class PalletizingProvider extends ChangeNotifier {
   bool hasOpenFalet(int lineNumber) => _hasOpenFalet[lineNumber] ?? false;
 
   int getOpenFaletCount(int lineNumber) => _openFaletCount[lineNumber] ?? 0;
-
-  FirstPalletSuggestion? getFirstPalletSuggestion(int lineNumber) =>
-      _firstPalletSuggestions[lineNumber];
-
-  bool isFirstPalletSuggestionLoading(int lineNumber) =>
-      _firstPalletSuggestionLoading[lineNumber] ?? false;
 
   bool isLineBlocked(int lineNumber) {
     final ui = getUiState(lineNumber);
@@ -670,99 +659,6 @@ class PalletizingProvider extends ChangeNotifier {
     }
 
     _faletItemsLoading[lineNumber] = false;
-    notifyListeners();
-  }
-
-  Future<FaletConvertToPalletResponse?> convertFaletToPallet({
-    required int lineNumber,
-    required int faletId,
-    int additionalFreshQuantity = 0,
-  }) async {
-    final lineId = getLineIdForNumber(lineNumber);
-    if (lineId == null) return null;
-
-    try {
-      final result = await _repository.convertFaletToPallet(
-        lineId: lineId,
-        faletId: faletId,
-        additionalFreshQuantity: additionalFreshQuantity,
-      );
-
-      await Future.wait([
-        fetchFaletItems(lineNumber),
-        _refreshLineStateFromBackend(lineNumber, lineId),
-      ]);
-      notifyListeners();
-      return result;
-    } on ApiException catch (e) {
-      _lineErrors[lineNumber] = e.displayMessage;
-      notifyListeners();
-      rethrow;
-    }
-  }
-
-  Future<FaletDisposeResponse?> disposeFalet({
-    required int lineNumber,
-    required int faletId,
-    String? reason,
-  }) async {
-    final lineId = getLineIdForNumber(lineNumber);
-    if (lineId == null) return null;
-
-    try {
-      final result = await _repository.disposeFalet(
-        lineId: lineId,
-        faletId: faletId,
-        reason: reason,
-      );
-
-      await Future.wait([
-        fetchFaletItems(lineNumber),
-        _refreshLineStateFromBackend(lineNumber, lineId),
-      ]);
-      notifyListeners();
-      return result;
-    } on ApiException catch (e) {
-      _lineErrors[lineNumber] = e.displayMessage;
-      notifyListeners();
-      rethrow;
-    }
-  }
-
-  // ── First-Pallet Suggestion ──
-
-  Future<FirstPalletSuggestion?> fetchFirstPalletSuggestion(
-    int lineNumber,
-  ) async {
-    final lineId = getLineIdForNumber(lineNumber);
-    if (lineId == null) return null;
-
-    _firstPalletSuggestionLoading[lineNumber] = true;
-    notifyListeners();
-
-    try {
-      final result = await _repository.getFirstPalletSuggestion(lineId);
-      _firstPalletSuggestions[lineNumber] = result;
-      _firstPalletSuggestionLoading[lineNumber] = false;
-      notifyListeners();
-      return result;
-    } on ApiException catch (e) {
-      debugPrint('fetchFirstPalletSuggestion error: ${e.code} - ${e.message}');
-      _firstPalletSuggestions[lineNumber] = null;
-      _firstPalletSuggestionLoading[lineNumber] = false;
-      notifyListeners();
-      return null;
-    } catch (e) {
-      debugPrint('fetchFirstPalletSuggestion unexpected error: $e');
-      _firstPalletSuggestions[lineNumber] = null;
-      _firstPalletSuggestionLoading[lineNumber] = false;
-      notifyListeners();
-      return null;
-    }
-  }
-
-  void clearFirstPalletSuggestion(int lineNumber) {
-    _firstPalletSuggestions[lineNumber] = null;
     notifyListeners();
   }
 
