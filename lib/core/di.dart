@@ -33,7 +33,7 @@ class ServiceLocator {
   }
 
   PalletizingProvider createPalletizingProvider() {
-    return PalletizingProvider(_palletizingRepository);
+    return PalletizingProvider(_palletizingRepository, _authLocalStorage);
   }
 
   PrintingProvider createPrintingProvider() {

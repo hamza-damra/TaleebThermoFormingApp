@@ -37,7 +37,8 @@ class LineHandoverInfoModel extends LineHandoverInfo {
     // Some backend revisions serialize snapshots under `faletSnapshots[]`
     // instead of (or alongside) `faletItems[]`. Prefer the new key when
     // present so the reject flow can recover the snapshot row IDs.
-    final faletItemsJson = (json['faletSnapshots'] as List<dynamic>?) ??
+    final faletItemsJson =
+        (json['faletSnapshots'] as List<dynamic>?) ??
         (json['faletItems'] as List<dynamic>? ?? []);
     final reconciledJson = json['reconciledFaletItems'] as List<dynamic>? ?? [];
 
@@ -104,7 +105,8 @@ class HandoverFaletItemModel extends HandoverFaletItem {
     // `id`. Fall back to `faletId` only as a last resort — sending the FALET
     // FK as the snapshot id is the production-#79 bug this contract was
     // tightened to prevent.
-    final snapshotId = (json['faletSnapshotId'] as int?) ??
+    final snapshotId =
+        (json['faletSnapshotId'] as int?) ??
         (json['snapshotId'] as int?) ??
         (json['id'] as int?) ??
         faletId;

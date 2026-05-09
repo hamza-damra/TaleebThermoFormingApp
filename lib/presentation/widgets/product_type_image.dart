@@ -155,9 +155,7 @@ class _ProductTypeImageState extends State<ProductTypeImage> {
     // Build cached network image with auth headers
     return CachedNetworkImage(
       imageUrl: _fullImageUrl!,
-      httpHeaders: _token != null
-          ? {'Authorization': 'Bearer $_token'}
-          : null,
+      httpHeaders: _token != null ? {'Authorization': 'Bearer $_token'} : null,
       fit: widget.fit,
       placeholder: (context, url) => _buildLoadingShimmer(),
       errorWidget: (context, url, error) => _buildPlaceholder(),

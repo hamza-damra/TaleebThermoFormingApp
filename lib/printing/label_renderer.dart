@@ -121,7 +121,8 @@ class LabelLayout {
     );
   }
 
-  int get widthBytes => UnitConverter.dotsToBytes(UnitConverter.alignToBytes(widthDots));
+  int get widthBytes =>
+      UnitConverter.dotsToBytes(UnitConverter.alignToBytes(widthDots));
   int get alignedWidthDots => UnitConverter.alignToBytes(widthDots);
 
   // Alias kept for backward-compat in tests
@@ -165,7 +166,13 @@ class LabelRenderer {
     img.fill(image, color: img.ColorRgba8(255, 255, 255, 255));
 
     if (hasText) {
-      await _drawLabelText(image, layout, topText: topText, bottomText: bottomText, sideText: sideText);
+      await _drawLabelText(
+        image,
+        layout,
+        topText: topText,
+        bottomText: bottomText,
+        sideText: sideText,
+      );
     }
 
     _drawQrCode(image, qrImage, layout);
@@ -179,20 +186,34 @@ class LabelRenderer {
     );
   }
 
-  Future<void> _drawLabelText(img.Image image, LabelLayout layout, {String? topText, String? bottomText, String? sideText}) async {
+  Future<void> _drawLabelText(
+    img.Image image,
+    LabelLayout layout, {
+    String? topText,
+    String? bottomText,
+    String? sideText,
+  }) async {
     final fontSize = layout.mainFontHeight * 0.72;
     final maxHorizWidth = image.width - (layout.marginDots * 2);
 
     // Top text (horizontal, centered)
     if (topText != null) {
-      final textBitmap = await _renderTextBitmap(topText, fontSize, maxHorizWidth);
+      final textBitmap = await _renderTextBitmap(
+        topText,
+        fontSize,
+        maxHorizWidth,
+      );
       final centerX = (image.width - textBitmap.width) ~/ 2;
       _compositeBlackPixels(image, textBitmap, centerX, layout.topTextY);
     }
 
     // Bottom text (horizontal, centered)
     if (bottomText != null) {
-      final textBitmap = await _renderTextBitmap(bottomText, fontSize, maxHorizWidth);
+      final textBitmap = await _renderTextBitmap(
+        bottomText,
+        fontSize,
+        maxHorizWidth,
+      );
       final centerX = (image.width - textBitmap.width) ~/ 2;
       _compositeBlackPixels(image, textBitmap, centerX, layout.bottomTextY);
     }
@@ -202,14 +223,22 @@ class LabelRenderer {
     final sideAvailable = layout.sideBandBottom - layout.sideBandTop;
 
     if (sideAvailable > 0 && resolvedSideText != null) {
-      var sideBitmap = await _renderTextBitmap(resolvedSideText, fontSize, sideAvailable);
+      var sideBitmap = await _renderTextBitmap(
+        resolvedSideText,
+        fontSize,
+        sideAvailable,
+      );
 
       // Scale down if wider than available space
       if (sideBitmap.width > sideAvailable) {
         final scale = sideAvailable / sideBitmap.width;
-        sideBitmap = img.copyResize(sideBitmap,
+        sideBitmap = img.copyResize(
+          sideBitmap,
           width: sideAvailable,
-          height: (sideBitmap.height * scale).round().clamp(1, sideBitmap.height),
+          height: (sideBitmap.height * scale).round().clamp(
+            1,
+            sideBitmap.height,
+          ),
           interpolation: img.Interpolation.average,
         );
       }
@@ -218,24 +247,40 @@ class LabelRenderer {
       final leftRotated = img.copyRotate(sideBitmap, angle: -90);
       final leftOffsetY = (sideAvailable - leftRotated.height) ~/ 2;
       final leftOffsetX = (layout.mainFontHeight - leftRotated.width) ~/ 2;
-      _compositeBlackPixels(image, leftRotated,
-        layout.marginDots + leftOffsetX, layout.sideBandTop + leftOffsetY);
+      _compositeBlackPixels(
+        image,
+        leftRotated,
+        layout.marginDots + leftOffsetX,
+        layout.sideBandTop + leftOffsetY,
+      );
 
       // Right side — text reads top-to-bottom (CW 90°)
       final rightRotated = img.copyRotate(sideBitmap, angle: 90);
       final rightOffsetY = (sideAvailable - rightRotated.height) ~/ 2;
       final rightOffsetX = (layout.mainFontHeight - rightRotated.width) ~/ 2;
-      _compositeBlackPixels(image, rightRotated,
-        layout.widthDots - layout.marginDots - layout.mainFontHeight + rightOffsetX,
-        layout.sideBandTop + rightOffsetY);
+      _compositeBlackPixels(
+        image,
+        rightRotated,
+        layout.widthDots -
+            layout.marginDots -
+            layout.mainFontHeight +
+            rightOffsetX,
+        layout.sideBandTop + rightOffsetY,
+      );
     }
   }
 
   /// Renders [text] using Flutter’s text engine (supports Arabic / Unicode)
   /// and returns an [img.Image] with black text on a white background.
-  Future<img.Image> _renderTextBitmap(String text, double fontSize, int maxWidth) async {
+  Future<img.Image> _renderTextBitmap(
+    String text,
+    double fontSize,
+    int maxWidth,
+  ) async {
     // Detect base text direction for proper BiDi rendering
-    final isRtl = RegExp(r'[\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF]').hasMatch(text);
+    final isRtl = RegExp(
+      r'[\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF]',
+    ).hasMatch(text);
 
     final textPainter = TextPainter(
       text: TextSpan(
@@ -270,7 +315,10 @@ class LabelRenderer {
     final h = textPainter.height.ceil().clamp(1, 512);
 
     final recorder = ui.PictureRecorder();
-    final canvas = Canvas(recorder, Rect.fromLTWH(0, 0, w.toDouble(), h.toDouble()));
+    final canvas = Canvas(
+      recorder,
+      Rect.fromLTWH(0, 0, w.toDouble(), h.toDouble()),
+    );
     canvas.drawRect(
       Rect.fromLTWH(0, 0, w.toDouble(), h.toDouble()),
       Paint()..color = const Color(0xFFFFFFFF),
@@ -279,7 +327,9 @@ class LabelRenderer {
 
     final picture = recorder.endRecording();
     final uiImage = await picture.toImage(w, h);
-    final byteData = await uiImage.toByteData(format: ui.ImageByteFormat.rawRgba);
+    final byteData = await uiImage.toByteData(
+      format: ui.ImageByteFormat.rawRgba,
+    );
     if (byteData == null) return img.Image(width: 1, height: 1);
 
     final result = img.Image(width: w, height: h);
@@ -287,14 +337,28 @@ class LabelRenderer {
     for (int y = 0; y < h; y++) {
       for (int x = 0; x < w; x++) {
         final i = (y * w + x) * 4;
-        result.setPixel(x, y, img.ColorRgba8(pixels[i], pixels[i + 1], pixels[i + 2], pixels[i + 3]));
+        result.setPixel(
+          x,
+          y,
+          img.ColorRgba8(
+            pixels[i],
+            pixels[i + 1],
+            pixels[i + 2],
+            pixels[i + 3],
+          ),
+        );
       }
     }
     return result;
   }
 
   /// Composites only dark pixels from [src] onto [dest] at the given offset.
-  void _compositeBlackPixels(img.Image dest, img.Image src, int destX, int destY) {
+  void _compositeBlackPixels(
+    img.Image dest,
+    img.Image src,
+    int destX,
+    int destY,
+  ) {
     for (int y = 0; y < src.height; y++) {
       for (int x = 0; x < src.width; x++) {
         final pixel = src.getPixel(x, y);
@@ -389,9 +453,7 @@ class LabelRenderer {
           padding: EdgeInsets.all(preset.marginMm * 2),
           child: AspectRatio(
             aspectRatio: 1,
-            child: CustomPaint(
-              painter: _QrPreviewPainter(value: value),
-            ),
+            child: CustomPaint(painter: _QrPreviewPainter(value: value)),
           ),
         ),
       ),

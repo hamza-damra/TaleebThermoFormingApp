@@ -3,11 +3,8 @@ class Operator {
   final String name;
   final String displayLabel;
 
-  const Operator({
-    required this.id,
-    required this.name,
-    String? displayLabel,
-  }) : displayLabel = displayLabel ?? name;
+  const Operator({required this.id, required this.name, String? displayLabel})
+    : displayLabel = displayLabel ?? name;
 
   @override
   bool operator ==(Object other) =>

@@ -12,10 +12,12 @@ class FaletConvertToPalletResponseModel extends FaletConvertToPalletResponse {
   });
 
   factory FaletConvertToPalletResponseModel.fromJson(
-      Map<String, dynamic> json) {
+    Map<String, dynamic> json,
+  ) {
     return FaletConvertToPalletResponseModel(
       pallet: PalletCreateResponseModel.fromJson(
-          json['pallet'] as Map<String, dynamic>),
+        json['pallet'] as Map<String, dynamic>,
+      ),
       creationMode: json['creationMode'] as String,
       faletQuantityUsed: json['faletQuantityUsed'] as int,
       freshQuantityAdded: json['freshQuantityAdded'] as int,

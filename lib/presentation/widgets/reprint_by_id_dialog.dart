@@ -66,8 +66,9 @@ class _ReprintByIdDialogState extends State<ReprintByIdDialog> {
     // Search both lines
     for (final lineNumber in [1, 2]) {
       try {
-        final detail =
-            await palletizingProvider.fetchSessionProductionDetail(lineNumber);
+        final detail = await palletizingProvider.fetchSessionProductionDetail(
+          lineNumber,
+        );
         for (final group in detail.groups) {
           for (final pallet in group.pallets) {
             if (pallet.scannedValue == query) {
@@ -127,13 +128,16 @@ class _ReprintByIdDialogState extends State<ReprintByIdDialog> {
     final palletizingProvider = context.read<PalletizingProvider>();
     final productType = _foundGroup != null
         ? palletizingProvider.productTypes
-            .where((p) => p.id == _foundGroup!.productTypeId)
-            .firstOrNull
+              .where((p) => p.id == _foundGroup!.productTypeId)
+              .firstOrNull
         : null;
 
     // Top: productName (no sequence available for reprints)
-    final topText = productType?.productName
-        ?? (_foundGroup != null ? ProductType.formatCompactName(_foundGroup!.productTypeName) : null);
+    final topText =
+        productType?.productName ??
+        (_foundGroup != null
+            ? ProductType.formatCompactName(_foundGroup!.productTypeName)
+            : null);
 
     // Bottom: description with fallback
     final description = productType?.description;
@@ -175,253 +179,283 @@ class _ReprintByIdDialogState extends State<ReprintByIdDialog> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-            // Header
-            Container(
-              padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(
-                color: _primaryColor.withValues(alpha: 0.1),
-                shape: BoxShape.circle,
-              ),
-              child: const Icon(Icons.print_rounded,
-                  size: 32, color: _primaryColor),
-            ),
-            const SizedBox(height: 12),
-            Text(
-              'إعادة طباعة ملصق',
-              style: GoogleFonts.cairo(
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
-                color: Colors.black87,
-              ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              'أدخل رقم الطبلية للبحث وطباعة الملصق',
-              style: GoogleFonts.cairo(
-                fontSize: 13,
-                color: Colors.grey.shade600,
-              ),
-            ),
-            const SizedBox(height: 20),
-
-            // Input
-            TextField(
-              controller: _controller,
-              keyboardType: TextInputType.number,
-              textDirection: TextDirection.ltr,
-              style: GoogleFonts.robotoMono(fontSize: 16),
-              maxLength: 12,
-              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-              decoration: InputDecoration(
-                labelText: 'رقم الطبلية',
-                labelStyle: GoogleFonts.cairo(fontSize: 14),
-                hintText: '0370000005',
-                hintStyle: GoogleFonts.robotoMono(
-                    fontSize: 14, color: Colors.grey.shade400),
-                prefixIcon: const Icon(Icons.qr_code_2_rounded,
-                    color: _primaryColor),
-                border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12)),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide(color: Colors.grey.shade300),
+              // Header
+              Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: _primaryColor.withValues(alpha: 0.1),
+                  shape: BoxShape.circle,
                 ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide:
-                      const BorderSide(color: _primaryColor, width: 2),
-                ),
-                filled: true,
-                fillColor: Colors.grey.shade50,
-                counterText: '',
-              ),
-              onSubmitted: (_) => _search(),
-              enabled: !_isSearching && !_isPrinting,
-            ),
-            const SizedBox(height: 16),
-
-            // Search button
-            if (_foundPallet == null && !_printDone)
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton.icon(
-                  onPressed: _isSearching ? null : _search,
-                  icon: _isSearching
-                      ? const SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(
-                              strokeWidth: 2, color: Colors.white),
-                        )
-                      : const Icon(Icons.search_rounded),
-                  label: Text(
-                    _isSearching ? 'جاري البحث...' : 'بحث',
-                    style: GoogleFonts.cairo(
-                        fontWeight: FontWeight.bold, fontSize: 16),
-                  ),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: _primaryColor,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12)),
-                  ),
+                child: const Icon(
+                  Icons.print_rounded,
+                  size: 32,
+                  color: _primaryColor,
                 ),
               ),
-
-            // Found pallet info + print
-            if (_foundPallet != null && !_printDone) ...[
-              _buildPalletInfo(),
-              const SizedBox(height: 16),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton.icon(
-                  onPressed: _isPrinting ? null : _print,
-                  icon: _isPrinting
-                      ? const SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(
-                              strokeWidth: 2, color: Colors.white),
-                        )
-                      : const Icon(Icons.print_rounded),
-                  label: Text(
-                    _isPrinting ? 'جاري الطباعة...' : 'طباعة الملصق',
-                    style: GoogleFonts.cairo(
-                        fontWeight: FontWeight.bold, fontSize: 16),
-                  ),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: _primaryColor,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12)),
-                  ),
-                ),
-              ),
-            ],
-
-            // Print result
-            if (_printDone) ...[
-              const SizedBox(height: 8),
-              Icon(
-                _printSuccess ? Icons.check_circle : Icons.error,
-                color: _printSuccess ? Colors.green : Colors.red,
-                size: 48,
-              ),
-              const SizedBox(height: 8),
+              const SizedBox(height: 12),
               Text(
-                _printSuccess ? 'تمت الطباعة بنجاح' : 'فشل في الطباعة',
+                'إعادة طباعة ملصق',
                 style: GoogleFonts.cairo(
-                  fontSize: 16,
+                  fontSize: 20,
                   fontWeight: FontWeight.bold,
-                  color: _printSuccess ? Colors.green : Colors.red,
+                  color: Colors.black87,
                 ),
               ),
-              if (!_printSuccess) ...[
-                const SizedBox(height: 12),
+              const SizedBox(height: 4),
+              Text(
+                'أدخل رقم الطبلية للبحث وطباعة الملصق',
+                style: GoogleFonts.cairo(
+                  fontSize: 13,
+                  color: Colors.grey.shade600,
+                ),
+              ),
+              const SizedBox(height: 20),
+
+              // Input
+              TextField(
+                controller: _controller,
+                keyboardType: TextInputType.number,
+                textDirection: TextDirection.ltr,
+                style: GoogleFonts.robotoMono(fontSize: 16),
+                maxLength: 12,
+                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                decoration: InputDecoration(
+                  labelText: 'رقم الطبلية',
+                  labelStyle: GoogleFonts.cairo(fontSize: 14),
+                  hintText: '0370000005',
+                  hintStyle: GoogleFonts.robotoMono(
+                    fontSize: 14,
+                    color: Colors.grey.shade400,
+                  ),
+                  prefixIcon: const Icon(
+                    Icons.qr_code_2_rounded,
+                    color: _primaryColor,
+                  ),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(color: Colors.grey.shade300),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: const BorderSide(
+                      color: _primaryColor,
+                      width: 2,
+                    ),
+                  ),
+                  filled: true,
+                  fillColor: Colors.grey.shade50,
+                  counterText: '',
+                ),
+                onSubmitted: (_) => _search(),
+                enabled: !_isSearching && !_isPrinting,
+              ),
+              const SizedBox(height: 16),
+
+              // Search button
+              if (_foundPallet == null && !_printDone)
                 SizedBox(
                   width: double.infinity,
-                  child: OutlinedButton.icon(
-                    onPressed: () {
-                      setState(() {
-                        _printDone = false;
-                        _error = null;
-                      });
-                      _print();
-                    },
-                    icon: const Icon(Icons.refresh_rounded),
-                    label: Text('إعادة المحاولة',
-                        style: GoogleFonts.cairo(fontWeight: FontWeight.bold)),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: _primaryColor,
-                      padding: const EdgeInsets.symmetric(vertical: 12),
+                  child: ElevatedButton.icon(
+                    onPressed: _isSearching ? null : _search,
+                    icon: _isSearching
+                        ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.white,
+                            ),
+                          )
+                        : const Icon(Icons.search_rounded),
+                    label: Text(
+                      _isSearching ? 'جاري البحث...' : 'بحث',
+                      style: GoogleFonts.cairo(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                      ),
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: _primaryColor,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
                       shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12)),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                  ),
+                ),
+
+              // Found pallet info + print
+              if (_foundPallet != null && !_printDone) ...[
+                _buildPalletInfo(),
+                const SizedBox(height: 16),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: _isPrinting ? null : _print,
+                    icon: _isPrinting
+                        ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.white,
+                            ),
+                          )
+                        : const Icon(Icons.print_rounded),
+                    label: Text(
+                      _isPrinting ? 'جاري الطباعة...' : 'طباعة الملصق',
+                      style: GoogleFonts.cairo(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                      ),
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: _primaryColor,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
                     ),
                   ),
                 ),
               ],
-            ],
 
-            // Error
-            if (_error != null && !_printDone) ...[
-              const SizedBox(height: 12),
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Colors.red.shade50,
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: Colors.red.shade200),
+              // Print result
+              if (_printDone) ...[
+                const SizedBox(height: 8),
+                Icon(
+                  _printSuccess ? Icons.check_circle : Icons.error,
+                  color: _printSuccess ? Colors.green : Colors.red,
+                  size: 48,
                 ),
-                child: Row(
-                  children: [
-                    Icon(Icons.error_outline,
-                        size: 20, color: Colors.red.shade700),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        _error!,
-                        style: GoogleFonts.cairo(
-                          fontSize: 13,
-                          color: Colors.red.shade700,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-
-            const SizedBox(height: 16),
-
-            // Close / new search
-            Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton(
-                    onPressed: () => Navigator.of(context).pop(),
-                    style: OutlinedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                      shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12)),
-                    ),
-                    child: Text('إغلاق',
-                        style:
-                            GoogleFonts.cairo(fontWeight: FontWeight.w600)),
+                const SizedBox(height: 8),
+                Text(
+                  _printSuccess ? 'تمت الطباعة بنجاح' : 'فشل في الطباعة',
+                  style: GoogleFonts.cairo(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: _printSuccess ? Colors.green : Colors.red,
                   ),
                 ),
-                if (_printDone && _printSuccess) ...[
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: ElevatedButton(
+                if (!_printSuccess) ...[
+                  const SizedBox(height: 12),
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
                       onPressed: () {
                         setState(() {
-                          _foundPallet = null;
-                          _foundGroup = null;
-                          _foundLineNumber = null;
                           _printDone = false;
-                          _printSuccess = false;
                           _error = null;
-                          _controller.clear();
                         });
+                        _print();
                       },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: _primaryColor,
-                        foregroundColor: Colors.white,
+                      icon: const Icon(Icons.refresh_rounded),
+                      label: Text(
+                        'إعادة المحاولة',
+                        style: GoogleFonts.cairo(fontWeight: FontWeight.bold),
+                      ),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: _primaryColor,
                         padding: const EdgeInsets.symmetric(vertical: 12),
                         shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12)),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
                       ),
-                      child: Text('بحث جديد',
-                          style:
-                              GoogleFonts.cairo(fontWeight: FontWeight.bold)),
                     ),
                   ),
                 ],
               ],
-            ),
+
+              // Error
+              if (_error != null && !_printDone) ...[
+                const SizedBox(height: 12),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.red.shade50,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: Colors.red.shade200),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.error_outline,
+                        size: 20,
+                        color: Colors.red.shade700,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          _error!,
+                          style: GoogleFonts.cairo(
+                            fontSize: 13,
+                            color: Colors.red.shade700,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+
+              const SizedBox(height: 16),
+
+              // Close / new search
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () => Navigator.of(context).pop(),
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      child: Text(
+                        'إغلاق',
+                        style: GoogleFonts.cairo(fontWeight: FontWeight.w600),
+                      ),
+                    ),
+                  ),
+                  if (_printDone && _printSuccess) ...[
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: ElevatedButton(
+                        onPressed: () {
+                          setState(() {
+                            _foundPallet = null;
+                            _foundGroup = null;
+                            _foundLineNumber = null;
+                            _printDone = false;
+                            _printSuccess = false;
+                            _error = null;
+                            _controller.clear();
+                          });
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: _primaryColor,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        child: Text(
+                          'بحث جديد',
+                          style: GoogleFonts.cairo(fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
             ],
           ),
         ),
@@ -477,10 +511,7 @@ class _ReprintByIdDialogState extends State<ReprintByIdDialog> {
         children: [
           Text(
             '$label: ',
-            style: GoogleFonts.cairo(
-              fontSize: 13,
-              color: Colors.grey.shade700,
-            ),
+            style: GoogleFonts.cairo(fontSize: 13, color: Colors.grey.shade700),
           ),
           Expanded(
             child: Text(

@@ -67,18 +67,18 @@ class _PalletSuccessDialogState extends State<PalletSuccessDialog> {
                     _printSuccess
                         ? 'تمت الطباعة بنجاح'
                         : _printError != null
-                            ? 'فشل في الطباعة'
-                            : _isPrinting
-                                ? 'جاري الطباعة...'
-                                : 'تم إنشاء الطبلية بنجاح',
+                        ? 'فشل في الطباعة'
+                        : _isPrinting
+                        ? 'جاري الطباعة...'
+                        : 'تم إنشاء الطبلية بنجاح',
                     style: GoogleFonts.cairo(
                       fontSize: isMobile ? 16 : 20,
                       fontWeight: FontWeight.bold,
                       color: _printSuccess
                           ? Colors.green
                           : _printError != null
-                              ? Colors.red
-                              : widget.lineColor,
+                          ? Colors.red
+                          : widget.lineColor,
                     ),
                     textAlign: TextAlign.center,
                   ),
@@ -375,8 +375,12 @@ class _PalletSuccessDialogState extends State<PalletSuccessDialog> {
     // Bottom: description with fallback to full name
     final description = widget.pallet.productType.description;
     debugPrint('[LABEL DEBUG] productType.description = "$description"');
-    debugPrint('[LABEL DEBUG] productType.name = "${widget.pallet.productType.name}"');
-    debugPrint('[LABEL DEBUG] productType.productName = "${widget.pallet.productType.productName}"');
+    debugPrint(
+      '[LABEL DEBUG] productType.name = "${widget.pallet.productType.name}"',
+    );
+    debugPrint(
+      '[LABEL DEBUG] productType.productName = "${widget.pallet.productType.productName}"',
+    );
     debugPrint('[LABEL DEBUG] sessionProductSequence = $seq');
     final bottomText = (description != null && description.isNotEmpty)
         ? description

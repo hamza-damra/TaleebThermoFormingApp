@@ -102,16 +102,14 @@ class _FaletResolutionDialogState extends State<FaletResolutionDialog> {
         ],
       ),
       contentPadding: EdgeInsets.fromLTRB(
-        isMobile ? 12 : 16, 
-        isMobile ? 12 : 16, 
-        isMobile ? 12 : 16, 
-        isMobile ? 6 : 8
+        isMobile ? 12 : 16,
+        isMobile ? 12 : 16,
+        isMobile ? 12 : 16,
+        isMobile ? 6 : 8,
       ),
       content: Container(
         width: dialogWidth,
-        constraints: BoxConstraints(
-          maxHeight: screenHeight * 0.7,
-        ),
+        constraints: BoxConstraints(maxHeight: screenHeight * 0.7),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -176,8 +174,7 @@ class _FaletResolutionDialogState extends State<FaletResolutionDialog> {
 
   Widget _buildFaletItemCard(FaletItem item, bool isMobile) {
     final action = _actions[item.faletId]!;
-    final isAccounted =
-        action == HandoverFaletAction.alreadyAccountedInSession;
+    final isAccounted = action == HandoverFaletAction.alreadyAccountedInSession;
     final fontSize = isMobile ? 13.0 : 14.0;
 
     // Check if this FALET item is the merge target for the last-active FALET

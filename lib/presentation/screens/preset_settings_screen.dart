@@ -165,7 +165,9 @@ class _PresetChip extends StatelessWidget {
               Icon(
                 Icons.edit_note,
                 size: 18,
-                color: isSelected ? Colors.white.withValues(alpha: 0.8) : Colors.grey,
+                color: isSelected
+                    ? Colors.white.withValues(alpha: 0.8)
+                    : Colors.grey,
               ),
             ],
             if (isSelected) ...[
@@ -280,9 +282,15 @@ class _PresetFormDialogState extends State<_PresetFormDialog> {
   void initState() {
     super.initState();
     _nameController = TextEditingController(text: widget.preset?.name ?? '');
-    _widthController = TextEditingController(text: widget.preset?.widthMm.toString() ?? '');
-    _heightController = TextEditingController(text: widget.preset?.heightMm.toString() ?? '');
-    _marginController = TextEditingController(text: widget.preset?.marginMm.toString() ?? '2');
+    _widthController = TextEditingController(
+      text: widget.preset?.widthMm.toString() ?? '',
+    );
+    _heightController = TextEditingController(
+      text: widget.preset?.heightMm.toString() ?? '',
+    );
+    _marginController = TextEditingController(
+      text: widget.preset?.marginMm.toString() ?? '2',
+    );
   }
 
   @override
@@ -314,7 +322,11 @@ class _PresetFormDialogState extends State<_PresetFormDialog> {
                   color: _primaryColor.withValues(alpha: 0.1),
                   shape: BoxShape.circle,
                 ),
-                child: const Icon(Icons.straighten_rounded, size: 36, color: _primaryColor),
+                child: const Icon(
+                  Icons.straighten_rounded,
+                  size: 36,
+                  color: _primaryColor,
+                ),
               ),
               const SizedBox(height: 16),
               Text(
@@ -335,7 +347,8 @@ class _PresetFormDialogState extends State<_PresetFormDialog> {
                       label: 'اسم الحجم',
                       icon: Icons.label_outline_rounded,
                       hint: 'مثال: 70×40 مم',
-                      validator: (v) => (v == null || v.isEmpty) ? 'يرجى إدخال الاسم' : null,
+                      validator: (v) =>
+                          (v == null || v.isEmpty) ? 'يرجى إدخال الاسم' : null,
                     ),
                     const SizedBox(height: 16),
                     Row(
@@ -346,7 +359,9 @@ class _PresetFormDialogState extends State<_PresetFormDialog> {
                             label: 'العرض (مم)',
                             icon: Icons.width_full_rounded,
                             hint: '70',
-                            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                            keyboardType: const TextInputType.numberWithOptions(
+                              decimal: true,
+                            ),
                             validator: (v) {
                               if (v == null || v.isEmpty) return 'مطلوب';
                               final n = double.tryParse(v);
@@ -361,7 +376,9 @@ class _PresetFormDialogState extends State<_PresetFormDialog> {
                             label: 'الارتفاع (مم)',
                             icon: Icons.height_rounded,
                             hint: '40',
-                            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                            keyboardType: const TextInputType.numberWithOptions(
+                              decimal: true,
+                            ),
                             validator: (v) {
                               if (v == null || v.isEmpty) return 'مطلوب';
                               final n = double.tryParse(v);
@@ -377,7 +394,9 @@ class _PresetFormDialogState extends State<_PresetFormDialog> {
                       label: 'الهامش (مم)',
                       icon: Icons.space_bar_rounded,
                       hint: '2',
-                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      keyboardType: const TextInputType.numberWithOptions(
+                        decimal: true,
+                      ),
                       validator: (v) {
                         if (v == null || v.isEmpty) return 'مطلوب';
                         final n = double.tryParse(v);
@@ -395,9 +414,14 @@ class _PresetFormDialogState extends State<_PresetFormDialog> {
                       onPressed: () => Navigator.of(context).pop(),
                       style: OutlinedButton.styleFrom(
                         padding: const EdgeInsets.symmetric(vertical: 12),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
                       ),
-                      child: Text('إلغاء', style: GoogleFonts.cairo(fontWeight: FontWeight.w600)),
+                      child: Text(
+                        'إلغاء',
+                        style: GoogleFonts.cairo(fontWeight: FontWeight.w600),
+                      ),
                     ),
                   ),
                   const SizedBox(width: 12),
@@ -408,10 +432,15 @@ class _PresetFormDialogState extends State<_PresetFormDialog> {
                         backgroundColor: _primaryColor,
                         foregroundColor: Colors.white,
                         padding: const EdgeInsets.symmetric(vertical: 12),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
                         elevation: 0,
                       ),
-                      child: Text('حفظ البيانات', style: GoogleFonts.cairo(fontWeight: FontWeight.bold)),
+                      child: Text(
+                        'حفظ البيانات',
+                        style: GoogleFonts.cairo(fontWeight: FontWeight.bold),
+                      ),
                     ),
                   ),
                 ],
@@ -453,9 +482,18 @@ class _PresetFormDialogState extends State<_PresetFormDialog> {
         labelStyle: GoogleFonts.cairo(fontSize: 14, color: Colors.grey[600]),
         hintText: hint,
         prefixIcon: Icon(icon, size: 20, color: _primaryColor),
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.grey.shade300)),
-        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.grey.shade300)),
-        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: _primaryColor, width: 2)),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: Colors.grey.shade300),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: Colors.grey.shade300),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: _primaryColor, width: 2),
+        ),
         filled: true,
         fillColor: Colors.grey.shade50,
       ),

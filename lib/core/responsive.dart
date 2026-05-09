@@ -71,9 +71,7 @@ class ResponsiveValue<T> {
 
 class ResponsivePadding {
   static EdgeInsets all(BuildContext context) {
-    return EdgeInsets.all(
-      ResponsiveHelper.isMobile(context) ? 12 : 24,
-    );
+    return EdgeInsets.all(ResponsiveHelper.isMobile(context) ? 12 : 24);
   }
 
   static EdgeInsets horizontal(BuildContext context) {
@@ -115,10 +113,7 @@ class ResponsiveFontSize {
 class ResponsiveBuilder extends StatelessWidget {
   final Widget Function(BuildContext context, ScreenType screenType) builder;
 
-  const ResponsiveBuilder({
-    super.key,
-    required this.builder,
-  });
+  const ResponsiveBuilder({super.key, required this.builder});
 
   @override
   Widget build(BuildContext context) {

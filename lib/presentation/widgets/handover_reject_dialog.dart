@@ -31,7 +31,7 @@ class HandoverRejectResult {
 /// Rejection reason: radio selection.
 enum _RejectReason {
   incorrectQuantity, // عدد غير صحيح — user enters qty > 0
-  noFalet,           // لا يوجد فالت — qty = 0 automatically
+  noFalet, // لا يوجد فالت — qty = 0 automatically
 }
 
 class HandoverRejectDialog extends StatefulWidget {
@@ -110,10 +110,12 @@ class _HandoverRejectDialogState extends State<HandoverRejectDialog> {
     List<Map<String, dynamic>>? observations;
     if (widget.faletItems.isNotEmpty) {
       observations = widget.faletItems
-          .map((item) => {
-                'faletSnapshotId': item.faletSnapshotId,
-                'observedQuantity': faletQuantity,
-              })
+          .map(
+            (item) => {
+              'faletSnapshotId': item.faletSnapshotId,
+              'observedQuantity': faletQuantity,
+            },
+          )
           .toList();
     }
 

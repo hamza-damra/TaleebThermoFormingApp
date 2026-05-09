@@ -40,49 +40,49 @@ class SessionTableWidget extends StatelessWidget {
           children: [
             // Header
             Container(
-            width: double.infinity,
-            padding: EdgeInsets.symmetric(
-              horizontal: isMobile ? 16 : 24,
-              vertical: isMobile ? 14 : 18,
-            ),
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [line.color, line.color.withValues(alpha: 0.85)],
-                begin: Alignment.topRight,
-                end: Alignment.bottomLeft,
+              width: double.infinity,
+              padding: EdgeInsets.symmetric(
+                horizontal: isMobile ? 16 : 24,
+                vertical: isMobile ? 14 : 18,
               ),
-              borderRadius: BorderRadius.only(
-                topLeft: Radius.circular(isMobile ? 16 : 20),
-                topRight: Radius.circular(isMobile ? 16 : 20),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [line.color, line.color.withValues(alpha: 0.85)],
+                  begin: Alignment.topRight,
+                  end: Alignment.bottomLeft,
+                ),
+                borderRadius: BorderRadius.only(
+                  topLeft: Radius.circular(isMobile ? 16 : 20),
+                  topRight: Radius.circular(isMobile ? 16 : 20),
+                ),
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    padding: EdgeInsets.all(isMobile ? 8 : 10),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.2),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Icon(
+                      Icons.table_chart_outlined,
+                      color: Colors.white,
+                      size: isMobile ? 20 : 24,
+                    ),
+                  ),
+                  SizedBox(width: isMobile ? 12 : 16),
+                  Text(
+                    'ملخص المناوبة',
+                    style: GoogleFonts.cairo(
+                      fontSize: isMobile ? 16 : 20,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
+                  ),
+                ],
               ),
             ),
-            child: Row(
-              children: [
-                Container(
-                  padding: EdgeInsets.all(isMobile ? 8 : 10),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.2),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Icon(
-                    Icons.table_chart_outlined,
-                    color: Colors.white,
-                    size: isMobile ? 20 : 24,
-                  ),
-                ),
-                SizedBox(width: isMobile ? 12 : 16),
-                Text(
-                  'ملخص المناوبة',
-                  style: GoogleFonts.cairo(
-                    fontSize: isMobile ? 16 : 20,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          // Table content
+            // Table content
             if (rows.isEmpty)
               _buildEmptyState(context, isMobile)
             else

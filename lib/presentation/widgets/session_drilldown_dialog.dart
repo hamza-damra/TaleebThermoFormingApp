@@ -81,14 +81,14 @@ class _SessionDrilldownDialogState extends State<SessionDrilldownDialog> {
     }
   }
 
-  void _showReprintDialog(SessionPalletDetail pallet, SessionProductTypeGroup group) {
+  void _showReprintDialog(
+    SessionPalletDetail pallet,
+    SessionProductTypeGroup group,
+  ) {
     showDialog(
       context: context,
-      builder: (_) => _ReprintDialog(
-        pallet: pallet,
-        group: group,
-        line: widget.line,
-      ),
+      builder: (_) =>
+          _ReprintDialog(pallet: pallet, group: group, line: widget.line),
     );
   }
 
@@ -107,9 +107,7 @@ class _SessionDrilldownDialogState extends State<SessionDrilldownDialog> {
       ),
       child: Container(
         width: isMobile ? screenSize.width : 600,
-        constraints: BoxConstraints(
-          maxHeight: screenSize.height * 0.85,
-        ),
+        constraints: BoxConstraints(maxHeight: screenSize.height * 0.85),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -336,9 +334,7 @@ class _SessionDrilldownDialogState extends State<SessionDrilldownDialog> {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: widget.line.color.withValues(alpha: 0.15),
-        ),
+        border: Border.all(color: widget.line.color.withValues(alpha: 0.15)),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.03),
@@ -387,10 +383,7 @@ class _SessionDrilldownDialogState extends State<SessionDrilldownDialog> {
           iconColor: widget.line.color,
           collapsedIconColor: widget.line.color,
           children: [
-            Divider(
-              height: 1,
-              color: widget.line.color.withValues(alpha: 0.1),
-            ),
+            Divider(height: 1, color: widget.line.color.withValues(alpha: 0.1)),
             ...group.pallets.map(
               (pallet) => _buildPalletRow(pallet, group, isMobile),
             ),
@@ -412,10 +405,7 @@ class _SessionDrilldownDialogState extends State<SessionDrilldownDialog> {
       ),
       decoration: BoxDecoration(
         border: Border(
-          bottom: BorderSide(
-            color: Colors.grey.shade100,
-            width: 1,
-          ),
+          bottom: BorderSide(color: Colors.grey.shade100, width: 1),
         ),
       ),
       child: Row(
@@ -477,7 +467,6 @@ class _SessionDrilldownDialogState extends State<SessionDrilldownDialog> {
       ),
     );
   }
-
 }
 
 // ── Reprint Status Dialog ──
@@ -532,7 +521,9 @@ class _ReprintDialogState extends State<_ReprintDialog> {
         .firstOrNull;
 
     // Top: productName (no sequence available for reprints)
-    final topText = productType?.productName ?? ProductType.formatCompactName(widget.group.productTypeName);
+    final topText =
+        productType?.productName ??
+        ProductType.formatCompactName(widget.group.productTypeName);
 
     // Bottom: description with fallback
     final description = productType?.description;
@@ -557,8 +548,7 @@ class _ReprintDialogState extends State<_ReprintDialog> {
     await palletizingProvider.logPrintAttempt(
       lineNumber: widget.line.number,
       palletId: widget.pallet.palletId,
-      printerIdentifier:
-          printingProvider.selectedPrinter?.name ?? 'UNKNOWN',
+      printerIdentifier: printingProvider.selectedPrinter?.name ?? 'UNKNOWN',
       success: result.isSuccess,
       failureReason: result.errorMessage,
     );
@@ -588,9 +578,7 @@ class _ReprintDialogState extends State<_ReprintDialog> {
     final isMobile = ResponsiveHelper.isMobile(context);
 
     return AlertDialog(
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       contentPadding: EdgeInsets.zero,
       content: SizedBox(
         width: isMobile ? MediaQuery.of(context).size.width * 0.85 : 380,
@@ -603,29 +591,27 @@ class _ReprintDialogState extends State<_ReprintDialog> {
                 children: [
                   const SizedBox(height: 8),
                   _buildStatusIcon(isMobile),
-              SizedBox(height: isMobile ? 16 : 20),
-              Text(
-                _printSuccess
-                    ? 'تمت الطباعة بنجاح'
-                    : 'إعادة طباعة الملصق',
-                style: GoogleFonts.cairo(
-                  fontSize: isMobile ? 18 : 20,
-                  fontWeight: FontWeight.bold,
-                  color: _printSuccess ? Colors.green : widget.line.color,
-                ),
-                textAlign: TextAlign.center,
-              ),
-              SizedBox(height: isMobile ? 16 : 20),
-              _buildPalletInfo(isMobile),
-              if (_printError != null) ...[
-                SizedBox(height: isMobile ? 12 : 16),
-                _buildErrorBanner(isMobile),
-              ],
-              SizedBox(height: isMobile ? 12 : 16),
-              _buildPrinterInfo(isMobile),
-              SizedBox(height: isMobile ? 20 : 24),
-              if (!_printSuccess) _buildPrintButton(isMobile),
-              if (_printSuccess) _buildDoneButton(isMobile),
+                  SizedBox(height: isMobile ? 16 : 20),
+                  Text(
+                    _printSuccess ? 'تمت الطباعة بنجاح' : 'إعادة طباعة الملصق',
+                    style: GoogleFonts.cairo(
+                      fontSize: isMobile ? 18 : 20,
+                      fontWeight: FontWeight.bold,
+                      color: _printSuccess ? Colors.green : widget.line.color,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                  SizedBox(height: isMobile ? 16 : 20),
+                  _buildPalletInfo(isMobile),
+                  if (_printError != null) ...[
+                    SizedBox(height: isMobile ? 12 : 16),
+                    _buildErrorBanner(isMobile),
+                  ],
+                  SizedBox(height: isMobile ? 12 : 16),
+                  _buildPrinterInfo(isMobile),
+                  SizedBox(height: isMobile ? 20 : 24),
+                  if (!_printSuccess) _buildPrintButton(isMobile),
+                  if (_printSuccess) _buildDoneButton(isMobile),
                 ],
               ),
             ),
@@ -674,9 +660,7 @@ class _ReprintDialogState extends State<_ReprintDialog> {
       decoration: BoxDecoration(
         color: widget.line.color.withValues(alpha: 0.06),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: widget.line.color.withValues(alpha: 0.15),
-        ),
+        border: Border.all(color: widget.line.color.withValues(alpha: 0.15)),
       ),
       child: Column(
         children: [
@@ -686,23 +670,11 @@ class _ReprintDialogState extends State<_ReprintDialog> {
             isMobile,
           ),
           Divider(height: 16, color: widget.line.color.withValues(alpha: 0.1)),
-          _buildInfoLine(
-            'رقم الطبلية',
-            widget.pallet.serialNumber,
-            isMobile,
-          ),
+          _buildInfoLine('رقم الطبلية', widget.pallet.serialNumber, isMobile),
           Divider(height: 16, color: widget.line.color.withValues(alpha: 0.1)),
-          _buildInfoLine(
-            'الكمية',
-            '${widget.pallet.quantity} عبوة',
-            isMobile,
-          ),
+          _buildInfoLine('الكمية', '${widget.pallet.quantity} عبوة', isMobile),
           Divider(height: 16, color: widget.line.color.withValues(alpha: 0.1)),
-          _buildInfoLine(
-            'التاريخ',
-            widget.pallet.createdAtDisplay,
-            isMobile,
-          ),
+          _buildInfoLine('التاريخ', widget.pallet.createdAtDisplay, isMobile),
         ],
       ),
     );
@@ -746,7 +718,11 @@ class _ReprintDialogState extends State<_ReprintDialog> {
       ),
       child: Row(
         children: [
-          Icon(Icons.error_outline, color: Colors.red, size: isMobile ? 18 : 20),
+          Icon(
+            Icons.error_outline,
+            color: Colors.red,
+            size: isMobile ? 18 : 20,
+          ),
           SizedBox(width: isMobile ? 8 : 10),
           Expanded(
             child: Text(
@@ -783,7 +759,9 @@ class _ReprintDialogState extends State<_ReprintDialog> {
           child: Row(
             children: [
               Icon(
-                printer != null ? Icons.print_outlined : Icons.print_disabled_outlined,
+                printer != null
+                    ? Icons.print_outlined
+                    : Icons.print_disabled_outlined,
                 size: isMobile ? 16 : 18,
                 color: printer != null ? Colors.blue : Colors.orange,
               ),

@@ -77,4 +77,22 @@ class AuthLocalStorage {
   Future<void> clearDeviceKey() async {
     await _storage.delete(key: _deviceKeyKey);
   }
+
+  // ── Palletizer Session Token (per backend lineId) ──
+  // Keys are namespaced by backend lineId, not UI lineNumber, so storage stays
+  // aligned with the API and tolerates any tab re-indexing.
+  static String _palletizerSessionTokenKey(int lineId) =>
+      'palletizer_session_token_$lineId';
+
+  Future<void> savePalletizerSessionToken(int lineId, String token) async {
+    await _storage.write(key: _palletizerSessionTokenKey(lineId), value: token);
+  }
+
+  Future<String?> getPalletizerSessionToken(int lineId) async {
+    return await _storage.read(key: _palletizerSessionTokenKey(lineId));
+  }
+
+  Future<void> clearPalletizerSessionToken(int lineId) async {
+    await _storage.delete(key: _palletizerSessionTokenKey(lineId));
+  }
 }

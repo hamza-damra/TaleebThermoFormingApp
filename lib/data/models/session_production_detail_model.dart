@@ -41,8 +41,9 @@ class SessionProductTypeGroupModel extends SessionProductTypeGroup {
       productTypePrefix: json['productTypePrefix'] as String? ?? '',
       completedPalletCount: json['completedPalletCount'] as int? ?? 0,
       pallets: palletsJson
-          .map((p) =>
-              SessionPalletDetailModel.fromJson(p as Map<String, dynamic>))
+          .map(
+            (p) => SessionPalletDetailModel.fromJson(p as Map<String, dynamic>),
+          )
           .toList(),
     );
   }
@@ -61,8 +62,11 @@ class SessionProductionDetailModel extends SessionProductionDetail {
       lineId: json['lineId'] as int,
       authorizationId: json['authorizationId'] as int,
       groups: groupsJson
-          .map((g) => SessionProductTypeGroupModel.fromJson(
-              g as Map<String, dynamic>))
+          .map(
+            (g) => SessionProductTypeGroupModel.fromJson(
+              g as Map<String, dynamic>,
+            ),
+          )
           .toList(),
     );
   }

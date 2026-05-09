@@ -103,7 +103,9 @@ class TsplBuilder {
     final postCommands = TsplBuilder()..print(1, copies);
     final postBytes = Uint8List.fromList(postCommands.build().codeUnits);
 
-    final result = Uint8List(preBytes.length + bitmapData.length + postBytes.length);
+    final result = Uint8List(
+      preBytes.length + bitmapData.length + postBytes.length,
+    );
     result.setAll(0, preBytes);
     result.setAll(preBytes.length, bitmapData);
     result.setAll(preBytes.length + bitmapData.length, postBytes);

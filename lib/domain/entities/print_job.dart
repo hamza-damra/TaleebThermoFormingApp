@@ -23,10 +23,7 @@ class PrintResult extends Equatable {
   final PrintResultStatus status;
   final String? errorMessage;
 
-  const PrintResult._({
-    required this.status,
-    this.errorMessage,
-  });
+  const PrintResult._({required this.status, this.errorMessage});
 
   factory PrintResult.success() {
     return const PrintResult._(status: PrintResultStatus.success);

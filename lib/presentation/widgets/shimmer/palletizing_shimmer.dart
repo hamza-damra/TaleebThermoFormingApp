@@ -9,10 +9,7 @@ import '../../../core/responsive.dart';
 class PalletizingShimmer extends StatelessWidget {
   final ProductionLine line;
 
-  const PalletizingShimmer({
-    super.key,
-    required this.line,
-  });
+  const PalletizingShimmer({super.key, required this.line});
 
   @override
   Widget build(BuildContext context) {
@@ -37,7 +34,9 @@ class PalletizingShimmer extends StatelessWidget {
                 child: SingleChildScrollView(
                   physics: const NeverScrollableScrollPhysics(),
                   child: Padding(
-                    padding: EdgeInsets.symmetric(horizontal: horizontalPadding),
+                    padding: EdgeInsets.symmetric(
+                      horizontal: horizontalPadding,
+                    ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
@@ -91,10 +90,7 @@ class PalletizingShimmer extends StatelessWidget {
         color: line.color.withValues(alpha: 0.3),
         borderRadius: BorderRadius.circular(16),
       ),
-      child: const Bone.text(
-        words: 2,
-        style: TextStyle(fontSize: 26),
-      ),
+      child: const Bone.text(words: 2, style: TextStyle(fontSize: 26)),
     );
   }
 
@@ -146,10 +142,7 @@ class PalletizingShimmer extends StatelessWidget {
               borderRadius: BorderRadius.circular(8),
             ),
             SizedBox(width: isMobile ? 10 : 12),
-            Bone.text(
-              words: 2,
-              style: TextStyle(fontSize: isMobile ? 15 : 18),
-            ),
+            Bone.text(words: 2, style: TextStyle(fontSize: isMobile ? 15 : 18)),
           ],
         ),
         SizedBox(height: isMobile ? 12 : 14),
@@ -257,10 +250,7 @@ class PalletizingShimmer extends StatelessWidget {
       decoration: BoxDecoration(
         color: line.color.withValues(alpha: 0.06),
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(
-          color: line.color.withValues(alpha: 0.12),
-          width: 1,
-        ),
+        border: Border.all(color: line.color.withValues(alpha: 0.12), width: 1),
       ),
       child: Column(
         children: [
@@ -268,16 +258,10 @@ class PalletizingShimmer extends StatelessWidget {
           Bone.circle(size: isMobile ? 44 : 52),
           SizedBox(height: isMobile ? 12 : 16),
           // Value
-          Bone.text(
-            words: 1,
-            style: TextStyle(fontSize: isMobile ? 28 : 36),
-          ),
+          Bone.text(words: 1, style: TextStyle(fontSize: isMobile ? 28 : 36)),
           SizedBox(height: isMobile ? 4 : 6),
           // Label
-          Bone.text(
-            words: 1,
-            style: TextStyle(fontSize: isMobile ? 13 : 15),
-          ),
+          Bone.text(words: 1, style: TextStyle(fontSize: isMobile ? 13 : 15)),
         ],
       ),
     );
@@ -297,10 +281,7 @@ class PalletizingShimmer extends StatelessWidget {
         children: [
           Bone.icon(size: isMobile ? 22 : 26),
           SizedBox(width: isMobile ? 8 : 12),
-          Bone.text(
-            words: 2,
-            style: TextStyle(fontSize: isMobile ? 18 : 21),
-          ),
+          Bone.text(words: 2, style: TextStyle(fontSize: isMobile ? 18 : 21)),
         ],
       ),
     );
@@ -315,13 +296,9 @@ class PalletizingShimmerDualPane extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: [
-        Expanded(
-          child: PalletizingShimmer(line: ProductionLine.line2),
-        ),
+        Expanded(child: PalletizingShimmer(line: ProductionLine.line2)),
         Container(width: 2, color: Colors.grey.shade300),
-        Expanded(
-          child: PalletizingShimmer(line: ProductionLine.line1),
-        ),
+        Expanded(child: PalletizingShimmer(line: ProductionLine.line1)),
       ],
     );
   }
@@ -331,10 +308,7 @@ class PalletizingShimmerDualPane extends StatelessWidget {
 class PalletizingShimmerMobile extends StatelessWidget {
   final ProductionLine line;
 
-  const PalletizingShimmerMobile({
-    super.key,
-    required this.line,
-  });
+  const PalletizingShimmerMobile({super.key, required this.line});
 
   @override
   Widget build(BuildContext context) {

@@ -20,9 +20,9 @@ class PalletizingScreen extends StatefulWidget {
 }
 
 class _PalletizingScreenState extends State<PalletizingScreen>
-    with SingleTickerProviderStateMixin {
+    with SingleTickerProviderStateMixin, WidgetsBindingObserver {
   late Timer _timer;
-  Timer? _faletPollTimer;
+  Timer? _lineMonitoringTimer;
   String _currentDateTime = '';
   TabController? _tabController;
   int _activeTabIndex = 0;
@@ -30,6 +30,7 @@ class _PalletizingScreenState extends State<PalletizingScreen>
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _updateDateTime();
     _timer = Timer.periodic(const Duration(seconds: 1), (_) {
       _updateDateTime();
@@ -40,10 +41,12 @@ class _PalletizingScreenState extends State<PalletizingScreen>
       final palletizingProvider = context.read<PalletizingProvider>();
       await palletizingProvider.loadBootstrap();
 
-      // Start polling FALET existence every 30 seconds
-      _faletPollTimer = Timer.periodic(
-        const Duration(seconds: 30),
-        (_) => context.read<PalletizingProvider>().pollAllLinesFaletStatus(),
+      // Combined 15s monitoring poll: FALET existence on every authorized
+      // line + full line-state refresh for any line waiting for the
+      // Thermoforming operator to open it.
+      _lineMonitoringTimer = Timer.periodic(
+        const Duration(seconds: 15),
+        (_) => context.read<PalletizingProvider>().pollLineMonitoring(),
       );
     });
   }
@@ -58,9 +61,22 @@ class _PalletizingScreenState extends State<PalletizingScreen>
   }
 
   @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+    if (state == AppLifecycleState.resumed && mounted) {
+      // Resume could span a backend session end (Thermoforming operator
+      // ended the shift-line). loadBootstrap re-fetches everything and
+      // re-syncs each line's palletizer session, dropping to State B if
+      // the backend ended it while we were backgrounded.
+      context.read<PalletizingProvider>().loadBootstrap();
+    }
+  }
+
+  @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _timer.cancel();
-    _faletPollTimer?.cancel();
+    _lineMonitoringTimer?.cancel();
     _tabController?.animation?.removeListener(_handleTabAnimation);
     _tabController?.dispose();
     super.dispose();

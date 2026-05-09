@@ -5,10 +5,11 @@ import '../../domain/entities/falet_dispose_response.dart';
 import '../../domain/entities/falet_resolution_entry.dart';
 import '../../domain/entities/falet_response.dart';
 import '../../domain/entities/first_pallet_suggestion.dart';
-import '../../domain/entities/line_authorization_state.dart';
 import '../../domain/entities/line_handover_info.dart';
 import '../../domain/entities/operator.dart';
 import '../../domain/entities/pallet_create_response.dart';
+import '../../domain/entities/palletizer_auth_result.dart';
+import '../../domain/entities/palletizer_session.dart';
 import '../../domain/entities/print_attempt_result.dart';
 import '../../domain/entities/session_production_detail.dart';
 import '../../domain/entities/product_type.dart';
@@ -24,6 +25,7 @@ import '../models/first_pallet_suggestion_model.dart';
 import '../models/line_handover_info_model.dart';
 import '../models/operator_model.dart';
 import '../models/pallet_create_response_model.dart';
+import '../models/palletizer_session_model.dart';
 import '../models/print_attempt_result_model.dart';
 import '../models/product_type_model.dart';
 import '../models/production_line_model.dart';
@@ -66,7 +68,7 @@ class PalletizingRepositoryImpl implements PalletizingRepository {
   @override
   Future<BootstrapResponse> bootstrap() async {
     return await _apiClient.request<BootstrapResponse>(
-      path: '/palletizing-line/bootstrap',
+      path: '/api/v1/palletizing-line/bootstrap',
       method: 'GET',
       parser: (json) =>
           BootstrapResponseModel.fromJson(json['data'] as Map<String, dynamic>),
@@ -74,50 +76,9 @@ class PalletizingRepositoryImpl implements PalletizingRepository {
   }
 
   @override
-  Future<LineAuthorizationState> authorizeLine({
-    required int lineId,
-    required String pin,
-  }) async {
-    return await _apiClient.request<LineAuthorizationState>(
-      path: '/palletizing-line/lines/$lineId/authorize-pin',
-      method: 'POST',
-      data: {'pin': pin},
-      parser: (json) {
-        final data = json['data'] as Map<String, dynamic>;
-        // Backend may return operator as nested object or just operatorName string
-        final operatorJson = data['operator'] as Map<String, dynamic>?;
-        Operator? operator;
-        if (operatorJson != null) {
-          operator = OperatorModel.fromJson(operatorJson);
-        } else {
-          // Fallback: construct Operator from flat operatorName/operatorId fields
-          final operatorName = data['operatorName'] as String?;
-          final operatorId = data['operatorId'] as int?;
-          if (operatorName != null) {
-            operator = OperatorModel(
-              id: operatorId ?? 0,
-              name: operatorName,
-              displayLabel: operatorName,
-            );
-          }
-        }
-        return LineAuthorizationState(
-          lineId: data['lineId'] as int? ?? lineId,
-          lineNumber: data['lineNumber'] as int? ?? 0,
-          isAuthorized: data['authorized'] as bool? ?? true,
-          operator: operator,
-          authorizedAt: data['authorizedAt'] != null
-              ? DateTime.tryParse(data['authorizedAt'] as String)
-              : DateTime.now(),
-        );
-      },
-    );
-  }
-
-  @override
   Future<BootstrapLineState> getLineState(int lineId) async {
     return await _apiClient.request<BootstrapLineState>(
-      path: '/palletizing-line/lines/$lineId/state',
+      path: '/api/v1/palletizing-line/lines/$lineId/state',
       method: 'GET',
       parser: (json) => BootstrapLineStateModel.fromJson(
         json['data'] as Map<String, dynamic>,
@@ -132,7 +93,7 @@ class PalletizingRepositoryImpl implements PalletizingRepository {
     required int quantity,
   }) async {
     return await _apiClient.request<PalletCreateResponse>(
-      path: '/palletizing-line/lines/$lineId/pallets',
+      path: '/api/v1/palletizing-line/lines/$lineId/pallets',
       method: 'POST',
       data: {'productTypeId': productTypeId, 'quantity': quantity},
       parser: (json) => PalletCreateResponseModel.fromJson(
@@ -150,7 +111,7 @@ class PalletizingRepositoryImpl implements PalletizingRepository {
     String? failureReason,
   }) async {
     return await _apiClient.request<PrintAttemptResult>(
-      path: '/palletizing-line/lines/$lineId/pallets/$palletId/print-attempts',
+      path: '/api/v1/palletizing-line/lines/$lineId/pallets/$palletId/print-attempts',
       method: 'POST',
       data: {
         'printerIdentifier': printerIdentifier,
@@ -163,39 +124,43 @@ class PalletizingRepositoryImpl implements PalletizingRepository {
     );
   }
 
+  // ── Palletizer auth (per-line) ──
+
   @override
-  Future<BootstrapLineState> selectProduct({
+  Future<PalletizerAuthResult> palletizerAuth({
     required int lineId,
-    required int productTypeId,
+    required String pin,
   }) async {
-    return await _apiClient.request<BootstrapLineState>(
-      path: '/palletizing-line/lines/$lineId/select-product',
+    return await _apiClient.request<PalletizerAuthResult>(
+      path: '/api/v1/palletizing-line/lines/$lineId/palletizer-auth',
       method: 'POST',
-      data: {'productTypeId': productTypeId},
-      parser: (json) => BootstrapLineStateModel.fromJson(
+      data: {'pin': pin},
+      parser: (json) => PalletizerAuthResultModel.fromJson(
         json['data'] as Map<String, dynamic>,
       ),
     );
   }
 
   @override
-  Future<BootstrapLineState> switchProduct({
+  Future<PalletizerSession> getCurrentPalletizerSession(int lineId) async {
+    return await _apiClient.request<PalletizerSession>(
+      path: '/api/v1/palletizing-line/lines/$lineId/palletizer-session/current',
+      method: 'GET',
+      parser: (json) =>
+          PalletizerSessionModel.fromJson(json['data'] as Map<String, dynamic>),
+    );
+  }
+
+  @override
+  Future<void> palletizerLogout({
     required int lineId,
-    required int previousProductTypeId,
-    required int newProductTypeId,
-    required int looseCount,
+    required String sessionToken,
   }) async {
-    return await _apiClient.request<BootstrapLineState>(
-      path: '/palletizing-line/lines/$lineId/product-switch',
+    await _apiClient.request<void>(
+      path: '/api/v1/palletizing-line/lines/$lineId/palletizer-logout',
       method: 'POST',
-      data: {
-        'previousProductTypeId': previousProductTypeId,
-        'newProductTypeId': newProductTypeId,
-        'loosePackageCount': looseCount,
-      },
-      parser: (json) => BootstrapLineStateModel.fromJson(
-        json['data'] as Map<String, dynamic>,
-      ),
+      data: {'sessionToken': sessionToken},
+      parser: (_) {},
     );
   }
 
@@ -223,7 +188,7 @@ class PalletizingRepositoryImpl implements PalletizingRepository {
           .toList();
     }
     return await _apiClient.request<LineHandoverInfo>(
-      path: '/palletizing-line/lines/$lineId/handover',
+      path: '/api/v1/palletizing-line/lines/$lineId/handover',
       method: 'POST',
       data: data,
       parser: (json) =>
@@ -235,7 +200,7 @@ class PalletizingRepositoryImpl implements PalletizingRepository {
   Future<LineHandoverInfo?> getLineHandover(int lineId) async {
     try {
       final result = await _apiClient.request<LineHandoverInfo?>(
-        path: '/palletizing-line/lines/$lineId/handover/pending',
+        path: '/api/v1/palletizing-line/lines/$lineId/handover/pending',
         method: 'GET',
         parser: (json) {
           final data = json['data'];
@@ -260,7 +225,7 @@ class PalletizingRepositoryImpl implements PalletizingRepository {
       data['receiptNotes'] = receiptNotes;
     }
     return await _apiClient.request<LineHandoverInfo>(
-      path: '/palletizing-line/lines/$lineId/handover/$handoverId/confirm',
+      path: '/api/v1/palletizing-line/lines/$lineId/handover/$handoverId/confirm',
       method: 'POST',
       data: data,
       parser: (json) =>
@@ -301,7 +266,7 @@ class PalletizingRepositoryImpl implements PalletizingRepository {
       }
     }
     return await _apiClient.request<LineHandoverInfo>(
-      path: '/palletizing-line/lines/$lineId/handover/$handoverId/reject',
+      path: '/api/v1/palletizing-line/lines/$lineId/handover/$handoverId/reject',
       method: 'POST',
       data: data,
       parser: (json) =>
@@ -312,7 +277,7 @@ class PalletizingRepositoryImpl implements PalletizingRepository {
   @override
   Future<FaletResponse> getFaletItems(int lineId) async {
     return await _apiClient.request<FaletResponse>(
-      path: '/palletizing-line/lines/$lineId/falet',
+      path: '/api/v1/palletizing-line/lines/$lineId/falet',
       method: 'GET',
       parser: (json) =>
           FaletResponseModel.fromJson(json['data'] as Map<String, dynamic>),
@@ -322,7 +287,7 @@ class PalletizingRepositoryImpl implements PalletizingRepository {
   @override
   Future<FirstPalletSuggestion> getFirstPalletSuggestion(int lineId) async {
     return await _apiClient.request<FirstPalletSuggestion>(
-      path: '/palletizing-line/lines/$lineId/falet/first-pallet-suggestion',
+      path: '/api/v1/palletizing-line/lines/$lineId/falet/first-pallet-suggestion',
       method: 'GET',
       parser: (json) => FirstPalletSuggestionModel.fromJson(
         json['data'] as Map<String, dynamic>,
@@ -337,7 +302,7 @@ class PalletizingRepositoryImpl implements PalletizingRepository {
     int additionalFreshQuantity = 0,
   }) async {
     return await _apiClient.request<FaletConvertToPalletResponse>(
-      path: '/palletizing-line/lines/$lineId/falet/convert-to-pallet',
+      path: '/api/v1/palletizing-line/lines/$lineId/falet/convert-to-pallet',
       method: 'POST',
       data: {
         'faletId': faletId,
@@ -360,7 +325,7 @@ class PalletizingRepositoryImpl implements PalletizingRepository {
       data['reason'] = reason;
     }
     return await _apiClient.request<FaletDisposeResponse>(
-      path: '/palletizing-line/lines/$lineId/falet/dispose',
+      path: '/api/v1/palletizing-line/lines/$lineId/falet/dispose',
       method: 'POST',
       data: data,
       parser: (json) => FaletDisposeResponseModel.fromJson(
@@ -372,7 +337,7 @@ class PalletizingRepositoryImpl implements PalletizingRepository {
   @override
   Future<SessionProductionDetail> getSessionProductionDetail(int lineId) async {
     return await _apiClient.request<SessionProductionDetail>(
-      path: '/palletizing-line/lines/$lineId/session-production-detail',
+      path: '/api/v1/palletizing-line/lines/$lineId/session-production-detail',
       method: 'GET',
       parser: (json) => SessionProductionDetailModel.fromJson(
         json['data'] as Map<String, dynamic>,
@@ -383,7 +348,7 @@ class PalletizingRepositoryImpl implements PalletizingRepository {
   @override
   Future<FaletExistsResponse> checkFaletExists(int lineId) async {
     return await _apiClient.request<FaletExistsResponse>(
-      path: '/palletizing-line/lines/$lineId/falet/exists',
+      path: '/api/v1/palletizing-line/lines/$lineId/falet/exists',
       method: 'GET',
       parser: (json) => FaletExistsResponseModel.fromJson(
         json['data'] as Map<String, dynamic>,

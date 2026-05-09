@@ -5,19 +5,23 @@ import 'package:provider/provider.dart';
 
 import '../../core/constants.dart';
 import '../../core/responsive.dart';
-import '../../domain/entities/line_handover_info.dart';
 import '../providers/palletizing_provider.dart';
 
-class LineAuthOverlay extends StatefulWidget {
+/// State B overlay: line is open (Thermoforming operator authorized) but no
+/// palletizer session exists yet for this device. Authenticates the
+/// المُشَتِّح with their PIN. Re-uses the visual silhouette of the legacy
+/// operator-PIN overlay (rounded modal, line-color accent, 4-digit obscured
+/// TextField, full-width primary CTA) so floor users do not need retraining.
+class PalletizerPinScreen extends StatefulWidget {
   final ProductionLine line;
 
-  const LineAuthOverlay({super.key, required this.line});
+  const PalletizerPinScreen({super.key, required this.line});
 
   @override
-  State<LineAuthOverlay> createState() => _LineAuthOverlayState();
+  State<PalletizerPinScreen> createState() => _PalletizerPinScreenState();
 }
 
-class _LineAuthOverlayState extends State<LineAuthOverlay> {
+class _PalletizerPinScreenState extends State<PalletizerPinScreen> {
   final _pinController = TextEditingController();
   final _focusNode = FocusNode();
 
@@ -36,16 +40,35 @@ class _LineAuthOverlayState extends State<LineAuthOverlay> {
     super.dispose();
   }
 
+  void _handleSubmit() {
+    final pin = _pinController.text.trim();
+    if (pin.length != 4) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('يجب إدخال 4 أرقام', style: GoogleFonts.cairo()),
+          backgroundColor: Colors.orange,
+          duration: const Duration(seconds: 2),
+        ),
+      );
+      return;
+    }
+
+    final provider = context.read<PalletizingProvider>();
+    provider.palletizerAuth(widget.line.number, pin).then((success) {
+      if (!mounted) return;
+      _pinController.clear();
+      if (!success) _focusNode.requestFocus();
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<PalletizingProvider>();
     final isMobile = ResponsiveHelper.isMobile(context);
-    final isAuthorizing = provider.isLineAuthorizing(widget.line.number);
-    final authState = provider.getLineAuth(widget.line.number);
-    final error = authState?.authError;
-    final lineUiMode = provider.getLineUiMode(widget.line.number);
-    final isPendingIncoming = lineUiMode == 'PENDING_HANDOVER_NEEDS_INCOMING';
-    final pendingHandover = provider.getPendingHandover(widget.line.number);
+    final isAuthenticating = provider.isPalletizerAuthenticating(
+      widget.line.number,
+    );
+    final error = provider.getPalletizerAuthError(widget.line.number);
 
     return Container(
       color: Colors.black.withValues(alpha: 0.45),
@@ -71,42 +94,21 @@ class _LineAuthOverlayState extends State<LineAuthOverlay> {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    // Pending handover summary (if waiting for incoming)
-                    if (isPendingIncoming && pendingHandover != null) ...[
-                      _buildPendingHandoverSummary(
-                        context,
-                        pendingHandover,
-                        isMobile,
-                      ),
-                      SizedBox(height: isMobile ? 16 : 20),
-                    ],
-
-                    // Icon
                     Container(
                       padding: EdgeInsets.all(isMobile ? 16 : 20),
                       decoration: BoxDecoration(
-                        color: isPendingIncoming
-                            ? Colors.orange.withValues(alpha: 0.1)
-                            : widget.line.color.withValues(alpha: 0.1),
+                        color: widget.line.color.withValues(alpha: 0.1),
                         shape: BoxShape.circle,
                       ),
                       child: Icon(
-                        isPendingIncoming
-                            ? Icons.swap_horiz_rounded
-                            : Icons.lock_outline_rounded,
-                        color: isPendingIncoming
-                            ? Colors.orange.shade700
-                            : widget.line.color,
+                        Icons.badge_outlined,
+                        color: widget.line.color,
                         size: isMobile ? 36 : 44,
                       ),
                     ),
                     SizedBox(height: isMobile ? 16 : 20),
-
-                    // Title
                     Text(
-                      isPendingIncoming
-                          ? 'في انتظار المشغل القادم'
-                          : 'تفويض المشغل',
+                      'تسجيل دخول المُشَتِّح',
                       style: GoogleFonts.cairo(
                         fontSize: isMobile ? 20 : 24,
                         fontWeight: FontWeight.bold,
@@ -114,12 +116,8 @@ class _LineAuthOverlayState extends State<LineAuthOverlay> {
                       ),
                     ),
                     const SizedBox(height: 8),
-
-                    // Subtitle
                     Text(
-                      isPendingIncoming
-                          ? 'أدخل رمز المشغل القادم لمراجعة التسليم'
-                          : 'أدخل رمز المشغل المكون من 4 أرقام لتفعيل ${widget.line.arabicLabel}',
+                      'سجّل دخولك كموظف طبليات للبدء بتسجيل الطبليات',
                       style: GoogleFonts.cairo(
                         fontSize: isMobile ? 14 : 16,
                         color: Colors.grey.shade600,
@@ -127,12 +125,10 @@ class _LineAuthOverlayState extends State<LineAuthOverlay> {
                       textAlign: TextAlign.center,
                     ),
                     SizedBox(height: isMobile ? 24 : 32),
-
-                    // PIN Input
                     TextField(
                       controller: _pinController,
                       focusNode: _focusNode,
-                      enabled: !isAuthorizing,
+                      enabled: !isAuthenticating,
                       textAlign: TextAlign.center,
                       keyboardType: TextInputType.number,
                       maxLength: 4,
@@ -187,19 +183,16 @@ class _LineAuthOverlayState extends State<LineAuthOverlay> {
                           horizontal: 16,
                         ),
                       ),
-                      onSubmitted: isAuthorizing
+                      onSubmitted: isAuthenticating
                           ? null
                           : (_) => _handleSubmit(),
                       onChanged: (_) {
-                        // Clear error when user starts typing
                         if (error != null) {
-                          provider.clearLineAuthError(widget.line.number);
+                          provider.clearPalletizerAuthError(widget.line.number);
                         }
                       },
                     ),
                     SizedBox(height: isMobile ? 8 : 12),
-
-                    // Error message
                     if (error != null)
                       Container(
                         width: double.infinity,
@@ -230,14 +223,11 @@ class _LineAuthOverlayState extends State<LineAuthOverlay> {
                           ],
                         ),
                       ),
-
                     SizedBox(height: isMobile ? 20 : 24),
-
-                    // Confirm button
                     SizedBox(
                       width: double.infinity,
                       child: ElevatedButton(
-                        onPressed: isAuthorizing ? null : _handleSubmit,
+                        onPressed: isAuthenticating ? null : _handleSubmit,
                         style: ElevatedButton.styleFrom(
                           backgroundColor: widget.line.color,
                           foregroundColor: Colors.white,
@@ -252,7 +242,7 @@ class _LineAuthOverlayState extends State<LineAuthOverlay> {
                           ),
                           elevation: 0,
                         ),
-                        child: isAuthorizing
+                        child: isAuthenticating
                             ? const SizedBox(
                                 width: 24,
                                 height: 24,
@@ -262,7 +252,7 @@ class _LineAuthOverlayState extends State<LineAuthOverlay> {
                                 ),
                               )
                             : Text(
-                                'تأكيد',
+                                'دخول',
                                 style: GoogleFonts.cairo(
                                   fontSize: isMobile ? 18 : 20,
                                   fontWeight: FontWeight.bold,
@@ -278,116 +268,5 @@ class _LineAuthOverlayState extends State<LineAuthOverlay> {
         ),
       ),
     );
-  }
-
-  Widget _buildPendingHandoverSummary(
-    BuildContext context,
-    LineHandoverInfo handover,
-    bool isMobile,
-  ) {
-    return Container(
-      width: double.infinity,
-      padding: EdgeInsets.all(isMobile ? 12 : 16),
-      decoration: BoxDecoration(
-        color: Colors.orange.shade50,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.orange.shade300),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(
-                Icons.pending_actions_rounded,
-                color: Colors.orange.shade700,
-                size: isMobile ? 18 : 20,
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  'تسليم مناوبة معلق',
-                  style: GoogleFonts.cairo(
-                    fontSize: isMobile ? 14 : 15,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.orange.shade800,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          SizedBox(height: isMobile ? 8 : 10),
-          if (handover.outgoingOperatorName != null)
-            _buildSummaryRow(
-              'المشغل المسلّم',
-              handover.outgoingOperatorName!,
-              isMobile,
-            ),
-          if (handover.createdAtDisplay != null)
-            _buildSummaryRow('الوقت', handover.createdAtDisplay!, isMobile),
-          if (handover.hasFalet)
-            _buildSummaryRow(
-              'عناصر فالت',
-              '${handover.faletItemCount} نوع',
-              isMobile,
-            ),
-          if (handover.notes != null && handover.notes!.isNotEmpty)
-            _buildSummaryRow('ملاحظات', handover.notes!, isMobile),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildSummaryRow(String label, String value, bool isMobile) {
-    return Padding(
-      padding: EdgeInsets.symmetric(vertical: isMobile ? 2 : 3),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(
-            label,
-            style: GoogleFonts.cairo(
-              fontSize: isMobile ? 12 : 13,
-              color: Colors.grey.shade700,
-            ),
-          ),
-          Text(
-            value,
-            style: GoogleFonts.cairo(
-              fontSize: isMobile ? 12 : 13,
-              fontWeight: FontWeight.bold,
-              color: Colors.black87,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _handleSubmit() {
-    final pin = _pinController.text.trim();
-    if (pin.length != 4) {
-      final provider = context.read<PalletizingProvider>();
-      // Manually set a local validation error
-      provider.clearLineAuthError(widget.line.number);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('يجب إدخال 4 أرقام', style: GoogleFonts.cairo()),
-          backgroundColor: Colors.orange,
-          duration: const Duration(seconds: 2),
-        ),
-      );
-      return;
-    }
-
-    final provider = context.read<PalletizingProvider>();
-    provider.authorizeLineWithPin(widget.line.number, pin).then((success) {
-      if (success && mounted) {
-        _pinController.clear();
-      } else if (!success && mounted) {
-        _pinController.clear();
-        _focusNode.requestFocus();
-      }
-    });
   }
 }

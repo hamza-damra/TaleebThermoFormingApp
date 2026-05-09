@@ -14,15 +14,11 @@ class FaletResponseModel extends FaletResponse {
 
     return FaletResponseModel(
       faletItems: faletItemsJson
-          .map(
-            (item) =>
-                FaletItemModel.fromJson(item as Map<String, dynamic>),
-          )
+          .map((item) => FaletItemModel.fromJson(item as Map<String, dynamic>))
           .toList(),
       totalOpenFaletCount: json['totalOpenFaletCount'] as int? ?? 0,
       hasOpenFalet: json['hasOpenFalet'] as bool? ?? false,
-      managerResolvedFaletCount:
-          json['managerResolvedFaletCount'] as int? ?? 0,
+      managerResolvedFaletCount: json['managerResolvedFaletCount'] as int? ?? 0,
     );
   }
 }

@@ -1,16 +1,18 @@
 import 'package:flutter/foundation.dart';
 
 import '../../core/exceptions/api_exception.dart';
+import '../../data/datasources/auth_local_storage.dart';
 import '../../domain/entities/bootstrap_response.dart';
 import '../../domain/entities/falet_convert_to_pallet_response.dart';
 import '../../domain/entities/falet_dispose_response.dart';
 import '../../domain/entities/falet_resolution_entry.dart';
 import '../../domain/entities/falet_response.dart';
 import '../../domain/entities/first_pallet_suggestion.dart';
-import '../../domain/entities/line_authorization_state.dart';
 import '../../domain/entities/line_handover_info.dart';
 import '../../domain/entities/operator.dart';
 import '../../domain/entities/pallet_create_response.dart';
+import '../../domain/entities/palletizer_session.dart';
+import '../../domain/entities/palletizer_session_state.dart';
 import '../../domain/entities/session_production_detail.dart';
 import '../../domain/entities/product_type.dart';
 import '../../domain/entities/production_line.dart';
@@ -19,10 +21,29 @@ import '../../domain/repositories/palletizing_repository.dart';
 
 enum PalletizingState { idle, loading, loaded, error }
 
+/// Per-line UI state. Computed from the cached BootstrapLineState plus the
+/// palletizer session, in this priority order:
+///   1. blocked    (BootstrapLineState.blockedReason != null)
+///   2. handover   (lineUiMode == PENDING_HANDOVER_*)
+///   3. waitingForThermoforming (authorized == false)
+///   4. needsPalletizerAuth (authorized && no active session)
+///   5. active     (authorized && active session)
+///
+/// The waiting card never wins over real blocked / handover states.
+enum LineUiState {
+  blocked,
+  pendingHandoverIncoming,
+  pendingHandoverReview,
+  waitingForThermoforming,
+  needsPalletizerAuth,
+  active,
+}
+
 class PalletizingProvider extends ChangeNotifier {
   final PalletizingRepository _repository;
+  final AuthLocalStorage _authStorage;
 
-  PalletizingProvider(this._repository);
+  PalletizingProvider(this._repository, this._authStorage);
 
   // ── Global state ──
   PalletizingState _state = PalletizingState.idle;
@@ -32,8 +53,10 @@ class PalletizingProvider extends ChangeNotifier {
   List<ProductType> _productTypes = [];
   List<ProductionLine> _productionLines = [];
 
-  // ── Per-line state (keyed by lineNumber) ──
-  final Map<int, LineAuthorizationState> _lineAuthorizations = {};
+  // ── Per-line state (keyed by UI lineNumber: 1, 2) ──
+  // Backend lineId is resolved via getLineIdForNumber before any storage / API.
+  final Map<int, BootstrapLineState> _lineStates = {};
+  final Map<int, PalletizerSessionState> _palletizerSessions = {};
   final Map<int, List<SessionTableRow>> _sessionTables = {};
   final Map<int, ProductType?> _selectedProductTypes = {};
   final Map<int, PalletCreateResponse?> _lastPalletResponses = {};
@@ -41,7 +64,6 @@ class PalletizingProvider extends ChangeNotifier {
   final Map<int, String?> _blockedReasons = {};
   final Map<int, bool> _lineCreating = {};
   final Map<int, String?> _lineErrors = {};
-  final Map<int, bool> _lineSwitchingProduct = {};
   final Map<int, String?> _lineUiModes = {};
   final Map<int, bool> _canInitiateHandovers = {};
   final Map<int, bool> _canConfirmHandovers = {};
@@ -60,22 +82,36 @@ class PalletizingProvider extends ChangeNotifier {
   List<ProductType> get productTypes => _productTypes;
   List<ProductionLine> get productionLines => _productionLines;
 
-  // Backward compat: global isCreating (true if ANY line is creating)
   bool get isCreating => _lineCreating.values.any((v) => v);
 
   // ── Per-line getters ──
 
-  LineAuthorizationState? getLineAuth(int lineNumber) =>
-      _lineAuthorizations[lineNumber];
-
   bool isLineAuthorized(int lineNumber) =>
-      _lineAuthorizations[lineNumber]?.isAuthorized ?? false;
-
-  bool isLineAuthorizing(int lineNumber) =>
-      _lineAuthorizations[lineNumber]?.isAuthorizing ?? false;
+      _lineStates[lineNumber]?.isAuthorized ?? false;
 
   Operator? getAuthorizedOperator(int lineNumber) =>
-      _lineAuthorizations[lineNumber]?.operator;
+      _lineStates[lineNumber]?.authorizedOperator;
+
+  PalletizerSessionState? getPalletizerSessionState(int lineNumber) =>
+      _palletizerSessions[lineNumber];
+
+  PalletizerSession? getPalletizerSession(int lineNumber) =>
+      _palletizerSessions[lineNumber]?.session;
+
+  bool isPalletizerAuthenticating(int lineNumber) =>
+      _palletizerSessions[lineNumber]?.isAuthenticating ?? false;
+
+  String? getPalletizerName(int lineNumber) =>
+      _palletizerSessions[lineNumber]?.session?.palletizerName;
+
+  String? getPalletizerAuthError(int lineNumber) =>
+      _palletizerSessions[lineNumber]?.authError;
+
+  String? getPalletizerAuthErrorCode(int lineNumber) =>
+      _palletizerSessions[lineNumber]?.authErrorCode;
+
+  bool hasActivePalletizerSession(int lineNumber) =>
+      _palletizerSessions[lineNumber]?.hasActiveSession ?? false;
 
   List<SessionTableRow> getSessionTable(int lineNumber) =>
       _sessionTables[lineNumber] ?? [];
@@ -94,9 +130,6 @@ class PalletizingProvider extends ChangeNotifier {
   bool isLineCreating(int lineNumber) => _lineCreating[lineNumber] ?? false;
 
   String? getLineError(int lineNumber) => _lineErrors[lineNumber];
-
-  bool isLineSwitchingProduct(int lineNumber) =>
-      _lineSwitchingProduct[lineNumber] ?? false;
 
   String? getLineUiMode(int lineNumber) => _lineUiModes[lineNumber];
 
@@ -125,19 +158,42 @@ class PalletizingProvider extends ChangeNotifier {
       _firstPalletSuggestionLoading[lineNumber] ?? false;
 
   bool isLineBlocked(int lineNumber) {
-    final uiMode = _lineUiModes[lineNumber];
-    if (uiMode == 'PENDING_HANDOVER_NEEDS_INCOMING') return true;
-    if (!isLineAuthorized(lineNumber)) return true;
-    if (_pendingHandovers[lineNumber]?.isPending ?? false) return true;
-    if (_blockedReasons[lineNumber] != null) return true;
-    return false;
+    final ui = getUiState(lineNumber);
+    return ui == LineUiState.blocked ||
+        ui == LineUiState.pendingHandoverIncoming ||
+        ui == LineUiState.waitingForThermoforming ||
+        ui == LineUiState.needsPalletizerAuth;
+  }
+
+  /// Single source of truth for the per-line UI branch. Existing blocked /
+  /// handover / inactive states always take precedence over the new waiting
+  /// card so a real failure never gets masked as "waiting for the operator".
+  LineUiState getUiState(int lineNumber) {
+    if ((_blockedReasons[lineNumber] ?? '').isNotEmpty) {
+      return LineUiState.blocked;
+    }
+    final mode = _lineUiModes[lineNumber];
+    if (mode == 'PENDING_HANDOVER_NEEDS_INCOMING') {
+      return LineUiState.pendingHandoverIncoming;
+    }
+    if (mode == 'PENDING_HANDOVER_REVIEW') {
+      return LineUiState.pendingHandoverReview;
+    }
+    final lineState = _lineStates[lineNumber];
+    if (lineState == null || !lineState.isAuthorized) {
+      return LineUiState.waitingForThermoforming;
+    }
+    if (!hasActivePalletizerSession(lineNumber)) {
+      return LineUiState.needsPalletizerAuth;
+    }
+    return LineUiState.active;
   }
 
   int? getLineIdForNumber(int lineNumber) {
-    final line = _productionLines
+    final fromList = _productionLines
         .where((l) => l.lineNumber == lineNumber)
         .firstOrNull;
-    return line?.id ?? _lineAuthorizations[lineNumber]?.lineId;
+    return fromList?.id ?? _lineStates[lineNumber]?.lineId;
   }
 
   // ── Bootstrap ──
@@ -153,36 +209,11 @@ class PalletizingProvider extends ChangeNotifier {
       _productTypes = bootstrap.productTypes;
       _productionLines = bootstrap.productionLines;
 
-      // Hydrate per-line state from bootstrap
       for (final lineState in bootstrap.lines) {
-        final ln = lineState.lineNumber;
-
-        _lineAuthorizations[ln] = LineAuthorizationState(
-          lineId: lineState.lineId,
-          lineNumber: ln,
-          isAuthorized: lineState.isAuthorized,
-          operator: lineState.authorizedOperator,
-          authorizedAt: lineState.authorizedAt,
-        );
-
-        _sessionTables[ln] = lineState.sessionTable;
-        _pendingHandovers[ln] = lineState.pendingHandover;
-        _blockedReasons[ln] = lineState.blockedReason;
-        _lineUiModes[ln] = lineState.lineUiMode;
-        _canInitiateHandovers[ln] = lineState.canInitiateHandover;
-        _canConfirmHandovers[ln] = lineState.canConfirmHandover;
-        _canRejectHandovers[ln] = lineState.canRejectHandover;
-        _hasOpenFalet[ln] = lineState.hasOpenFalet;
-        _openFaletCount[ln] = lineState.openFaletCount;
-
-        // Server-authoritative current product — resolve full ProductType
-        _selectedProductTypes[ln] = _resolveProductType(lineState);
+        _hydrateLineState(lineState.lineNumber, lineState);
       }
 
-      // Fetch full handover details for lines in review mode.
-      // Bootstrap only contains a condensed LineHandoverSummary that lacks
-      // incompletePallet and looseBalances — the review screen needs the
-      // full LineHandoverResponse from GET /handover/pending.
+      // Fetch full handover details for lines in review mode (existing behavior).
       for (final lineState in bootstrap.lines) {
         if (lineState.lineUiMode == 'PENDING_HANDOVER_REVIEW') {
           try {
@@ -200,6 +231,15 @@ class PalletizingProvider extends ChangeNotifier {
         }
       }
 
+      // For every authorized line, sync the palletizer session from the
+      // backend + secure storage so cold start lands directly in State C
+      // when a session is still alive.
+      await Future.wait(
+        bootstrap.lines
+            .where((l) => l.isAuthorized)
+            .map((l) => refreshPalletizerSession(l.lineNumber)),
+      );
+
       _state = PalletizingState.loaded;
     } on ApiException catch (e) {
       _errorMessage = e.displayMessage;
@@ -216,102 +256,6 @@ class PalletizingProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  // ── Line Authorization ──
-
-  Future<bool> authorizeLineWithPin(int lineNumber, String pin) async {
-    final lineId = getLineIdForNumber(lineNumber);
-    if (lineId == null) return false;
-
-    // Set authorizing state
-    _lineAuthorizations[lineNumber] =
-        (_lineAuthorizations[lineNumber] ??
-                LineAuthorizationState.unauthorized(
-                  lineId: lineId,
-                  lineNumber: lineNumber,
-                ))
-            .copyWith(isAuthorizing: true, clearAuthError: true);
-    notifyListeners();
-
-    try {
-      final authState = await _repository.authorizeLine(
-        lineId: lineId,
-        pin: pin,
-      );
-
-      _lineAuthorizations[lineNumber] = LineAuthorizationState(
-        lineId: authState.lineId,
-        lineNumber: lineNumber,
-        isAuthorized: authState.isAuthorized,
-        operator: authState.operator,
-        authorizedAt: authState.authorizedAt,
-        isAuthorizing: false,
-      );
-
-      // Refresh line data without overwriting the auth state we just set.
-      // Do NOT optimistically set lineUiMode — the backend computes the
-      // correct mode (e.g. PENDING_HANDOVER_REVIEW when a pending handover
-      // exists, not AUTHORIZED).
-      await _refreshLineStateFromBackend(
-        lineNumber,
-        lineId,
-        preserveAuth: true,
-      );
-
-      notifyListeners();
-      return true;
-    } on ApiException catch (e) {
-      _lineAuthorizations[lineNumber] =
-          (_lineAuthorizations[lineNumber] ??
-                  LineAuthorizationState.unauthorized(
-                    lineId: lineId,
-                    lineNumber: lineNumber,
-                  ))
-              .copyWith(
-                isAuthorizing: false,
-                authError: e.displayMessage,
-                authErrorCode: e.code,
-              );
-      notifyListeners();
-      return false;
-    } catch (e) {
-      _lineAuthorizations[lineNumber] =
-          (_lineAuthorizations[lineNumber] ??
-                  LineAuthorizationState.unauthorized(
-                    lineId: lineId,
-                    lineNumber: lineNumber,
-                  ))
-              .copyWith(
-                isAuthorizing: false,
-                authError: 'فشل في التحقق من الرمز',
-              );
-      notifyListeners();
-      return false;
-    }
-  }
-
-  void clearLineAuthError(int lineNumber) {
-    final current = _lineAuthorizations[lineNumber];
-    if (current != null) {
-      _lineAuthorizations[lineNumber] = current.copyWith(clearAuthError: true);
-      notifyListeners();
-    }
-  }
-
-  /// Revoke line authorization to trigger the PIN overlay again
-  void revokeLineAuthorization(int lineNumber) {
-    final lineId = getLineIdForNumber(lineNumber);
-    if (lineId == null) return;
-    _lineAuthorizations[lineNumber] = LineAuthorizationState.unauthorized(
-      lineId: lineId,
-      lineNumber: lineNumber,
-    );
-    _lineUiModes[lineNumber] = 'NEEDS_AUTHORIZATION';
-    _canInitiateHandovers[lineNumber] = false;
-    _canConfirmHandovers[lineNumber] = false;
-    _canRejectHandovers[lineNumber] = false;
-    notifyListeners();
-  }
-
   // ── Refresh single line state ──
 
   Future<void> refreshLineState(int lineNumber) async {
@@ -321,53 +265,11 @@ class PalletizingProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> _refreshLineStateFromBackend(
-    int lineNumber,
-    int lineId, {
-    bool preserveAuth = false,
-  }) async {
+  Future<void> _refreshLineStateFromBackend(int lineNumber, int lineId) async {
     try {
       final lineState = await _repository.getLineState(lineId);
+      _hydrateLineState(lineNumber, lineState);
 
-      if (preserveAuth) {
-        // Keep the existing auth state (e.g. just-authorized) and only update line data
-        final existing = _lineAuthorizations[lineNumber];
-        if (existing != null && existing.isAuthorized) {
-          _lineAuthorizations[lineNumber] = LineAuthorizationState(
-            lineId: existing.lineId,
-            lineNumber: lineNumber,
-            isAuthorized: existing.isAuthorized,
-            operator: existing.operator,
-            authorizedAt: existing.authorizedAt,
-          );
-        }
-      } else {
-        _lineAuthorizations[lineNumber] = LineAuthorizationState(
-          lineId: lineState.lineId,
-          lineNumber: lineNumber,
-          isAuthorized: lineState.isAuthorized,
-          operator: lineState.authorizedOperator,
-          authorizedAt: lineState.authorizedAt,
-        );
-      }
-
-      _sessionTables[lineNumber] = lineState.sessionTable;
-      _pendingHandovers[lineNumber] = lineState.pendingHandover;
-      _blockedReasons[lineNumber] = lineState.blockedReason;
-      _lineUiModes[lineNumber] = lineState.lineUiMode;
-      _canInitiateHandovers[lineNumber] = lineState.canInitiateHandover;
-      _canConfirmHandovers[lineNumber] = lineState.canConfirmHandover;
-      _canRejectHandovers[lineNumber] = lineState.canRejectHandover;
-
-      // Server-authoritative current product — resolve full ProductType
-      _selectedProductTypes[lineNumber] = _resolveProductType(lineState);
-
-      _hasOpenFalet[lineNumber] = lineState.hasOpenFalet;
-      _openFaletCount[lineNumber] = lineState.openFaletCount;
-
-      // In PENDING_HANDOVER_REVIEW mode the line state only contains a
-      // summary — fetch the full handover details so the review card can
-      // display complete information.
       if (lineState.lineUiMode == 'PENDING_HANDOVER_REVIEW') {
         try {
           final fullHandover = await _repository.getLineHandover(lineId);
@@ -380,29 +282,31 @@ class PalletizingProvider extends ChangeNotifier {
           );
         }
       }
+
+      // Re-sync the palletizer session whenever line state changes so we drop
+      // back to State B if the backend ended the session (e.g. shift-line ended).
+      if (lineState.isAuthorized) {
+        await refreshPalletizerSession(lineNumber);
+      } else {
+        // Line was de-authorized — the bound palletizer session is gone too.
+        await _dropToStateB(lineNumber);
+      }
     } catch (e) {
       debugPrint('Failed to refresh line $lineNumber state: $e');
     }
   }
 
-  // ── Product selection (server-authoritative) ──
-
-  /// Resolve a full ProductType from a BootstrapLineState, preferring the
-  /// local reference list (which has complete labels/images) over the
-  /// possibly-minimal object in the response.
   ProductType? _resolveProductType(BootstrapLineState lineState) {
     final id = lineState.currentProductTypeId;
     if (id != null) {
-      // Try to find the full object in our reference list
       final match = _productTypes.where((p) => p.id == id).firstOrNull;
       if (match != null) return match;
     }
-    // Fall back to whatever the model parsed (may be full or minimal)
     return lineState.selectedProductType;
   }
 
-  /// Hydrate all per-line state maps from a BootstrapLineState response.
   void _hydrateLineState(int lineNumber, BootstrapLineState lineState) {
+    _lineStates[lineNumber] = lineState;
     _sessionTables[lineNumber] = lineState.sessionTable;
     _pendingHandovers[lineNumber] = lineState.pendingHandover;
     _blockedReasons[lineNumber] = lineState.blockedReason;
@@ -413,90 +317,138 @@ class PalletizingProvider extends ChangeNotifier {
     _hasOpenFalet[lineNumber] = lineState.hasOpenFalet;
     _openFaletCount[lineNumber] = lineState.openFaletCount;
     _selectedProductTypes[lineNumber] = _resolveProductType(lineState);
+    _palletizerSessions[lineNumber] ??= PalletizerSessionState.empty(
+      lineNumber,
+    );
   }
 
-  /// First-time product selection — calls POST /select-product.
-  /// Returns true on success or if the product was already set (auto-refresh).
-  Future<bool> selectProductOnLine({
-    required int lineNumber,
-    required int productTypeId,
-  }) async {
+  // ── Palletizer auth ──
+
+  Future<bool> palletizerAuth(int lineNumber, String pin) async {
     final lineId = getLineIdForNumber(lineNumber);
     if (lineId == null) return false;
 
-    _lineSwitchingProduct[lineNumber] = true;
+    _palletizerSessions[lineNumber] =
+        (_palletizerSessions[lineNumber] ??
+                PalletizerSessionState.empty(lineNumber))
+            .copyWith(isAuthenticating: true, clearAuthError: true);
     notifyListeners();
 
     try {
-      final lineState = await _repository.selectProduct(
-        lineId: lineId,
-        productTypeId: productTypeId,
+      final result = await _repository.palletizerAuth(lineId: lineId, pin: pin);
+
+      // Persist the raw token ONCE — namespaced by backend lineId.
+      await _authStorage.savePalletizerSessionToken(
+        lineId,
+        result.sessionToken,
       );
-      _hydrateLineState(lineNumber, lineState);
-      _lineSwitchingProduct[lineNumber] = false;
+
+      _palletizerSessions[lineNumber] = PalletizerSessionState(
+        lineNumber: lineNumber,
+        session: result.session,
+      );
+
+      // Refresh line state to pick up any backend-side changes (operator name,
+      // handover transitions, etc.) — but don't let it stomp the session we
+      // just stored.
+      try {
+        final lineState = await _repository.getLineState(lineId);
+        _hydrateLineState(lineNumber, lineState);
+      } catch (e) {
+        debugPrint('Post-auth line refresh error (line $lineNumber): $e');
+      }
+
       notifyListeners();
       return true;
     } on ApiException catch (e) {
-      _lineSwitchingProduct[lineNumber] = false;
-      if (e.code == 'PRODUCT_ALREADY_SELECTED') {
-        // Another device already set it — refresh to get the real state
-        await refreshLineState(lineNumber);
-        return false;
-      }
-      _lineErrors[lineNumber] = e.displayMessage;
+      _palletizerSessions[lineNumber] = PalletizerSessionState(
+        lineNumber: lineNumber,
+        isAuthenticating: false,
+        authError: e.displayMessage,
+        authErrorCode: e.code,
+      );
       notifyListeners();
       return false;
     } catch (e) {
-      debugPrint('SelectProduct error (line $lineNumber): $e');
-      _lineErrors[lineNumber] = 'فشل في اختيار المنتج';
-      _lineSwitchingProduct[lineNumber] = false;
+      _palletizerSessions[lineNumber] = PalletizerSessionState(
+        lineNumber: lineNumber,
+        isAuthenticating: false,
+        authError: 'فشل في التحقق من الرمز',
+      );
       notifyListeners();
       return false;
     }
   }
 
-  // ── Product switch with loose balance ──
-
-  Future<bool> switchProduct({
-    required int lineNumber,
-    required int previousProductTypeId,
-    required int newProductTypeId,
-    required int looseCount,
-  }) async {
+  /// Fetches the current palletizer session from the backend for a given line.
+  /// On 404 / PALLETIZER_SESSION_REQUIRED, drops the line to State B and
+  /// clears the locally stored token.
+  Future<void> refreshPalletizerSession(int lineNumber) async {
     final lineId = getLineIdForNumber(lineNumber);
-    if (lineId == null) return false;
-
-    _lineSwitchingProduct[lineNumber] = true;
-    notifyListeners();
+    if (lineId == null) return;
 
     try {
-      final lineState = await _repository.switchProduct(
-        lineId: lineId,
-        previousProductTypeId: previousProductTypeId,
-        newProductTypeId: newProductTypeId,
-        looseCount: looseCount,
+      final session = await _repository.getCurrentPalletizerSession(lineId);
+      _palletizerSessions[lineNumber] = PalletizerSessionState(
+        lineNumber: lineNumber,
+        session: session,
       );
-
-      _hydrateLineState(lineNumber, lineState);
-      _lineSwitchingProduct[lineNumber] = false;
       notifyListeners();
-      return true;
     } on ApiException catch (e) {
-      _lineSwitchingProduct[lineNumber] = false;
-      if (e.code == 'CURRENT_PRODUCT_MISMATCH' ||
-          e.code == 'NO_CURRENT_PRODUCT') {
-        // Stale state — refresh from server
-        await refreshLineState(lineNumber);
+      if (e.code == 'PALLETIZER_SESSION_REQUIRED') {
+        await _dropToStateB(lineNumber);
+      } else {
+        debugPrint(
+          'refreshPalletizerSession error (line $lineNumber): ${e.code} - ${e.message}',
+        );
       }
-      _lineErrors[lineNumber] = e.displayMessage;
-      notifyListeners();
-      return false;
     } catch (e) {
-      debugPrint('ProductSwitch error (line $lineNumber): $e');
-      _lineErrors[lineNumber] = 'فشل في تبديل المنتج';
-      _lineSwitchingProduct[lineNumber] = false;
+      debugPrint(
+        'refreshPalletizerSession unexpected error (line $lineNumber): $e',
+      );
+    }
+  }
+
+  Future<void> palletizerLogout(int lineNumber) async {
+    final lineId = getLineIdForNumber(lineNumber);
+    if (lineId == null) return;
+
+    final token = await _authStorage.getPalletizerSessionToken(lineId);
+    if (token != null && token.isNotEmpty) {
+      try {
+        await _repository.palletizerLogout(lineId: lineId, sessionToken: token);
+      } on ApiException catch (e) {
+        // Idempotent — any flavor of session-required is treated as success.
+        if (e.code != 'PALLETIZER_SESSION_REQUIRED') {
+          debugPrint(
+            'palletizerLogout error (line $lineNumber): ${e.code} - ${e.message}',
+          );
+        }
+      } catch (e) {
+        debugPrint('palletizerLogout unexpected error (line $lineNumber): $e');
+      }
+    }
+
+    await _dropToStateB(lineNumber);
+  }
+
+  /// Clears the local session + secure-storage token and notifies listeners.
+  /// Used by logout, by PALLETIZER_SESSION_REQUIRED interception, and by line
+  /// de-authorization (operator ended the shift-line).
+  Future<void> _dropToStateB(int lineNumber) async {
+    final lineId = getLineIdForNumber(lineNumber);
+    if (lineId != null) {
+      await _authStorage.clearPalletizerSessionToken(lineId);
+    }
+    _palletizerSessions[lineNumber] = PalletizerSessionState.empty(lineNumber);
+    notifyListeners();
+  }
+
+  void clearPalletizerAuthError(int lineNumber) {
+    final current = _palletizerSessions[lineNumber];
+    if (current != null && current.authError != null) {
+      _palletizerSessions[lineNumber] = current.copyWith(clearAuthError: true);
       notifyListeners();
-      return false;
     }
   }
 
@@ -523,7 +475,6 @@ class PalletizingProvider extends ChangeNotifier {
 
       _lastPalletResponses[lineNumber] = response;
 
-      // Update selected product to match the response
       final matchIndex = _productTypes.indexWhere(
         (p) => p.id == response.productType.id,
       );
@@ -531,7 +482,6 @@ class PalletizingProvider extends ChangeNotifier {
           ? _productTypes[matchIndex]
           : response.productType;
 
-      // Refresh line state from backend
       await _refreshLineStateFromBackend(lineNumber, lineId);
 
       _lineCreating[lineNumber] = false;
@@ -544,6 +494,11 @@ class PalletizingProvider extends ChangeNotifier {
       debugPrint(
         'PalletizingProvider createPallet API error: ${e.code} - ${e.message}',
       );
+      // Backend will reject pallet creation when no palletizer session exists —
+      // surface that to the UI by dropping to State B.
+      if (e.code == 'PALLETIZER_SESSION_REQUIRED') {
+        await _dropToStateB(lineNumber);
+      }
       rethrow;
     } catch (e) {
       _lineCreating[lineNumber] = false;
@@ -592,7 +547,7 @@ class PalletizingProvider extends ChangeNotifier {
     return await _repository.getSessionProductionDetail(lineId);
   }
 
-  // ── Line handover ──
+  // ── Line handover (unchanged surface) ──
 
   Future<LineHandoverInfo?> createLineHandover(
     int lineNumber, {
@@ -614,9 +569,6 @@ class PalletizingProvider extends ChangeNotifier {
       );
       _pendingHandovers[lineNumber] = handover;
 
-      // Refresh full line state from backend — the backend releases the
-      // outgoing operator's authorization when a handover is created, so
-      // lineUiMode will transition to PENDING_HANDOVER_NEEDS_INCOMING.
       await _refreshLineStateFromBackend(lineNumber, lineId);
 
       notifyListeners();
@@ -645,7 +597,6 @@ class PalletizingProvider extends ChangeNotifier {
 
       _pendingHandovers[lineNumber] = null;
 
-      // Refresh line state after handover confirmation
       await _refreshLineStateFromBackend(lineNumber, lineId);
       notifyListeners();
     } on ApiException catch (e) {
@@ -684,7 +635,6 @@ class PalletizingProvider extends ChangeNotifier {
 
       _pendingHandovers[lineNumber] = null;
 
-      // Refresh FALET items and line state after handover rejection
       await Future.wait([
         fetchFaletItems(lineNumber),
         _refreshLineStateFromBackend(lineNumber, lineId),
@@ -697,7 +647,7 @@ class PalletizingProvider extends ChangeNotifier {
     }
   }
 
-  // ── FALET Items ──
+  // ── FALET Items (unchanged surface) ──
 
   Future<void> fetchFaletItems(int lineNumber) async {
     final lineId = getLineIdForNumber(lineNumber);
@@ -709,7 +659,6 @@ class PalletizingProvider extends ChangeNotifier {
     try {
       final result = await _repository.getFaletItems(lineId);
       _faletItems[lineNumber] = result;
-      // Keep open-falet indicators in sync with fetched data
       _hasOpenFalet[lineNumber] = result.hasOpenFalet;
       _openFaletCount[lineNumber] = result.totalOpenFaletCount;
     } on ApiException catch (e) {
@@ -739,7 +688,6 @@ class PalletizingProvider extends ChangeNotifier {
         additionalFreshQuantity: additionalFreshQuantity,
       );
 
-      // Refresh FALET items and line state
       await Future.wait([
         fetchFaletItems(lineNumber),
         _refreshLineStateFromBackend(lineNumber, lineId),
@@ -768,7 +716,6 @@ class PalletizingProvider extends ChangeNotifier {
         reason: reason,
       );
 
-      // Refresh FALET items and line state
       await Future.wait([
         fetchFaletItems(lineNumber),
         _refreshLineStateFromBackend(lineNumber, lineId),
@@ -819,17 +766,16 @@ class PalletizingProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  // ── FALET existence polling ──
+  // ── FALET existence + line monitoring polling ──
 
-  /// Lightweight check for a single line — uses the GET /falet/exists endpoint.
-  /// Silently updates _hasOpenFalet and _openFaletCount maps.
   Future<void> checkFaletExists(int lineNumber) async {
     final lineId = getLineIdForNumber(lineNumber);
     if (lineId == null) return;
 
     try {
       final result = await _repository.checkFaletExists(lineId);
-      final changed = _hasOpenFalet[lineNumber] != result.hasOpenFalet ||
+      final changed =
+          _hasOpenFalet[lineNumber] != result.hasOpenFalet ||
           _openFaletCount[lineNumber] != result.openFaletCount;
       if (changed) {
         _hasOpenFalet[lineNumber] = result.hasOpenFalet;
@@ -837,24 +783,37 @@ class PalletizingProvider extends ChangeNotifier {
         notifyListeners();
       }
     } catch (e) {
-      // Silently ignore polling errors — don't disrupt the UI
       debugPrint('checkFaletExists poll error (line $lineNumber): $e');
     }
   }
 
-  /// Poll FALET existence for ALL authorized lines in parallel.
-  /// Designed to be called from a periodic timer (e.g. every 30s).
-  Future<void> pollAllLinesFaletStatus() async {
-    final authorizedLines = _lineAuthorizations.entries
-        .where((e) => e.value.isAuthorized)
-        .map((e) => e.key)
-        .toList();
+  /// Combined poll fired from a periodic timer (~15s):
+  ///   - For every authorized line, lightly check FALET existence.
+  ///   - For every line in `waitingForThermoforming`, refresh full line state
+  ///     so the waiting card flips to State B as soon as the operator opens
+  ///     the line from the Thermoforming app.
+  Future<void> pollLineMonitoring() async {
+    final futures = <Future<void>>[];
 
-    if (authorizedLines.isEmpty) return;
+    final lineNumbers = <int>{
+      ..._lineStates.keys,
+      ..._productionLines.map((l) => l.lineNumber),
+    };
 
-    await Future.wait(
-      authorizedLines.map((lineNumber) => checkFaletExists(lineNumber)),
-    );
+    for (final lineNumber in lineNumbers) {
+      final ui = getUiState(lineNumber);
+      if (ui == LineUiState.waitingForThermoforming) {
+        final lineId = getLineIdForNumber(lineNumber);
+        if (lineId != null) {
+          futures.add(_refreshLineStateFromBackend(lineNumber, lineId));
+        }
+      } else if (isLineAuthorized(lineNumber)) {
+        futures.add(checkFaletExists(lineNumber));
+      }
+    }
+
+    if (futures.isEmpty) return;
+    await Future.wait(futures);
   }
 
   // ── Error management ──

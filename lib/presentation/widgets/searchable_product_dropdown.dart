@@ -21,7 +21,8 @@ class SearchableProductDropdown extends StatefulWidget {
   });
 
   @override
-  State<SearchableProductDropdown> createState() => _SearchableProductDropdownState();
+  State<SearchableProductDropdown> createState() =>
+      _SearchableProductDropdownState();
 }
 
 class _SearchableProductDropdownState extends State<SearchableProductDropdown> {
@@ -76,7 +77,8 @@ class _SearchableProductDropdownState extends State<SearchableProductDropdown> {
           final nameLower = product.name.toLowerCase();
           final codeLower = product.itemCode.toLowerCase();
           final queryLower = query.toLowerCase();
-          return nameLower.contains(queryLower) || codeLower.contains(queryLower);
+          return nameLower.contains(queryLower) ||
+              codeLower.contains(queryLower);
         }).toList();
       }
     });
@@ -109,7 +111,9 @@ class _SearchableProductDropdownState extends State<SearchableProductDropdown> {
               decoration: BoxDecoration(
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: widget.borderColor.withValues(alpha: 0.3)),
+                border: Border.all(
+                  color: widget.borderColor.withValues(alpha: 0.3),
+                ),
               ),
               child: _filteredProducts.isEmpty
                   ? Padding(
@@ -129,7 +133,8 @@ class _SearchableProductDropdownState extends State<SearchableProductDropdown> {
                       itemCount: _filteredProducts.length,
                       itemBuilder: (context, index) {
                         final product = _filteredProducts[index];
-                        final isSelected = widget.selectedProduct?.id == product.id;
+                        final isSelected =
+                            widget.selectedProduct?.id == product.id;
                         return InkWell(
                           onTap: () {
                             widget.onChanged(product);
@@ -151,8 +156,12 @@ class _SearchableProductDropdownState extends State<SearchableProductDropdown> {
                                   product.itemCode,
                                   style: GoogleFonts.cairo(
                                     fontSize: itemCodeFontSize,
-                                    fontWeight: isSelected ? FontWeight.bold : FontWeight.w600,
-                                    color: isSelected ? widget.borderColor : Colors.black87,
+                                    fontWeight: isSelected
+                                        ? FontWeight.bold
+                                        : FontWeight.w600,
+                                    color: isSelected
+                                        ? widget.borderColor
+                                        : Colors.black87,
                                   ),
                                 ),
                                 Text(

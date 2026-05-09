@@ -77,14 +77,13 @@ class FirstPalletSuggestionCard extends StatelessWidget {
     return Container(
       padding: EdgeInsets.all(isMobile ? 14 : 18),
       decoration: BoxDecoration(
-        color: (isSameSession ? Colors.blue : Colors.green)
-            .withValues(alpha: 0.1),
+        color: (isSameSession ? Colors.blue : Colors.green).withValues(
+          alpha: 0.1,
+        ),
         shape: BoxShape.circle,
       ),
       child: Icon(
-        isSameSession
-            ? Icons.replay_rounded
-            : Icons.swap_horiz_rounded,
+        isSameSession ? Icons.replay_rounded : Icons.swap_horiz_rounded,
         color: isSameSession ? Colors.blue.shade600 : Colors.green.shade600,
         size: isMobile ? 36 : 44,
       ),

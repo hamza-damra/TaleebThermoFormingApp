@@ -19,7 +19,8 @@ class ReconciledFaletItemModel extends ReconciledFaletItem {
       productTypeId: json['productTypeId'] as int,
       productTypeName: json['productTypeName'] as String? ?? '',
       reconciledQuantity: json['reconciledQuantity'] as int? ?? 0,
-      resolutionType: json['resolutionType'] as String? ?? 'PALLET_RECONCILIATION',
+      resolutionType:
+          json['resolutionType'] as String? ?? 'PALLET_RECONCILIATION',
     );
   }
 }

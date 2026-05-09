@@ -486,9 +486,7 @@ class _ConvertFaletToPalletDialogState
     final freshQty = _addFresh ? _freshValue : 0;
 
     if (_addFresh && freshQty <= 0) {
-      setState(
-        () => _validationError = 'يرجى إدخال كمية إضافية أكبر من صفر',
-      );
+      setState(() => _validationError = 'يرجى إدخال كمية إضافية أكبر من صفر');
       return;
     }
 

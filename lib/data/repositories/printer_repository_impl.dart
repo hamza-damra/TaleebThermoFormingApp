@@ -49,7 +49,7 @@ class PrinterRepositoryImpl implements PrinterRepository {
   @override
   Future<void> setDefault(String id) async {
     final printers = getAll();
-    
+
     for (final printer in printers) {
       final shouldBeDefault = printer.id == id;
       if (printer.isDefault != shouldBeDefault) {

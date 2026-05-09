@@ -10,7 +10,6 @@ import '../../domain/entities/falet_resolution_entry.dart';
 import '../../domain/entities/handover_falet_action.dart';
 import '../../domain/entities/first_pallet_suggestion.dart';
 import '../../domain/entities/line_handover_info.dart';
-// pending_last_active_falet.dart removed — no longer needed after resolution dialog removal
 import '../../domain/entities/product_type.dart';
 import '../../domain/entities/production_line.dart' as entity;
 import '../providers/palletizing_provider.dart';
@@ -18,17 +17,14 @@ import 'create_pallet_dialog.dart';
 import 'handover_creation_dialog.dart';
 import 'handover_confirm_dialog.dart';
 import 'handover_reject_dialog.dart';
-import 'line_auth_overlay.dart';
+import 'line_context_strip.dart';
 import 'line_handover_card.dart';
-import 'pallet_success_dialog.dart';
-import 'product_switch_dialog.dart';
-import 'product_type_image.dart';
-import 'searchable_picker_dialog.dart';
-
 import 'mandatory_falet_pallet_dialog.dart';
-// falet_resolution_dialog.dart removed — FALET items auto carry-forward
+import 'pallet_success_dialog.dart';
+import 'palletizer_pin_screen.dart';
 import 'falet_screen.dart';
 import 'session_table_widget.dart';
+import 'thermoforming_waiting_card.dart';
 
 class ProductionLineSection extends StatelessWidget {
   final ProductionLine line;
@@ -46,19 +42,11 @@ class ProductionLineSection extends StatelessWidget {
     final isMobile = ResponsiveHelper.isMobile(context);
     final horizontalPadding = isMobile ? 16.0 : 24.0;
     final bottomPadding = MediaQuery.of(context).padding.bottom;
-    // Use lineUiMode as the single source of truth for which UI to render
-    final lineUiMode = provider.getLineUiMode(line.number);
-    final showPinOverlay =
-        lineUiMode == 'NEEDS_AUTHORIZATION' ||
-        (lineUiMode == null && !provider.isLineAuthorized(line.number));
-    final showPendingHandoverIncoming =
-        lineUiMode == 'PENDING_HANDOVER_NEEDS_INCOMING';
-
-    final isHandoverReview = lineUiMode == 'PENDING_HANDOVER_REVIEW';
+    final uiState = provider.getUiState(line.number);
+    final isHandoverReview = uiState == LineUiState.pendingHandoverReview;
 
     return Stack(
       children: [
-        // Main content
         Container(
           color: line.lightColor,
           child: SafeArea(
@@ -73,7 +61,6 @@ class ProductionLineSection extends StatelessWidget {
                   )
                 : Column(
                     children: [
-                      // Scrollable content area
                       Expanded(
                         child: SingleChildScrollView(
                           physics: const AlwaysScrollableScrollPhysics(),
@@ -89,7 +76,6 @@ class ProductionLineSection extends StatelessWidget {
                                   _buildHeader(context),
                                   const SizedBox(height: 32),
                                 ],
-                                // Top action buttons row (فالت + تسليم مناوبة)
                                 _buildTopActionButtons(
                                   context,
                                   provider,
@@ -97,7 +83,6 @@ class ProductionLineSection extends StatelessWidget {
                                 ),
                                 _buildFormCard(context),
                                 SizedBox(height: isMobile ? 20 : 28),
-                                // Pending handover card (from backend state)
                                 if (provider
                                         .getPendingHandover(line.number)
                                         ?.isPending ??
@@ -115,7 +100,6 @@ class ProductionLineSection extends StatelessWidget {
                                   ),
                                   SizedBox(height: isMobile ? 20 : 28),
                                 ],
-                                // Session table (replaces old summary card)
                                 _buildSessionTable(context),
                                 SizedBox(height: isMobile ? 24 : 32),
                               ],
@@ -123,7 +107,6 @@ class ProductionLineSection extends StatelessWidget {
                           ),
                         ),
                       ),
-                      // Fixed bottom button
                       Container(
                         decoration: BoxDecoration(
                           color: Colors.white,
@@ -150,12 +133,14 @@ class ProductionLineSection extends StatelessWidget {
           ),
         ),
 
-        // Per-line auth overlay — controlled by backend-driven lineUiMode only
-        if (showPinOverlay) LineAuthOverlay(line: line),
-
-        // Pending handover needs incoming operator — show PIN overlay for incoming
-        if (showPendingHandoverIncoming && !showPinOverlay)
-          LineAuthOverlay(line: line),
+        // Per-line state overlays. Existing blocked / handover-incoming /
+        // handover-review states still take precedence over the new waiting
+        // / palletizer-PIN overlays — the waiting card never masks a real
+        // failure mode.
+        if (uiState == LineUiState.waitingForThermoforming)
+          ThermoformingWaitingCard(line: line),
+        if (uiState == LineUiState.needsPalletizerAuth)
+          PalletizerPinScreen(line: line),
       ],
     );
   }
@@ -325,90 +310,7 @@ class ProductionLineSection extends StatelessWidget {
       ),
       child: Padding(
         padding: EdgeInsets.all(isMobile ? 20 : 28),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            _buildAuthorizedOperatorCard(context),
-            SizedBox(height: isMobile ? 20 : 28),
-            _buildProductField(context),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildAuthorizedOperatorCard(BuildContext context) {
-    final provider = context.watch<PalletizingProvider>();
-    final isMobile = ResponsiveHelper.isMobile(context);
-    final operator = provider.getAuthorizedOperator(line.number);
-    final authState = provider.getLineAuth(line.number);
-    final isAuthorized = provider.isLineAuthorized(line.number);
-    // When authorized but operator object may be null, show "مشغل مفوض" rather than "لا يوجد"
-    final hasActiveOperator = isAuthorized || operator != null;
-
-    return _buildFieldContainer(
-      context: context,
-      label: 'المشغل المسؤول',
-      icon: Icons.person_outline_rounded,
-      child: Container(
-        padding: EdgeInsets.symmetric(
-          horizontal: isMobile ? 16 : 20,
-          vertical: isMobile ? 14 : 18,
-        ),
-        decoration: BoxDecoration(
-          color: hasActiveOperator
-              ? line.color.withValues(alpha: 0.05)
-              : Colors.grey.shade50,
-          border: Border.all(
-            color: hasActiveOperator
-                ? line.color.withValues(alpha: 0.3)
-                : Colors.grey.shade200,
-          ),
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: Row(
-          children: [
-            // Status indicator
-            Container(
-              width: isMobile ? 10 : 12,
-              height: isMobile ? 10 : 12,
-              decoration: BoxDecoration(
-                color: hasActiveOperator
-                    ? Colors.green.shade400
-                    : Colors.grey.shade400,
-                shape: BoxShape.circle,
-              ),
-            ),
-            SizedBox(width: isMobile ? 12 : 16),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    operator?.displayLabel ??
-                        (isAuthorized ? 'مشغل مفوض' : 'لا يوجد مشغل مفوض'),
-                    style: GoogleFonts.cairo(
-                      fontSize: isMobile ? 15 : 17,
-                      fontWeight: FontWeight.w600,
-                      color: hasActiveOperator
-                          ? Colors.black87
-                          : Colors.grey.shade400,
-                    ),
-                  ),
-                  if (hasActiveOperator && authState?.authorizedAt != null)
-                    Text(
-                      'تم التفويض',
-                      style: GoogleFonts.cairo(
-                        fontSize: isMobile ? 12 : 13,
-                        color: Colors.green.shade600,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                ],
-              ),
-            ),
-          ],
-        ),
+        child: LineContextStrip(line: line),
       ),
     );
   }
@@ -466,447 +368,6 @@ class ProductionLineSection extends StatelessWidget {
               ),
             ),
         ],
-      ),
-    );
-  }
-
-  Widget _buildProductField(BuildContext context) {
-    final provider = context.watch<PalletizingProvider>();
-    final isMobile = ResponsiveHelper.isMobile(context);
-    final selectedProductType = provider.getSelectedProductType(line.number);
-
-    if (provider.productTypes.isEmpty) {
-      return _buildFieldContainer(
-        context: context,
-        label: 'نوع المنتج',
-        icon: Icons.inventory_2_outlined,
-        child: _buildWarningBox(
-          context,
-          'لا يوجد أنواع منتجات - يرجى إضافتها من لوحة الإدارة',
-        ),
-      );
-    }
-
-    return _buildFieldContainer(
-      context: context,
-      label: 'نوع المنتج',
-      icon: Icons.inventory_2_outlined,
-      child: InkWell(
-        onTap: () async {
-          final selected = await SearchablePickerDialog.show<ProductType>(
-            context: context,
-            title: 'اختر نوع المنتج',
-            searchHint: 'ابحث عن المنتج...',
-            items: provider.productTypes,
-            selectedItem: selectedProductType,
-            displayTextExtractor: (pt) => pt.productName,
-            subtitleExtractor: (pt) => pt.description ?? '',
-            searchMatcher: (pt, query) {
-              final queryLower = query.toLowerCase();
-              return pt.name.toLowerCase().contains(queryLower) ||
-                  pt.productName.toLowerCase().contains(queryLower) ||
-                  pt.color.toLowerCase().contains(queryLower) ||
-                  pt.prefix.toLowerCase().contains(queryLower) ||
-                  pt.displayLabel.toLowerCase().contains(queryLower);
-            },
-            themeColor: line.color,
-          );
-          if (selected != null && context.mounted) {
-            await _handleProductSelection(context, selected);
-          }
-        },
-        borderRadius: BorderRadius.circular(12),
-        child: Container(
-          padding: EdgeInsets.symmetric(
-            horizontal: isMobile ? 16 : 20,
-            vertical: isMobile ? 18 : 22,
-          ),
-          decoration: BoxDecoration(
-            color: Colors.grey.shade50,
-            border: Border.all(color: Colors.grey.shade200),
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Row(
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      selectedProductType?.productName ?? 'اختر نوع المنتج',
-                      style: GoogleFonts.cairo(
-                        fontSize: isMobile ? 15 : 17,
-                        fontWeight: FontWeight.w500,
-                        color: selectedProductType != null
-                            ? Colors.black87
-                            : Colors.grey.shade400,
-                      ),
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    if (selectedProductType?.description != null &&
-                        selectedProductType!.description!.trim().isNotEmpty)
-                      Text(
-                        selectedProductType.description!,
-                        style: GoogleFonts.cairo(
-                          fontSize: isMobile ? 12 : 14,
-                          color: Colors.grey.shade600,
-                        ),
-                        overflow: TextOverflow.ellipsis,
-                        maxLines: 2,
-                      ),
-                  ],
-                ),
-              ),
-              Icon(
-                Icons.keyboard_arrow_down_rounded,
-                color: line.color,
-                size: isMobile ? 24 : 28,
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  /// Handles product selection with product-switch loose-balance flow
-  Future<void> _handleProductSelection(
-    BuildContext context,
-    ProductType newProduct,
-  ) async {
-    final provider = context.read<PalletizingProvider>();
-    final currentProduct = provider.getSelectedProductType(line.number);
-
-    // Same product — nothing to do
-    if (currentProduct != null && currentProduct.id == newProduct.id) {
-      return;
-    }
-
-    // First-time selection (no product set on line) — confirm then POST /select-product
-    if (currentProduct == null) {
-      final confirmed = await _showProductTypeConfirmationDialog(
-        context,
-        newProduct,
-      );
-      if (confirmed == true && context.mounted) {
-        final success = await provider.selectProductOnLine(
-          lineNumber: line.number,
-          productTypeId: newProduct.id,
-        );
-        if (!success && context.mounted) {
-          final error = provider.getLineError(line.number);
-          if (error != null) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(error, style: GoogleFonts.cairo()),
-                backgroundColor: Colors.red,
-              ),
-            );
-            provider.clearLineError(line.number);
-          }
-        }
-      }
-      return;
-    }
-
-    // Different product → product-switch dialog (loose balance flow)
-    if (!context.mounted) return;
-    final looseCount = await ProductSwitchDialog.show(
-      context: context,
-      previousProduct: currentProduct,
-      newProduct: newProduct,
-      themeColor: line.color,
-    );
-
-    if (looseCount == null || !context.mounted) return; // Cancelled
-
-    // Submit product switch to backend (provider hydrates state from response)
-    final success = await provider.switchProduct(
-      lineNumber: line.number,
-      previousProductTypeId: currentProduct.id,
-      newProductTypeId: newProduct.id,
-      looseCount: looseCount,
-    );
-
-    if (!success && context.mounted) {
-      final error = provider.getLineError(line.number);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            error ?? 'فشل في تبديل المنتج',
-            style: GoogleFonts.cairo(),
-          ),
-          backgroundColor: Colors.red,
-        ),
-      );
-      provider.clearLineError(line.number);
-    }
-  }
-
-  Widget _buildFieldContainer({
-    required BuildContext context,
-    required String label,
-    required IconData icon,
-    required Widget child,
-  }) {
-    final isMobile = ResponsiveHelper.isMobile(context);
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            Container(
-              padding: EdgeInsets.all(isMobile ? 6 : 8),
-              decoration: BoxDecoration(
-                color: line.color.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Icon(icon, color: line.color, size: isMobile ? 18 : 22),
-            ),
-            SizedBox(width: isMobile ? 10 : 12),
-            Text(
-              label,
-              style: GoogleFonts.cairo(
-                fontSize: isMobile ? 15 : 18,
-                fontWeight: FontWeight.w700,
-                color: Colors.black87,
-              ),
-            ),
-          ],
-        ),
-        SizedBox(height: isMobile ? 12 : 14),
-        child,
-      ],
-    );
-  }
-
-  Widget _buildWarningBox(BuildContext context, String message) {
-    final isMobile = ResponsiveHelper.isMobile(context);
-
-    return Container(
-      padding: EdgeInsets.all(isMobile ? 14 : 18),
-      decoration: BoxDecoration(
-        color: Colors.amber.shade50,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.amber.shade200),
-      ),
-      child: Row(
-        children: [
-          Icon(
-            Icons.warning_amber_rounded,
-            color: Colors.amber.shade700,
-            size: isMobile ? 22 : 26,
-          ),
-          SizedBox(width: isMobile ? 10 : 14),
-          Expanded(
-            child: Text(
-              message,
-              style: GoogleFonts.cairo(
-                fontSize: isMobile ? 13 : 15,
-                color: Colors.amber.shade900,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Future<bool?> _showProductTypeConfirmationDialog(
-    BuildContext context,
-    ProductType productType,
-  ) {
-    final isMobile = ResponsiveHelper.isMobile(context);
-
-    final screenHeight = MediaQuery.of(context).size.height;
-    final maxDialogHeight = screenHeight * 0.85;
-
-    return showDialog<bool>(
-      context: context,
-      builder: (context) => Dialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        child: Container(
-          constraints: BoxConstraints(
-            maxWidth: isMobile ? 340 : 420,
-            maxHeight: maxDialogHeight,
-          ),
-          padding: EdgeInsets.all(isMobile ? 20 : 28),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Flexible(
-                child: SingleChildScrollView(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Container(
-                        padding: EdgeInsets.all(isMobile ? 14 : 18),
-                        decoration: BoxDecoration(
-                          color: line.color.withValues(alpha: 0.1),
-                          shape: BoxShape.circle,
-                        ),
-                        child: Icon(
-                          Icons.help_outline_rounded,
-                          color: line.color,
-                          size: isMobile ? 36 : 44,
-                        ),
-                      ),
-                      SizedBox(height: isMobile ? 16 : 20),
-                      Text(
-                        'تأكيد نوع المنتج',
-                        style: GoogleFonts.cairo(
-                          fontWeight: FontWeight.bold,
-                          fontSize: isMobile ? 20 : 24,
-                          color: Colors.black87,
-                        ),
-                      ),
-                      SizedBox(height: isMobile ? 8 : 12),
-                      Text(
-                        'هل أنت متأكد من اختيار هذا المنتج؟',
-                        style: GoogleFonts.cairo(
-                          fontSize: isMobile ? 14 : 16,
-                          color: Colors.grey.shade600,
-                        ),
-                        textAlign: TextAlign.center,
-                      ),
-                      SizedBox(height: isMobile ? 20 : 28),
-                      _buildFullWidthProductImage(productType, isMobile),
-                      SizedBox(height: isMobile ? 16 : 20),
-                      Container(
-                        width: double.infinity,
-                        padding: EdgeInsets.all(isMobile ? 16 : 20),
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            colors: [
-                              line.color.withValues(alpha: 0.08),
-                              line.color.withValues(alpha: 0.04),
-                            ],
-                            begin: Alignment.topRight,
-                            end: Alignment.bottomLeft,
-                          ),
-                          borderRadius: BorderRadius.circular(16),
-                          border: Border.all(
-                            color: line.color.withValues(alpha: 0.2),
-                          ),
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            Text(
-                              productType.compactLabel,
-                              style: GoogleFonts.cairo(
-                                fontSize: isMobile ? 20 : 24,
-                                fontWeight: FontWeight.bold,
-                                color: line.color,
-                              ),
-                              textAlign: TextAlign.center,
-                            ),
-                            if (productType.description != null &&
-                                productType.description!.trim().isNotEmpty) ...[
-                              SizedBox(height: isMobile ? 4 : 6),
-                              Text(
-                                productType.description!,
-                                style: GoogleFonts.cairo(
-                                  fontSize: isMobile ? 13 : 15,
-                                  color: Colors.grey.shade600,
-                                ),
-                                textAlign: TextAlign.center,
-                                maxLines: 3,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ],
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              SizedBox(height: isMobile ? 24 : 32),
-              Row(
-                children: [
-                  Expanded(
-                    child: OutlinedButton(
-                      onPressed: () => Navigator.of(context).pop(false),
-                      style: OutlinedButton.styleFrom(
-                        padding: EdgeInsets.symmetric(
-                          vertical: isMobile ? 14 : 18,
-                        ),
-                        side: BorderSide(
-                          color: Colors.grey.shade300,
-                          width: 1.5,
-                        ),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                      ),
-                      child: Text(
-                        'لا',
-                        style: GoogleFonts.cairo(
-                          fontSize: isMobile ? 16 : 18,
-                          fontWeight: FontWeight.w600,
-                          color: Colors.grey.shade700,
-                        ),
-                      ),
-                    ),
-                  ),
-                  SizedBox(width: isMobile ? 12 : 16),
-                  Expanded(
-                    child: ElevatedButton(
-                      onPressed: () => Navigator.of(context).pop(true),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: line.color,
-                        foregroundColor: Colors.white,
-                        elevation: 0,
-                        padding: EdgeInsets.symmetric(
-                          vertical: isMobile ? 14 : 18,
-                        ),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                      ),
-                      child: Text(
-                        'نعم',
-                        style: GoogleFonts.cairo(
-                          fontSize: isMobile ? 16 : 18,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildFullWidthProductImage(ProductType productType, bool isMobile) {
-    if (productType.imageUrl == null || productType.imageUrl!.isEmpty) {
-      return const SizedBox.shrink();
-    }
-
-    return Container(
-      width: double.infinity,
-      height: isMobile ? 160 : 180,
-      decoration: BoxDecoration(
-        color: Colors.grey.shade50,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.grey.shade200),
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(16),
-        child: ProductTypeImage(
-          imageUrl: productType.imageUrl,
-          size: isMobile ? 160 : 180,
-          borderRadius: 16,
-          showBorder: false,
-          fit: BoxFit.contain,
-        ),
       ),
     );
   }
@@ -986,7 +447,9 @@ class ProductionLineSection extends StatelessWidget {
     if (!context.mounted) return;
     if (faletFallback != null) {
       await _handleMandatoryFaletConversionFromItem(
-        context, provider, faletFallback,
+        context,
+        provider,
+        faletFallback,
       );
       return;
     }
@@ -1114,7 +577,9 @@ class ProductionLineSection extends StatelessWidget {
 
     if (faletItem != null) {
       await _handleMandatoryFaletConversionFromItem(
-        context, provider, faletItem,
+        context,
+        provider,
+        faletItem,
       );
       return;
     }
@@ -1261,10 +726,12 @@ class ProductionLineSection extends StatelessWidget {
     // implicitly CARRY_FORWARD on the backend — no resolution entry needed.
     if (openItems.isNotEmpty) {
       faletResolutions = openItems
-          .map((item) => FaletResolutionEntry(
-                faletId: item.faletId,
-                action: HandoverFaletAction.carryForward,
-              ))
+          .map(
+            (item) => FaletResolutionEntry(
+              faletId: item.faletId,
+              action: HandoverFaletAction.carryForward,
+            ),
+          )
           .toList();
     }
 
@@ -1492,7 +959,6 @@ class ProductionLineSection extends StatelessWidget {
       }
     }
   }
-
 }
 
 /// Animated FALET button that blinks when there are unresolved open FALET items.
@@ -1525,9 +991,10 @@ class _AnimatedFaletButtonState extends State<_AnimatedFaletButton>
       vsync: this,
       duration: const Duration(milliseconds: 800),
     );
-    _blinkAnimation = Tween<double>(begin: 1.0, end: 0.3).animate(
-      CurvedAnimation(parent: _controller, curve: Curves.easeInOut),
-    );
+    _blinkAnimation = Tween<double>(
+      begin: 1.0,
+      end: 0.3,
+    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeInOut));
     if (widget.hasOpenFalet) {
       _controller.repeat(reverse: true);
     }
@@ -1576,8 +1043,10 @@ class _AnimatedFaletButtonState extends State<_AnimatedFaletButton>
             ),
             elevation: 0,
           ),
-          icon: Icon(Icons.inventory_2_outlined,
-              size: widget.isMobile ? 18 : 20),
+          icon: Icon(
+            Icons.inventory_2_outlined,
+            size: widget.isMobile ? 18 : 20,
+          ),
           label: Text(
             'فالت',
             style: GoogleFonts.cairo(
@@ -1614,8 +1083,10 @@ class _AnimatedFaletButtonState extends State<_AnimatedFaletButton>
                       ),
                       elevation: 0,
                     ),
-                    icon: Icon(Icons.warning_amber_rounded,
-                        size: widget.isMobile ? 18 : 20),
+                    icon: Icon(
+                      Icons.warning_amber_rounded,
+                      size: widget.isMobile ? 18 : 20,
+                    ),
                     label: Text(
                       'فالت',
                       style: GoogleFonts.cairo(
@@ -1640,8 +1111,7 @@ class _AnimatedFaletButtonState extends State<_AnimatedFaletButton>
                     decoration: BoxDecoration(
                       color: Colors.white,
                       shape: BoxShape.circle,
-                      border: Border.all(
-                          color: Colors.red.shade600, width: 2),
+                      border: Border.all(color: Colors.red.shade600, width: 2),
                     ),
                     child: Center(
                       child: Text(

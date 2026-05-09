@@ -12,12 +12,29 @@ class ApiException implements Exception {
   });
 
   factory ApiException.fromJson(Map<String, dynamic> json, {int? statusCode}) {
-    final error = json['error'] as Map<String, dynamic>?;
-    if (error != null) {
+    final rawError = json['error'];
+    if (rawError is Map<String, dynamic>) {
       return ApiException(
-        code: error['code'] as String? ?? 'UNKNOWN_ERROR',
-        message: error['message'] as String? ?? 'حدث خطأ غير متوقع',
-        details: error['details'] as Map<String, dynamic>?,
+        code: rawError['code'] as String? ?? 'UNKNOWN_ERROR',
+        message: rawError['message'] as String? ?? 'حدث خطأ غير متوقع',
+        details: rawError['details'] is Map<String, dynamic>
+            ? rawError['details'] as Map<String, dynamic>
+            : null,
+        statusCode: statusCode,
+      );
+    }
+    if (rawError is String && rawError.isNotEmpty) {
+      return ApiException(
+        code: json['code'] as String? ?? 'UNKNOWN_ERROR',
+        message: rawError,
+        statusCode: statusCode,
+      );
+    }
+    final topMessage = json['message'];
+    if (topMessage is String && topMessage.isNotEmpty) {
+      return ApiException(
+        code: json['code'] as String? ?? 'UNKNOWN_ERROR',
+        message: topMessage,
         statusCode: statusCode,
       );
     }
@@ -110,14 +127,12 @@ class ApiException implements Exception {
         return 'لا يوجد طبلية ناقصة معلقة';
       case 'INCOMPLETE_PALLET_ALREADY_RESOLVED':
         return 'تم معالجة الطبلية الناقصة مسبقاً';
-      case 'PRODUCT_ALREADY_SELECTED':
-        return 'تم اختيار منتج بالفعل — استخدم تبديل المنتج';
-      case 'NO_CURRENT_PRODUCT':
-        return 'لا يوجد منتج محدد — يجب اختيار منتج أولاً';
-      case 'CURRENT_PRODUCT_MISMATCH':
-        return 'تم تغيير المنتج من جهاز آخر';
-      case 'SAME_PRODUCT_SWITCH':
-        return 'لا يمكن التبديل إلى نفس المنتج';
+      case 'PALLETIZER_SESSION_REQUIRED':
+        return 'انتهت جلسة المُشَتِّح، يرجى تسجيل الدخول مجددًا';
+      case 'PALLETIZER_NOT_ALLOWED':
+        return 'هذا الموظف غير مصرح له بتسجيل الطبليات';
+      case 'NO_ACTIVE_THERMOFORMING_SHIFT_FOR_LINE':
+        return 'بانتظار بدء المناوبة من المشغّل';
       // ── Handover FALET reconciliation errors ──
       case 'HANDOVER_FALET_DECISION_REQUIRED':
         return 'يجب حل جميع عناصر الفالت المفتوحة قبل التسليم';

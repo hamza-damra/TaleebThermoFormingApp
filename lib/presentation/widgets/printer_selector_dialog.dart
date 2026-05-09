@@ -24,7 +24,9 @@ class PrinterSelectorDialog extends StatelessWidget {
     return Consumer<PrintingProvider>(
       builder: (context, provider, _) {
         return Dialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
           insetPadding: EdgeInsets.symmetric(
             horizontal: isMobile ? 16 : 40,
             vertical: 24,
@@ -71,7 +73,10 @@ class PrinterSelectorDialog extends StatelessWidget {
                 // Content
                 Flexible(
                   child: Padding(
-                    padding: EdgeInsets.symmetric(horizontal: padding, vertical: 16),
+                    padding: EdgeInsets.symmetric(
+                      horizontal: padding,
+                      vertical: 16,
+                    ),
                     child: provider.printers.isEmpty
                         ? _buildNoPrintersContent(context)
                         : _buildPrintersList(context, provider),
@@ -91,9 +96,13 @@ class PrinterSelectorDialog extends StatelessWidget {
                         )
                       : Row(
                           children: [
-                            Expanded(child: _buildSettingsButton(context, isMobile)),
+                            Expanded(
+                              child: _buildSettingsButton(context, isMobile),
+                            ),
                             const SizedBox(width: 12),
-                            Expanded(child: _buildAddPrinterButton(context, isMobile)),
+                            Expanded(
+                              child: _buildAddPrinterButton(context, isMobile),
+                            ),
                           ],
                         ),
                 ),
@@ -110,9 +119,7 @@ class PrinterSelectorDialog extends StatelessWidget {
       onPressed: () {
         Navigator.of(context).pop();
         Navigator.of(context).push(
-          MaterialPageRoute(
-            builder: (_) => const PrinterSettingsScreen(),
-          ),
+          MaterialPageRoute(builder: (_) => const PrinterSettingsScreen()),
         );
       },
       icon: const Icon(Icons.settings_outlined, size: 20),
@@ -127,9 +134,7 @@ class PrinterSelectorDialog extends StatelessWidget {
         foregroundColor: _primaryColor,
         side: const BorderSide(color: _primaryColor),
         padding: EdgeInsets.symmetric(vertical: isMobile ? 12 : 14),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       ),
     );
   }
@@ -149,9 +154,7 @@ class PrinterSelectorDialog extends StatelessWidget {
         backgroundColor: _primaryColor,
         foregroundColor: Colors.white,
         padding: EdgeInsets.symmetric(vertical: isMobile ? 12 : 14),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         elevation: 0,
       ),
     );
@@ -186,10 +189,7 @@ class PrinterSelectorDialog extends StatelessWidget {
         const SizedBox(height: 8),
         Text(
           'قم بإضافة طابعة للمتابعة',
-          style: GoogleFonts.cairo(
-            fontSize: 14,
-            color: Colors.grey.shade500,
-          ),
+          style: GoogleFonts.cairo(fontSize: 14, color: Colors.grey.shade500),
         ),
         const SizedBox(height: 20),
       ],
@@ -347,7 +347,11 @@ class _AddPrinterDialogState extends State<AddPrinterDialog> {
                   color: _primaryColor.withValues(alpha: 0.1),
                   shape: BoxShape.circle,
                 ),
-                child: const Icon(Icons.print_rounded, size: 36, color: _primaryColor),
+                child: const Icon(
+                  Icons.print_rounded,
+                  size: 36,
+                  color: _primaryColor,
+                ),
               ),
               const SizedBox(height: 16),
               Text(
@@ -368,7 +372,8 @@ class _AddPrinterDialogState extends State<AddPrinterDialog> {
                       label: 'اسم الطابعة',
                       icon: Icons.label_outline_rounded,
                       hint: 'مثال: طابعة المستودع',
-                      validator: (v) => (v == null || v.isEmpty) ? 'يرجى إدخال الاسم' : null,
+                      validator: (v) =>
+                          (v == null || v.isEmpty) ? 'يرجى إدخال الاسم' : null,
                     ),
                     const SizedBox(height: 16),
                     _buildTextField(
@@ -379,8 +384,12 @@ class _AddPrinterDialogState extends State<AddPrinterDialog> {
                       keyboardType: TextInputType.number,
                       validator: (v) {
                         if (v == null || v.isEmpty) return 'يرجى إدخال IP';
-                        final ipRegex = RegExp(r'^((25[0-5]|(2[0-4]|1\d|[1-9]|)\d)\.?\b){4}$');
-                        return !ipRegex.hasMatch(v) ? 'عنوان IP غير صالح' : null;
+                        final ipRegex = RegExp(
+                          r'^((25[0-5]|(2[0-4]|1\d|[1-9]|)\d)\.?\b){4}$',
+                        );
+                        return !ipRegex.hasMatch(v)
+                            ? 'عنوان IP غير صالح'
+                            : null;
                       },
                     ),
                     const SizedBox(height: 16),
@@ -393,7 +402,9 @@ class _AddPrinterDialogState extends State<AddPrinterDialog> {
                       validator: (v) {
                         if (v == null || v.isEmpty) return 'يرجى إدخال المنفذ';
                         final p = int.tryParse(v);
-                        return (p == null || p < 1 || p > 65535) ? 'غير صالح' : null;
+                        return (p == null || p < 1 || p > 65535)
+                            ? 'غير صالح'
+                            : null;
                       },
                     ),
                   ],
@@ -409,14 +420,24 @@ class _AddPrinterDialogState extends State<AddPrinterDialog> {
                       onPressed: () => Navigator.of(context).pop(),
                       style: OutlinedButton.styleFrom(
                         padding: const EdgeInsets.symmetric(vertical: 12),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
                       ),
-                      child: Text('إلغاء', style: GoogleFonts.cairo(fontWeight: FontWeight.w600)),
+                      child: Text(
+                        'إلغاء',
+                        style: GoogleFonts.cairo(fontWeight: FontWeight.w600),
+                      ),
                     ),
                   ),
                   const SizedBox(width: 12),
                   _isTesting
-                      ? const Center(child: Padding(padding: EdgeInsets.all(12), child: CircularProgressIndicator()))
+                      ? const Center(
+                          child: Padding(
+                            padding: EdgeInsets.all(12),
+                            child: CircularProgressIndicator(),
+                          ),
+                        )
                       : Expanded(
                           child: ElevatedButton(
                             onPressed: _save,
@@ -424,10 +445,17 @@ class _AddPrinterDialogState extends State<AddPrinterDialog> {
                               backgroundColor: _primaryColor,
                               foregroundColor: Colors.white,
                               padding: const EdgeInsets.symmetric(vertical: 12),
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
                               elevation: 0,
                             ),
-                            child: Text('حفظ', style: GoogleFonts.cairo(fontWeight: FontWeight.bold)),
+                            child: Text(
+                              'حفظ',
+                              style: GoogleFonts.cairo(
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
                           ),
                         ),
                 ],
@@ -436,7 +464,10 @@ class _AddPrinterDialogState extends State<AddPrinterDialog> {
               TextButton.icon(
                 onPressed: _isTesting ? null : _testConnection,
                 icon: const Icon(Icons.wifi_find_rounded, size: 20),
-                label: Text('اختبار الاتصال بالطابعة', style: GoogleFonts.cairo(fontWeight: FontWeight.w600)),
+                label: Text(
+                  'اختبار الاتصال بالطابعة',
+                  style: GoogleFonts.cairo(fontWeight: FontWeight.w600),
+                ),
                 style: TextButton.styleFrom(foregroundColor: _primaryColor),
               ),
             ],
@@ -464,9 +495,18 @@ class _AddPrinterDialogState extends State<AddPrinterDialog> {
         labelStyle: GoogleFonts.cairo(fontSize: 14, color: Colors.grey[600]),
         hintText: hint,
         prefixIcon: Icon(icon, size: 20, color: _primaryColor),
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.grey.shade300)),
-        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.grey.shade300)),
-        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: _primaryColor, width: 2)),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: Colors.grey.shade300),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: Colors.grey.shade300),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: _primaryColor, width: 2),
+        ),
         filled: true,
         fillColor: Colors.grey.shade50,
       ),
@@ -480,16 +520,25 @@ class _AddPrinterDialogState extends State<AddPrinterDialog> {
       decoration: BoxDecoration(
         color: success ? Colors.green.shade50 : Colors.red.shade50,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: success ? Colors.green.shade200 : Colors.red.shade200),
+        border: Border.all(
+          color: success ? Colors.green.shade200 : Colors.red.shade200,
+        ),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(success ? Icons.check_circle_rounded : Icons.error_rounded, color: success ? Colors.green : Colors.red, size: 20),
+          Icon(
+            success ? Icons.check_circle_rounded : Icons.error_rounded,
+            color: success ? Colors.green : Colors.red,
+            size: 20,
+          ),
           const SizedBox(width: 8),
           Text(
             success ? 'الاتصال بالطابعة ناجح' : 'فشل الاتصال بالطابعة',
-            style: GoogleFonts.cairo(color: success ? Colors.green.shade800 : Colors.red.shade800, fontWeight: FontWeight.bold),
+            style: GoogleFonts.cairo(
+              color: success ? Colors.green.shade800 : Colors.red.shade800,
+              fontWeight: FontWeight.bold,
+            ),
           ),
         ],
       ),

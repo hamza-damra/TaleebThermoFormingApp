@@ -66,9 +66,7 @@ class SearchablePickerDialog<T> extends StatefulWidget {
       barrierDismissible: true,
       builder: (context) => Dialog(
         insetPadding: const EdgeInsets.all(16),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         child: SearchablePickerDialog<T>(
           title: title,
           searchHint: searchHint,
@@ -135,10 +133,7 @@ class _SearchablePickerDialogState<T> extends State<SearchablePickerDialog<T>> {
     final padding = isMobile ? 16.0 : 20.0;
 
     return Container(
-      constraints: BoxConstraints(
-        maxWidth: maxWidth,
-        maxHeight: maxHeight,
-      ),
+      constraints: BoxConstraints(maxWidth: maxWidth, maxHeight: maxHeight),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
@@ -254,11 +249,7 @@ class _SearchablePickerDialogState<T> extends State<SearchablePickerDialog<T>> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(
-              Icons.search_off,
-              size: 48,
-              color: Colors.grey.shade400,
-            ),
+            Icon(Icons.search_off, size: 48, color: Colors.grey.shade400),
             const SizedBox(height: 16),
             Text(
               'لا توجد نتائج',
@@ -297,9 +288,7 @@ class _SearchablePickerDialogState<T> extends State<SearchablePickerDialog<T>> {
           color: isSelected
               ? widget.themeColor.withValues(alpha: 0.1)
               : Colors.transparent,
-          border: Border(
-            bottom: BorderSide(color: Colors.grey.shade100),
-          ),
+          border: Border(bottom: BorderSide(color: Colors.grey.shade100)),
         ),
         child: Row(
           children: [
@@ -315,7 +304,9 @@ class _SearchablePickerDialogState<T> extends State<SearchablePickerDialog<T>> {
                     displayText,
                     style: GoogleFonts.cairo(
                       fontSize: fontSize,
-                      fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                      fontWeight: isSelected
+                          ? FontWeight.bold
+                          : FontWeight.w500,
                       color: isSelected ? widget.themeColor : Colors.black87,
                     ),
                     textDirection: TextDirection.rtl,
@@ -333,11 +324,7 @@ class _SearchablePickerDialogState<T> extends State<SearchablePickerDialog<T>> {
               ),
             ),
             if (isSelected)
-              Icon(
-                Icons.check_circle,
-                color: widget.themeColor,
-                size: 20,
-              ),
+              Icon(Icons.check_circle, color: widget.themeColor, size: 20),
           ],
         ),
       ),

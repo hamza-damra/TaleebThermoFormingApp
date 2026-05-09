@@ -23,7 +23,9 @@ class ProductType {
     String? displayLabel,
     this.imageUrl,
     this.description,
-  }) : displayLabel = displayLabel ?? '$productName - $color ($packageQuantity $packageUnitDisplayName)';
+  }) : displayLabel =
+           displayLabel ??
+           '$productName - $color ($packageQuantity $packageUnitDisplayName)';
 
   /// Short compact label for UI display: e.g. "TT-20 Black 30"
   String get compactLabel => '$productName $packageQuantity';

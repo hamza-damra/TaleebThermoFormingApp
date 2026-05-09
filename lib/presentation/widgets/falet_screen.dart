@@ -64,8 +64,7 @@ class _FaletScreenState extends State<FaletScreen> {
       body: isLoading && faletResponse == null
           ? const Center(child: CircularProgressIndicator())
           : RefreshIndicator(
-              onRefresh: () =>
-                  provider.fetchFaletItems(widget.line.number),
+              onRefresh: () => provider.fetchFaletItems(widget.line.number),
               child: _buildBody(context, faletResponse, isMobile),
             ),
     );
@@ -201,11 +200,7 @@ class _FaletScreenState extends State<FaletScreen> {
     );
   }
 
-  Widget _buildFaletCard(
-    BuildContext context,
-    FaletItem item,
-    bool isMobile,
-  ) {
+  Widget _buildFaletCard(BuildContext context, FaletItem item, bool isMobile) {
     if (item.managerResolved) {
       return _buildManagerResolvedCard(context, item, isMobile);
     }
@@ -380,9 +375,7 @@ class _FaletScreenState extends State<FaletScreen> {
                     backgroundColor: accentColor,
                     foregroundColor: Colors.white,
                     elevation: 0,
-                    padding: EdgeInsets.symmetric(
-                      vertical: isMobile ? 12 : 14,
-                    ),
+                    padding: EdgeInsets.symmetric(vertical: isMobile ? 12 : 14),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(10),
                     ),
@@ -731,10 +724,7 @@ class _FaletScreenState extends State<FaletScreen> {
     }
   }
 
-  Future<void> _handleDispose(
-    BuildContext context,
-    FaletItem item,
-  ) async {
+  Future<void> _handleDispose(BuildContext context, FaletItem item) async {
     final provider = context.read<PalletizingProvider>();
 
     final reason = await DisposeFaletDialog.show(
@@ -755,10 +745,7 @@ class _FaletScreenState extends State<FaletScreen> {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(
-              'تم إتلاف الفالت بنجاح',
-              style: GoogleFonts.cairo(),
-            ),
+            content: Text('تم إتلاف الفالت بنجاح', style: GoogleFonts.cairo()),
             backgroundColor: Colors.green,
           ),
         );

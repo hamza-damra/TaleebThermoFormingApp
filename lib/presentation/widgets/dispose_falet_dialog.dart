@@ -23,10 +23,8 @@ class DisposeFaletDialog extends StatefulWidget {
   }) {
     return showDialog<String>(
       context: context,
-      builder: (context) => DisposeFaletDialog(
-        faletItem: faletItem,
-        themeColor: themeColor,
-      ),
+      builder: (context) =>
+          DisposeFaletDialog(faletItem: faletItem, themeColor: themeColor),
     );
   }
 
@@ -186,9 +184,9 @@ class _DisposeFaletDialogState extends State<DisposeFaletDialog> {
                   Expanded(
                     child: ElevatedButton(
                       onPressed: () {
-                        Navigator.of(context).pop(
-                          _reasonController.text.trim(),
-                        );
+                        Navigator.of(
+                          context,
+                        ).pop(_reasonController.text.trim());
                       },
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.red.shade600,

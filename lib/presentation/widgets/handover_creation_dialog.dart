@@ -106,16 +106,14 @@ class _HandoverCreationDialogState extends State<HandoverCreationDialog> {
         ],
       ),
       contentPadding: EdgeInsets.fromLTRB(
-        isMobile ? 16 : 20, 
-        isMobile ? 16 : 20, 
-        isMobile ? 16 : 20, 
-        isMobile ? 8 : 10
+        isMobile ? 16 : 20,
+        isMobile ? 16 : 20,
+        isMobile ? 16 : 20,
+        isMobile ? 8 : 10,
       ),
       content: SizedBox(
         width: dialogWidth,
-        child: SingleChildScrollView(
-          child: _buildForm(isMobile),
-        ),
+        child: SingleChildScrollView(child: _buildForm(isMobile)),
       ),
       actions: _buildActions(isMobile),
     );
@@ -240,7 +238,9 @@ class _HandoverCreationDialogState extends State<HandoverCreationDialog> {
                         color: Colors.grey.shade400,
                       ),
                       errorText: _faletQuantityError,
-                      errorStyle: GoogleFonts.cairo(fontSize: isMobile ? 11 : 12),
+                      errorStyle: GoogleFonts.cairo(
+                        fontSize: isMobile ? 11 : 12,
+                      ),
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(10),
                       ),
@@ -269,9 +269,7 @@ class _HandoverCreationDialogState extends State<HandoverCreationDialog> {
           decoration: InputDecoration(
             labelText: 'ملاحظات (اختياري)',
             labelStyle: GoogleFonts.cairo(fontSize: fontSize),
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(10),
-            ),
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
             contentPadding: const EdgeInsets.symmetric(
               horizontal: 12,
               vertical: 12,
@@ -335,9 +333,7 @@ class _HandoverCreationDialogState extends State<HandoverCreationDialog> {
                 : Colors.grey.shade50,
             borderRadius: BorderRadius.circular(12),
             border: Border.all(
-              color: selected
-                  ? widget.themeColor
-                  : Colors.grey.shade300,
+              color: selected ? widget.themeColor : Colors.grey.shade300,
               width: selected ? 2 : 1,
             ),
           ),

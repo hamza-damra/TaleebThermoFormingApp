@@ -403,7 +403,9 @@ class _EditPrinterDialogState extends State<_EditPrinterDialog> {
     super.initState();
     _nameController = TextEditingController(text: widget.printer.name);
     _ipController = TextEditingController(text: widget.printer.ip);
-    _portController = TextEditingController(text: widget.printer.port.toString());
+    _portController = TextEditingController(
+      text: widget.printer.port.toString(),
+    );
   }
 
   @override
@@ -434,7 +436,11 @@ class _EditPrinterDialogState extends State<_EditPrinterDialog> {
                   color: _primaryColor.withValues(alpha: 0.1),
                   shape: BoxShape.circle,
                 ),
-                child: const Icon(Icons.edit_rounded, size: 36, color: _primaryColor),
+                child: const Icon(
+                  Icons.edit_rounded,
+                  size: 36,
+                  color: _primaryColor,
+                ),
               ),
               const SizedBox(height: 16),
               Text(
@@ -455,7 +461,8 @@ class _EditPrinterDialogState extends State<_EditPrinterDialog> {
                       label: 'اسم الطابعة',
                       icon: Icons.label_outline_rounded,
                       hint: 'مثال: طابعة المستودع',
-                      validator: (v) => (v == null || v.isEmpty) ? 'يرجى إدخال الاسم' : null,
+                      validator: (v) =>
+                          (v == null || v.isEmpty) ? 'يرجى إدخال الاسم' : null,
                     ),
                     const SizedBox(height: 16),
                     _buildTextField(
@@ -466,8 +473,12 @@ class _EditPrinterDialogState extends State<_EditPrinterDialog> {
                       keyboardType: TextInputType.number,
                       validator: (v) {
                         if (v == null || v.isEmpty) return 'يرجى إدخال IP';
-                        final ipRegex = RegExp(r'^((25[0-5]|(2[0-4]|1\d|[1-9]|)\d)\.?\b){4}$');
-                        return !ipRegex.hasMatch(v) ? 'عنوان IP غير صالح' : null;
+                        final ipRegex = RegExp(
+                          r'^((25[0-5]|(2[0-4]|1\d|[1-9]|)\d)\.?\b){4}$',
+                        );
+                        return !ipRegex.hasMatch(v)
+                            ? 'عنوان IP غير صالح'
+                            : null;
                       },
                     ),
                     const SizedBox(height: 16),
@@ -480,7 +491,9 @@ class _EditPrinterDialogState extends State<_EditPrinterDialog> {
                       validator: (v) {
                         if (v == null || v.isEmpty) return 'يرجى إدخال المنفذ';
                         final p = int.tryParse(v);
-                        return (p == null || p < 1 || p > 65535) ? 'غير صالح' : null;
+                        return (p == null || p < 1 || p > 65535)
+                            ? 'غير صالح'
+                            : null;
                       },
                     ),
                   ],
@@ -494,9 +507,14 @@ class _EditPrinterDialogState extends State<_EditPrinterDialog> {
                       onPressed: () => Navigator.of(context).pop(),
                       style: OutlinedButton.styleFrom(
                         padding: const EdgeInsets.symmetric(vertical: 12),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
                       ),
-                      child: Text('إلغاء', style: GoogleFonts.cairo(fontWeight: FontWeight.w600)),
+                      child: Text(
+                        'إلغاء',
+                        style: GoogleFonts.cairo(fontWeight: FontWeight.w600),
+                      ),
                     ),
                   ),
                   const SizedBox(width: 12),
@@ -507,10 +525,15 @@ class _EditPrinterDialogState extends State<_EditPrinterDialog> {
                         backgroundColor: _primaryColor,
                         foregroundColor: Colors.white,
                         padding: const EdgeInsets.symmetric(vertical: 12),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
                         elevation: 0,
                       ),
-                      child: Text('حفظ ', style: GoogleFonts.cairo(fontWeight: FontWeight.bold)),
+                      child: Text(
+                        'حفظ ',
+                        style: GoogleFonts.cairo(fontWeight: FontWeight.bold),
+                      ),
                     ),
                   ),
                 ],
@@ -550,9 +573,18 @@ class _EditPrinterDialogState extends State<_EditPrinterDialog> {
         labelStyle: GoogleFonts.cairo(fontSize: 14, color: Colors.grey[600]),
         hintText: hint,
         prefixIcon: Icon(icon, size: 20, color: _primaryColor),
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.grey.shade300)),
-        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.grey.shade300)),
-        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: _primaryColor, width: 2)),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: Colors.grey.shade300),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: Colors.grey.shade300),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: _primaryColor, width: 2),
+        ),
         filled: true,
         fillColor: Colors.grey.shade50,
       ),
