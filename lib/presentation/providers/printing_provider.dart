@@ -5,7 +5,7 @@ import '../../core/exceptions/printing_exception.dart';
 import '../../data/datasources/printing_local_storage.dart';
 import '../../data/models/printing_settings_model.dart';
 import '../../domain/entities/label_preset.dart';
-import '../../domain/entities/print_job.dart';
+import '../../domain/entities/print_result.dart';
 import '../../domain/entities/printer_config.dart';
 import '../../domain/repositories/preset_repository.dart';
 import '../../domain/repositories/printer_repository.dart';
@@ -65,7 +65,7 @@ class PrintingProvider extends ChangeNotifier {
       _selectedPreset ??= DefaultPresets.getById(
         PrintingConstants.defaultPresetId,
       );
-      _selectedPreset ??= DefaultPresets.preset50x30;
+      _selectedPreset ??= DefaultPresets.defaultPreset;
 
       _copies = settings.lastCopies.clamp(1, 10);
 
@@ -80,9 +80,22 @@ class PrintingProvider extends ChangeNotifier {
   void selectPrinter(PrinterConfig? printer) {
     _selectedPrinter = printer;
     if (printer != null) {
+      // Keep the visible preset in sync with the printer's configured size.
+      _selectedPreset = resolvePresetFor(printer);
       _saveSettings();
     }
     notifyListeners();
+  }
+
+  /// Resolves the [LabelPreset] tied to a printer, falling back to the
+  /// built-in default when the printer references an unknown preset id
+  /// (e.g. a custom preset that was later deleted).
+  LabelPreset resolvePresetFor(PrinterConfig printer) {
+    final fromRepo = _presetRepository.getById(printer.labelPresetId);
+    if (fromRepo != null) return fromRepo;
+    final fromDefaults = DefaultPresets.getById(printer.labelPresetId);
+    if (fromDefaults != null) return fromDefaults;
+    return DefaultPresets.defaultPreset;
   }
 
   void selectPreset(LabelPreset? preset) {
@@ -110,9 +123,10 @@ class PrintingProvider extends ChangeNotifier {
       return PrintResult.error('لم يتم اختيار طابعة');
     }
 
-    if (_selectedPreset == null) {
-      return PrintResult.error('لم يتم اختيار حجم الملصق');
-    }
+    // Source of truth for the label size is the printer's own configuration.
+    // Falls back to the built-in default if the referenced preset is missing.
+    final preset = resolvePresetFor(_selectedPrinter!);
+    _selectedPreset = preset;
 
     _state = PrintingState.printing;
     _errorMessage = null;
@@ -126,7 +140,7 @@ class PrintingProvider extends ChangeNotifier {
       final client = PrinterClient(_selectedPrinter!);
       await client.print(
         value: scannedValue,
-        preset: _selectedPreset!,
+        preset: preset,
         copies: copies,
         topText: topText,
         bottomText: bottomText,
@@ -171,6 +185,22 @@ class PrintingProvider extends ChangeNotifier {
     }
   }
 
+  /// Sends a small protocol-specific test label. Unlike [testConnection],
+  /// this validates that the printer actually understands the configured
+  /// language (TSPL vs ZPL) — not just that a socket can be opened.
+  Future<PrintResult> testPrint(PrinterConfig printer) async {
+    try {
+      final preset = resolvePresetFor(printer);
+      final client = PrinterClient(printer);
+      await client.testPrint(preset: preset);
+      return PrintResult.success();
+    } on PrintingException catch (e) {
+      return PrintResult.error(e.displayMessage);
+    } catch (_) {
+      return PrintResult.error('فشل إرسال اختبار الطباعة');
+    }
+  }
+
   Future<void> addPrinter(PrinterConfig printer) async {
     await _printerRepository.save(printer);
     _printers = _printerRepository.getAll();
@@ -209,26 +239,28 @@ class PrintingProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> addPreset(LabelPreset preset) async {
-    await _presetRepository.save(preset);
+  Future<LabelPreset> addPreset(LabelPreset preset) async {
+    final saved = await _presetRepository.save(preset);
     _presets = _presetRepository.getAll();
     notifyListeners();
+    return saved;
   }
 
-  Future<void> updatePreset(LabelPreset preset) async {
-    await _presetRepository.save(preset);
+  Future<LabelPreset> updatePreset(LabelPreset preset) async {
+    final saved = await _presetRepository.save(preset);
     _presets = _presetRepository.getAll();
-    if (_selectedPreset?.id == preset.id) {
-      _selectedPreset = preset;
+    if (_selectedPreset?.id == saved.id) {
+      _selectedPreset = saved;
     }
     notifyListeners();
+    return saved;
   }
 
   Future<void> deletePreset(String id) async {
     await _presetRepository.delete(id);
     _presets = _presetRepository.getAll();
     if (_selectedPreset?.id == id) {
-      _selectedPreset = DefaultPresets.preset50x30;
+      _selectedPreset = DefaultPresets.defaultPreset;
       await _saveSettings();
     }
     notifyListeners();

@@ -9,7 +9,7 @@ import '../providers/palletizing_provider.dart';
 
 /// State B overlay: line is open (Thermoforming operator authorized) but no
 /// palletizer session exists yet for this device. Authenticates the
-/// المُشَتِّح with their PIN. Re-uses the visual silhouette of the legacy
+/// موظف الطبليات with their PIN. Re-uses the visual silhouette of the legacy
 /// operator-PIN overlay (rounded modal, line-color accent, 4-digit obscured
 /// TextField, full-width primary CTA) so floor users do not need retraining.
 class PalletizerPinScreen extends StatefulWidget {
@@ -108,7 +108,7 @@ class _PalletizerPinScreenState extends State<PalletizerPinScreen> {
                     ),
                     SizedBox(height: isMobile ? 16 : 20),
                     Text(
-                      'تسجيل دخول المُشَتِّح',
+                      'تسجيل دخول موظف الطبليات',
                       style: GoogleFonts.cairo(
                         fontSize: isMobile ? 20 : 24,
                         fontWeight: FontWeight.bold,

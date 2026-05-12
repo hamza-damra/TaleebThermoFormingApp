@@ -5,19 +5,14 @@ import 'package:provider/provider.dart';
 import '../../core/constants.dart';
 import '../../core/exceptions/api_exception.dart';
 import '../../core/responsive.dart';
-import '../../domain/entities/falet_item.dart';
-import '../../domain/entities/falet_resolution_entry.dart';
-import '../../domain/entities/handover_falet_action.dart';
-import '../../domain/entities/line_handover_info.dart';
+import '../../domain/entities/first_pallet_context.dart';
 import '../../domain/entities/product_type.dart';
 import '../../domain/entities/production_line.dart' as entity;
 import '../providers/palletizing_provider.dart';
 import 'create_pallet_dialog.dart';
-import 'handover_creation_dialog.dart';
-import 'handover_confirm_dialog.dart';
-import 'handover_reject_dialog.dart';
+import 'first_pallet_suggestion_dialog.dart';
+import 'legacy_handover_info_card.dart';
 import 'line_context_strip.dart';
-import 'line_handover_card.dart';
 import 'pallet_success_dialog.dart';
 import 'palletizer_pin_screen.dart';
 import 'falet_screen.dart';
@@ -28,10 +23,19 @@ class ProductionLineSection extends StatelessWidget {
   final ProductionLine line;
   final entity.ProductionLine? productionLineEntity;
 
+  /// Callback fired when the user taps "تغيير الخط" in the blocking overlay.
+  /// The parent (PalletizingScreen) wires this to the TabController.
+  final VoidCallback? onSwitchLine;
+
+  /// Whether another line tab exists that the worker could switch to.
+  final bool canSwitchLine;
+
   const ProductionLineSection({
     super.key,
     required this.line,
     this.productionLineEntity,
+    this.onSwitchLine,
+    this.canSwitchLine = false,
   });
 
   @override
@@ -41,217 +45,95 @@ class ProductionLineSection extends StatelessWidget {
     final horizontalPadding = isMobile ? 16.0 : 24.0;
     final bottomPadding = MediaQuery.of(context).padding.bottom;
     final uiState = provider.getUiState(line.number);
-    final isHandoverReview = uiState == LineUiState.pendingHandoverReview;
+
+    // Use a neutral background when the line is in a blocked / waiting state
+    // so the screen never looks like an active production line.
+    final isInactiveState =
+        uiState == LineUiState.waitingForThermoforming ||
+        uiState == LineUiState.blocked;
+    final bgColor = isInactiveState ? const Color(0xFFF5F5F5) : line.lightColor;
+
+    // "تغيير الخط" is only available when another line is usable AND the
+    // parent wired a callback for it.
+    final bool showSwitchLine = canSwitchLine && onSwitchLine != null;
 
     return Stack(
       children: [
         Container(
-          color: line.lightColor,
+          color: bgColor,
           child: SafeArea(
             top: false,
-            child: isHandoverReview
-                ? _buildHandoverReviewLayout(
-                    context,
-                    provider,
-                    isMobile,
-                    horizontalPadding,
-                    bottomPadding,
-                  )
-                : Column(
-                    children: [
-                      Expanded(
-                        child: SingleChildScrollView(
-                          physics: const AlwaysScrollableScrollPhysics(),
-                          child: Padding(
-                            padding: EdgeInsets.symmetric(
-                              horizontal: horizontalPadding,
-                            ),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.stretch,
-                              children: [
-                                SizedBox(height: isMobile ? 20 : 32),
-                                if (ResponsiveHelper.isDesktop(context)) ...[
-                                  _buildHeader(context),
-                                  const SizedBox(height: 32),
-                                ],
-                                _buildTopActionButtons(
-                                  context,
-                                  provider,
-                                  isMobile,
-                                ),
-                                _buildFormCard(context),
-                                SizedBox(height: isMobile ? 20 : 28),
-                                if (provider
-                                        .getPendingHandover(line.number)
-                                        ?.isPending ??
-                                    false) ...[
-                                  LineHandoverCard(
-                                    line: line,
-                                    handover: provider.getPendingHandover(
-                                      line.number,
-                                    )!,
-                                    showResolveActions: false,
-                                    onResolve: () =>
-                                        _handleConfirmHandover(context),
-                                    onReject: () =>
-                                        _handleRejectHandover(context),
-                                  ),
-                                  SizedBox(height: isMobile ? 20 : 28),
-                                ],
-                                _buildSessionTable(context),
-                                SizedBox(height: isMobile ? 24 : 32),
-                              ],
-                            ),
-                          ),
-                        ),
+            child: Column(
+              children: [
+                Expanded(
+                  child: SingleChildScrollView(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    child: Padding(
+                      padding: EdgeInsets.symmetric(
+                        horizontal: horizontalPadding,
                       ),
-                      Container(
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withValues(alpha: 0.08),
-                              blurRadius: 16,
-                              offset: const Offset(0, -4),
-                            ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          SizedBox(height: isMobile ? 20 : 32),
+                          if (ResponsiveHelper.isDesktop(context)) ...[
+                            _buildHeader(context),
+                            const SizedBox(height: 32),
                           ],
-                        ),
-                        child: Padding(
-                          padding: EdgeInsets.fromLTRB(
-                            horizontalPadding,
-                            isMobile ? 12 : 16,
-                            horizontalPadding,
-                            (isMobile ? 12 : 16) + bottomPadding,
-                          ),
-                          child: _buildCreateButton(context),
-                        ),
+                          _buildTopActionButtons(context, provider, isMobile),
+                          _buildFormCard(context),
+                          SizedBox(height: isMobile ? 20 : 28),
+                          _buildSessionTable(context),
+                          SizedBox(height: isMobile ? 24 : 32),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+                Container(
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.08),
+                        blurRadius: 16,
+                        offset: const Offset(0, -4),
                       ),
                     ],
                   ),
-          ),
-        ),
-
-        // Per-line state overlays. Existing blocked / handover-incoming /
-        // handover-review states still take precedence over the new waiting
-        // / palletizer-PIN overlays — the waiting card never masks a real
-        // failure mode.
-        if (uiState == LineUiState.waitingForThermoforming)
-          ThermoformingWaitingCard(line: line),
-        if (uiState == LineUiState.needsPalletizerAuth)
-          PalletizerPinScreen(line: line),
-      ],
-    );
-  }
-
-  Widget _buildHandoverReviewLayout(
-    BuildContext context,
-    PalletizingProvider provider,
-    bool isMobile,
-    double horizontalPadding,
-    double bottomPadding,
-  ) {
-    final handover = provider.getPendingHandover(line.number);
-
-    return Column(
-      children: [
-        Expanded(
-          child: SingleChildScrollView(
-            physics: const AlwaysScrollableScrollPhysics(),
-            child: Padding(
-              padding: EdgeInsets.symmetric(horizontal: horizontalPadding),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  SizedBox(height: isMobile ? 20 : 32),
-                  // Review header
-                  Container(
-                    padding: EdgeInsets.all(isMobile ? 16 : 20),
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [
-                          Colors.orange.shade600,
-                          Colors.orange.shade400,
-                        ],
-                        begin: Alignment.topRight,
-                        end: Alignment.bottomLeft,
-                      ),
-                      borderRadius: BorderRadius.circular(16),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.orange.withValues(alpha: 0.3),
-                          blurRadius: 12,
-                          offset: const Offset(0, 4),
-                        ),
-                      ],
+                  child: Padding(
+                    padding: EdgeInsets.fromLTRB(
+                      horizontalPadding,
+                      isMobile ? 12 : 16,
+                      horizontalPadding,
+                      (isMobile ? 12 : 16) + bottomPadding,
                     ),
-                    child: Row(
-                      children: [
-                        Icon(
-                          Icons.rate_review_rounded,
-                          color: Colors.white,
-                          size: isMobile ? 28 : 34,
-                        ),
-                        SizedBox(width: isMobile ? 12 : 16),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'مراجعة التسليم',
-                                style: GoogleFonts.cairo(
-                                  fontSize: isMobile ? 18 : 22,
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.white,
-                                ),
-                              ),
-                              Text(
-                                'راجع تفاصيل التسليم ثم قم بالتأكيد أو الرفض',
-                                style: GoogleFonts.cairo(
-                                  fontSize: isMobile ? 12 : 14,
-                                  color: Colors.white.withValues(alpha: 0.9),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
+                    child: _buildCreateButton(context),
                   ),
-                  SizedBox(height: isMobile ? 20 : 28),
-                  // Full handover detail card
-                  if (handover != null)
-                    LineHandoverCard(
-                      line: line,
-                      handover: handover,
-                      showResolveActions: true,
-                      onResolve: () => _handleConfirmHandover(context),
-                      onReject: () => _handleRejectHandover(context),
-                    )
-                  else
-                    Center(
-                      child: Padding(
-                        padding: EdgeInsets.all(isMobile ? 24 : 32),
-                        child: Column(
-                          children: [
-                            const CircularProgressIndicator(),
-                            SizedBox(height: isMobile ? 12 : 16),
-                            Text(
-                              'جاري تحميل تفاصيل التسليم...',
-                              style: GoogleFonts.cairo(
-                                fontSize: isMobile ? 14 : 16,
-                                color: Colors.grey.shade600,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  SizedBox(height: isMobile ? 24 : 32),
-                ],
-              ),
+                ),
+              ],
             ),
           ),
         ),
+
+        // Per-line state overlays. Order matters: blocked / legacy-handover
+        // pending always wins so a real failure never gets masked as
+        // "waiting for the operator". Positioned.fill is REQUIRED — without
+        // it, non-positioned Stack children may not size to cover the base
+        // Container and the user can see / interact with the screen behind.
+        if (uiState == LineUiState.pendingHandoverIncoming ||
+            uiState == LineUiState.pendingHandoverReview)
+          Positioned.fill(child: LegacyHandoverInfoCard(line: line)),
+        if (uiState == LineUiState.waitingForThermoforming)
+          Positioned.fill(
+            child: ThermoformingWaitingCard(
+              line: line,
+              canSwitchLine: showSwitchLine,
+              onSwitchLine: onSwitchLine,
+            ),
+          ),
+        if (uiState == LineUiState.needsPalletizerAuth)
+          Positioned.fill(child: PalletizerPinScreen(line: line)),
       ],
     );
   }
@@ -321,51 +203,22 @@ class ProductionLineSection extends StatelessWidget {
     final showOpenItems =
         provider.isLineAuthorized(line.number) &&
         !provider.isLineBlocked(line.number);
-    final showHandover = provider.canInitiateHandover(line.number);
 
-    if (!showOpenItems && !showHandover) return const SizedBox.shrink();
+    if (!showOpenItems) return const SizedBox.shrink();
+
+    // Hide the FALET button entirely when no FALET is open for this line —
+    // an empty outlined button reads as a dead UI element on the palletizing
+    // screen, and reserves vertical space that the section above can use.
+    final hasOpenFalet = provider.hasOpenFalet(line.number);
+    if (!hasOpenFalet) return const SizedBox.shrink();
 
     return Padding(
       padding: EdgeInsets.only(bottom: isMobile ? 12 : 16),
-      child: Row(
-        children: [
-          // فالت — RIGHT side (first in RTL Row = right visually)
-          if (showOpenItems)
-            Expanded(
-              child: _AnimatedFaletButton(
-                line: line,
-                isMobile: isMobile,
-                hasOpenFalet: provider.hasOpenFalet(line.number),
-                openFaletCount: provider.getOpenFaletCount(line.number),
-              ),
-            ),
-          if (showOpenItems && showHandover)
-            SizedBox(width: isMobile ? 10 : 14),
-          // تسليم مناوبة — LEFT side (second in RTL Row = left visually)
-          if (showHandover)
-            Expanded(
-              child: ElevatedButton.icon(
-                onPressed: () => _handleCreateHandover(context),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.orange.shade600,
-                  foregroundColor: Colors.white,
-                  padding: EdgeInsets.symmetric(vertical: isMobile ? 12 : 16),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                  elevation: 0,
-                ),
-                icon: Icon(Icons.swap_horiz_rounded, size: isMobile ? 18 : 20),
-                label: Text(
-                  'تسليم مناوبة',
-                  style: GoogleFonts.cairo(
-                    fontSize: isMobile ? 14 : 16,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ),
-            ),
-        ],
+      child: _AnimatedFaletButton(
+        line: line,
+        isMobile: isMobile,
+        hasOpenFalet: hasOpenFalet,
+        openFaletCount: provider.getOpenFaletCount(line.number),
       ),
     );
   }
@@ -429,20 +282,78 @@ class ProductionLineSection extends StatelessWidget {
   Future<void> _showCreateDialog(BuildContext context) async {
     final provider = context.read<PalletizingProvider>();
 
-    // Hard block: pallet creation is not allowed while open FALET exists on the
-    // line. FALET is owned by the Thermoforming Operator App.
-    if (provider.hasOpenFalet(line.number)) {
-      _showFaletBlockedMessage(context);
+    // Step 1 — call the new first-pallet-context endpoint. The backend tells
+    // us whether to open the include-FALET suggestion dialog and surfaces
+    // soft blocks (no current product, etc.) without throwing.
+    FirstPalletContext ctx;
+    try {
+      ctx = await provider.fetchFirstPalletContext(line.number);
+    } on ApiException catch (e) {
+      if (!context.mounted) return;
+      // 409 LINE_BLOCKED_BY_PENDING_HANDOVER → state refresh routes the UI to
+      // the LegacyHandoverInfoCard overlay; no extra snackbar needed.
+      if (e.code == 'LINE_BLOCKED_BY_PENDING_HANDOVER') {
+        await provider.refreshLineState(line.number);
+        return;
+      }
+      _showErrorSnack(context, e.displayMessage);
+      return;
+    } catch (_) {
+      if (!context.mounted) return;
+      _showErrorSnack(context, 'فشل في تحميل سياق أول طبلية');
       return;
     }
 
-    final initialProductType = provider.getSelectedProductType(line.number);
+    if (!context.mounted) return;
+
+    // Step 2 — soft block: no current product set on the line. The product is
+    // managed by the Thermoforming/Roll Worker apps; we just surface the
+    // backend-localized hint and stop.
+    if (ctx.blockReason == 'CURRENT_PRODUCT_REQUIRED') {
+      _showInfoSnack(
+        context,
+        (ctx.messageAr?.isNotEmpty ?? false)
+            ? ctx.messageAr!
+            : 'اختر المنتج الحالي على الخط قبل إنشاء طبلية',
+      );
+      return;
+    }
+
+    // Step 3 — optional first-pallet suggestion when matching FALET is open.
+    int? prefilledQuantity;
+    if (ctx.canSuggestFirstPalletDialog) {
+      final choice = await showDialog<FirstPalletDialogResult>(
+        context: context,
+        builder: (_) => FirstPalletSuggestionDialog(line: line, context: ctx),
+      );
+      if (!context.mounted) return;
+      if (choice == null) return; // user dismissed → abort, no pallet created
+      if (choice == FirstPalletDialogResult.useFalet) {
+        prefilledQuantity = ctx.suggestedFaletQuantityForFirstPallet;
+      }
+    }
+
+    // Step 4 — resolve the product to pre-select. Prefer the productType
+    // returned by the context (server-authoritative); fall back to whatever
+    // the line cache already had.
+    ProductType? initialProductType = provider.getSelectedProductType(
+      line.number,
+    );
+    final ctxProductId = ctx.currentProductTypeId;
+    if (ctxProductId != null) {
+      final match = provider.productTypes
+          .where((p) => p.id == ctxProductId)
+          .firstOrNull;
+      if (match != null) initialProductType = match;
+    }
 
     final result = await showDialog<Map<String, dynamic>>(
       context: context,
       builder: (context) => CreatePalletDialog(
         line: line,
         initialProductType: initialProductType,
+        initialQuantity: prefilledQuantity,
+        nonMatchingFaletQuantity: ctx.nonMatchingFaletQuantity,
       ),
     );
 
@@ -462,35 +373,32 @@ class ProductionLineSection extends StatelessWidget {
       }
     } on ApiException catch (e) {
       if (!context.mounted) return;
-      // Race-safety: server says FALET appeared between our local check and
-      // the create call. Same hard-block message — FALET is operator-owned.
-      if (e.code == 'FALET_MUST_BE_CONSUMED_FIRST') {
-        _showFaletBlockedMessage(context);
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(e.displayMessage, style: GoogleFonts.cairo()),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
+      _showErrorSnack(context, e.displayMessage);
     } catch (e) {
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('فشل في إنشاء الطبلية', style: GoogleFonts.cairo()),
-            backgroundColor: Colors.red,
-          ),
-        );
+        _showErrorSnack(context, 'فشل في إنشاء الطبلية');
       }
     }
   }
 
-  void _showFaletBlockedMessage(BuildContext context) {
+  void _showErrorSnack(BuildContext context, String message) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
-          'يوجد فالت مفتوح، يجب على المشغّل معالجته من تطبيق التشكيل الحراري',
+          message,
+          style: GoogleFonts.cairo(),
+          textDirection: TextDirection.rtl,
+        ),
+        backgroundColor: Colors.red,
+      ),
+    );
+  }
+
+  void _showInfoSnack(BuildContext context, String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          message,
           style: GoogleFonts.cairo(),
           textDirection: TextDirection.rtl,
         ),
@@ -510,282 +418,6 @@ class ProductionLineSection extends StatelessWidget {
         lineNumber: line.number,
       ),
     );
-  }
-
-  Future<void> _handleCreateHandover(BuildContext context) async {
-    final provider = context.read<PalletizingProvider>();
-
-    // ── Step 1: Show handover creation dialog FIRST ──
-    // Collect last-active product info, FALET quantity, and notes.
-    final result = await HandoverCreationDialog.show(
-      context: context,
-      productTypes: provider.productTypes,
-      themeColor: line.color,
-      currentProduct: provider.getSelectedProductType(line.number),
-    );
-
-    if (result == null || !context.mounted) return;
-
-    // ── Step 2: Determine if FALET resolution is needed ──
-    final bool operatorDeclaredFalet =
-        result.lastActiveProductFaletQuantity != null &&
-        result.lastActiveProductFaletQuantity! > 0 &&
-        result.lastActiveProductTypeId != null;
-
-    // Always fetch fresh FALET items when there might be open items,
-    // or when the operator just declared a last-active product FALET.
-    List<FaletItem> openItems = [];
-    if (provider.hasOpenFalet(line.number) || operatorDeclaredFalet) {
-      await provider.fetchFaletItems(line.number);
-      if (!context.mounted) return;
-      final faletResponse = provider.getFaletItems(line.number);
-      openItems =
-          faletResponse?.faletItems
-              .where((item) => item.status == 'OPEN')
-              .toList() ??
-          [];
-    }
-
-    // ── Step 3: Auto carry-forward all open FALET items ──
-    List<FaletResolutionEntry>? faletResolutions;
-
-    // All open FALET items are automatically carried forward.
-    // The last-active FALET (declared via lastActiveProductTypeId) is
-    // implicitly CARRY_FORWARD on the backend — no resolution entry needed.
-    if (openItems.isNotEmpty) {
-      faletResolutions = openItems
-          .map(
-            (item) => FaletResolutionEntry(
-              faletId: item.faletId,
-              action: HandoverFaletAction.carryForward,
-            ),
-          )
-          .toList();
-    }
-
-    // ── Step 4: Submit handover creation ──
-    try {
-      final handover = await provider.createLineHandover(
-        line.number,
-        lastActiveProductTypeId: result.lastActiveProductTypeId,
-        lastActiveProductFaletQuantity: result.lastActiveProductFaletQuantity,
-        notes: result.notes,
-        faletResolutions: faletResolutions,
-      );
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              'تم إنشاء طلب التسليم بنجاح',
-              style: GoogleFonts.cairo(),
-            ),
-            backgroundColor: Colors.green,
-          ),
-        );
-
-        // Show reconciliation summary if any items were reconciled
-        if (handover != null && handover.reconciledFaletItems.isNotEmpty) {
-          _showReconciliationSummary(context, handover);
-        }
-      }
-    } on ApiException catch (e) {
-      if (context.mounted) {
-        // Provide specific Arabic feedback for FALET-related errors
-        final errorMessage = _mapFaletError(e);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(errorMessage, style: GoogleFonts.cairo()),
-            backgroundColor: Colors.red,
-            duration: const Duration(seconds: 5),
-          ),
-        );
-      }
-    }
-  }
-
-  /// Maps FALET-specific error codes to actionable Arabic messages.
-  /// Falls back to the default ApiException displayMessage.
-  String _mapFaletError(ApiException e) {
-    switch (e.code) {
-      case 'HANDOVER_FALET_DECISION_REQUIRED':
-      case 'HANDOVER_FALET_DECISION_MISSING':
-        return 'يجب حل جميع عناصر الفالت المفتوحة. حاول مرة أخرى';
-      case 'HANDOVER_FALET_NO_SESSION_PRODUCTION':
-        return 'لا يوجد إنتاج نشط في هذه المناوبة لنوع المنتج. لا يمكن اعتبار الفالت محسوباً.';
-      default:
-        return e.displayMessage;
-    }
-  }
-
-  void _showReconciliationSummary(
-    BuildContext context,
-    LineHandoverInfo handover,
-  ) {
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Row(
-          children: [
-            Icon(Icons.check_circle_outline, color: Colors.green, size: 24),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Text(
-                'ملخص ضم الفالت',
-                style: GoogleFonts.cairo(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 16,
-                  color: Colors.green.shade700,
-                ),
-              ),
-            ),
-          ],
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: handover.reconciledFaletItems.map((item) {
-            final isSessionAccounted = item.isSessionAccounted;
-            return Padding(
-              padding: const EdgeInsets.symmetric(vertical: 4),
-              child: Row(
-                children: [
-                  Icon(
-                    isSessionAccounted
-                        ? Icons.check_circle_outline_rounded
-                        : Icons.merge_type_rounded,
-                    size: 16,
-                    color: isSessionAccounted
-                        ? Colors.green.shade600
-                        : line.color,
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      isSessionAccounted
-                          ? '${item.productTypeName} (${item.reconciledQuantity}) — محسوب في إنتاج المناوبة'
-                          : '${item.productTypeName} (${item.reconciledQuantity}) → ${item.scannedValue ?? ''}',
-                      style: GoogleFonts.cairo(fontSize: 13),
-                    ),
-                  ),
-                ],
-              ),
-            );
-          }).toList(),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
-            child: Text(
-              'حسناً',
-              style: GoogleFonts.cairo(
-                color: line.color,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Future<void> _handleConfirmHandover(BuildContext context) async {
-    final provider = context.read<PalletizingProvider>();
-    final handover = provider.getPendingHandover(line.number);
-    if (handover == null) return;
-
-    // Show confirm dialog with optional receipt notes
-    final receiptNotes = await HandoverConfirmDialog.show(context: context);
-
-    // null means user cancelled
-    if (receiptNotes == null || !context.mounted) return;
-
-    try {
-      await provider.confirmLineHandover(
-        lineNumber: line.number,
-        handoverId: handover.handoverId,
-        receiptNotes: receiptNotes.isEmpty ? null : receiptNotes,
-      );
-
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('تم تأكيد التسليم بنجاح', style: GoogleFonts.cairo()),
-            backgroundColor: Colors.green,
-          ),
-        );
-      }
-    } on ApiException catch (e) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(e.displayMessage, style: GoogleFonts.cairo()),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    }
-  }
-
-  Future<void> _handleRejectHandover(BuildContext context) async {
-    final provider = context.read<PalletizingProvider>();
-
-    // Refresh first so we open the dialog against the current snapshot IDs.
-    // The strict-validation backend rejects observations carrying snapshot IDs
-    // from a previous handover; cached state on this line could otherwise
-    // produce HANDOVER_OBSERVATION_SNAPSHOT_MISMATCH.
-    await provider.refreshLineState(line.number);
-    if (!context.mounted) return;
-
-    final handover = provider.getPendingHandover(line.number);
-    if (handover == null) return;
-
-    final result = await HandoverRejectDialog.show(
-      context: context,
-      faletItems: handover.faletItems,
-    );
-
-    if (result == null || !context.mounted) return;
-
-    try {
-      await provider.rejectLineHandover(
-        lineNumber: line.number,
-        handoverId: handover.handoverId,
-        incorrectQuantity: result.incorrectQuantity,
-        otherReason: result.otherReason,
-        otherReasonNotes: result.otherReasonNotes,
-        itemObservations: result.itemObservations,
-        undeclaredFaletFound: result.undeclaredFaletFound,
-        undeclaredFaletObservedQuantity: result.undeclaredFaletObservedQuantity,
-        undeclaredFaletNotes: result.undeclaredFaletNotes,
-      );
-
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              'تم رفض التسليم وسيتم مراجعته من قبل الإدارة',
-              style: GoogleFonts.cairo(),
-            ),
-            backgroundColor: Colors.orange,
-          ),
-        );
-      }
-    } on ApiException catch (e) {
-      // Stale snapshot IDs: refresh the handover so the next attempt uses the
-      // current set, and tell the user to retry.
-      if (e.code == 'HANDOVER_OBSERVATION_SNAPSHOT_MISMATCH' ||
-          e.code == 'FALET_STATE_NOT_AVAILABLE_FOR_REJECTION') {
-        await provider.refreshLineState(line.number);
-      }
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(e.displayMessage, style: GoogleFonts.cairo()),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    }
   }
 }
 

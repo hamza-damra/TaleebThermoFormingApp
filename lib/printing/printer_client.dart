@@ -2,10 +2,12 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import '../core/exceptions/printing_exception.dart';
-import '../domain/entities/printer_config.dart';
 import '../domain/entities/label_preset.dart';
+import '../domain/entities/printer_config.dart';
+import '../domain/entities/printer_language.dart';
 import 'label_renderer.dart';
 import 'tspl_builder.dart';
+import 'zpl_builder.dart';
 
 class PrinterClient {
   final PrinterConfig printer;
@@ -29,17 +31,75 @@ class PrinterClient {
       sideText: sideText,
     );
 
-    final tsplBuilder = TsplBuilder();
-    final printData = tsplBuilder.createLabelPrint(
-      widthMm: preset.widthMm,
-      heightMm: preset.heightMm,
-      bitmapWidthBytes: renderResult.widthBytes,
-      bitmapHeight: renderResult.height,
-      bitmapData: renderResult.monochromeBytes,
-      copies: copies,
-    );
+    final Uint8List printData;
+    switch (printer.language) {
+      case PrinterLanguage.zpl:
+        final zpl = ZplBuilder();
+        printData = zpl.createLabelPrint(
+          widthMm: preset.widthMm,
+          heightMm: preset.heightMm,
+          bitmapWidthBytes: renderResult.widthBytes,
+          bitmapHeight: renderResult.height,
+          bitmapData: renderResult.monochromeBytes,
+          copies: copies,
+        );
+        break;
+      case PrinterLanguage.tspl:
+        final tsplBuilder = TsplBuilder();
+        printData = tsplBuilder.createLabelPrint(
+          widthMm: preset.widthMm,
+          heightMm: preset.heightMm,
+          bitmapWidthBytes: renderResult.widthBytes,
+          bitmapHeight: renderResult.height,
+          bitmapData: renderResult.monochromeBytes,
+          copies: copies,
+        );
+        break;
+    }
 
     await _sendData(printData);
+  }
+
+  /// Sends a small built-in label so the user can validate that the printer
+  /// actually prints — not just that a TCP socket opens. The label content
+  /// is generated per protocol, so a mismatched language will be visible.
+  Future<void> testPrint({LabelPreset? preset}) async {
+    final LabelPreset effectivePreset = preset ?? DefaultPresets.defaultPreset;
+
+    final Uint8List data;
+    switch (printer.language) {
+      case PrinterLanguage.zpl:
+        final zpl = ZplBuilder();
+        data = zpl.createSelfTestLabel(
+          widthMm: effectivePreset.widthMm,
+          heightMm: effectivePreset.heightMm,
+        );
+        break;
+      case PrinterLanguage.tspl:
+        data = await _buildTsplTestLabel(effectivePreset);
+        break;
+    }
+
+    await _sendData(data);
+  }
+
+  Future<Uint8List> _buildTsplTestLabel(LabelPreset preset) async {
+    final renderer = LabelRenderer();
+    final rendered = await renderer.render(
+      value: 'TEST123',
+      preset: preset,
+      topText: 'TEST',
+    );
+
+    final builder = TsplBuilder();
+    return builder.createLabelPrint(
+      widthMm: preset.widthMm,
+      heightMm: preset.heightMm,
+      bitmapWidthBytes: rendered.widthBytes,
+      bitmapHeight: rendered.height,
+      bitmapData: rendered.monochromeBytes,
+      copies: 1,
+    );
   }
 
   Future<void> _sendData(Uint8List data) async {

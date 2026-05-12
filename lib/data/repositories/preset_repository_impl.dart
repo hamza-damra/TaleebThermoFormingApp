@@ -27,7 +27,7 @@ class PresetRepositoryImpl implements PresetRepository {
   }
 
   @override
-  Future<void> save(LabelPreset preset) async {
+  Future<LabelPreset> save(LabelPreset preset) async {
     if (preset.id.startsWith('default_')) {
       throw ArgumentError('لا يمكن تعديل الإعدادات الافتراضية');
     }
@@ -36,6 +36,7 @@ class PresetRepositoryImpl implements PresetRepository {
     final presetWithId = preset.copyWith(id: id);
     final model = LabelPresetModel.fromEntity(presetWithId);
     await PrintingLocalStorage.presetsBox.put(id, model);
+    return presetWithId;
   }
 
   @override

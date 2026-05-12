@@ -1,6 +1,8 @@
 import 'package:hive/hive.dart';
 
+import '../../core/constants/printing_constants.dart';
 import '../../domain/entities/printer_config.dart';
+import '../../domain/entities/printer_language.dart';
 
 part 'printer_config_model.g.dart';
 
@@ -24,6 +26,14 @@ class PrinterConfigModel extends HiveObject {
   @HiveField(5)
   final int timeoutMs;
 
+  // Stored as wire string ("tspl" / "zpl") for backward-compat with old rows
+  // written before this field existed.
+  @HiveField(6)
+  final String? language;
+
+  @HiveField(7)
+  final String? labelPresetId;
+
   PrinterConfigModel({
     required this.id,
     required this.name,
@@ -31,6 +41,8 @@ class PrinterConfigModel extends HiveObject {
     required this.port,
     required this.isDefault,
     required this.timeoutMs,
+    this.language,
+    this.labelPresetId,
   });
 
   factory PrinterConfigModel.fromEntity(PrinterConfig entity) {
@@ -41,6 +53,8 @@ class PrinterConfigModel extends HiveObject {
       port: entity.port,
       isDefault: entity.isDefault,
       timeoutMs: entity.timeoutMs,
+      language: entity.language.wireValue,
+      labelPresetId: entity.labelPresetId,
     );
   }
 
@@ -52,6 +66,8 @@ class PrinterConfigModel extends HiveObject {
       port: port,
       isDefault: isDefault,
       timeoutMs: timeoutMs,
+      language: PrinterLanguage.fromWireValue(language),
+      labelPresetId: labelPresetId ?? PrintingConstants.defaultPresetId,
     );
   }
 }

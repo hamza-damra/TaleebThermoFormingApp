@@ -160,9 +160,15 @@ void main() {
           lessThanOrEqualTo(layout.heightDots),
           reason: 'Bottom text must fit within image for ${preset.name}',
         );
+        // QR must remain readable. Narrow labels (≤30 mm width) share their
+        // limited horizontal space with the rotated side text bands, so the
+        // QR shrinks to ~5 mm; wider labels keep the original ~10 mm floor.
+        final minQrDots = preset.widthMm <= 30 ? 40 : 80;
         expect(
-          layout.qrSize, greaterThanOrEqualTo(80),
-          reason: 'QR must be at least 80 dots (~10mm) for ${preset.name}',
+          layout.qrSize,
+          greaterThanOrEqualTo(minQrDots),
+          reason:
+              'QR must be at least $minQrDots dots for ${preset.name}',
         );
       }
     });

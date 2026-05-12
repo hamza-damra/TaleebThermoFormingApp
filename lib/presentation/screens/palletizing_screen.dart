@@ -127,9 +127,18 @@ class _PalletizingScreenState extends State<PalletizingScreen>
 
   PreferredSizeWidget _buildAppBar(bool useTabs) {
     if (useTabs) {
-      final activeColor = _activeTabIndex == 1
-          ? ProductionLine.line2.color
-          : ProductionLine.line1.color;
+      final provider = context.watch<PalletizingProvider>();
+      final activeLineNumber = _activeTabIndex == 1 ? 2 : 1;
+      final activeUi = provider.getUiState(activeLineNumber);
+      final isInactive =
+          activeUi == LineUiState.waitingForThermoforming ||
+          activeUi == LineUiState.blocked;
+
+      final activeColor = isInactive
+          ? const Color(0xFF78909C) // blue-grey 400 — neutral, not green
+          : (_activeTabIndex == 1
+              ? ProductionLine.line2.color
+              : ProductionLine.line1.color);
 
       return AppBar(
         backgroundColor: activeColor,
@@ -333,6 +342,22 @@ class _PalletizingScreenState extends State<PalletizingScreen>
         .where((l) => l.lineNumber == 2)
         .firstOrNull;
 
+    // Determine if each line can offer a "switch" action (only useful when
+    // there are two lines and the *other* one is not also blocked).
+    final line1Ui = provider.getUiState(1);
+    final line2Ui = provider.getUiState(2);
+    final line1Active = line1Ui == LineUiState.active ||
+        line1Ui == LineUiState.needsPalletizerAuth;
+    final line2Active = line2Ui == LineUiState.active ||
+        line2Ui == LineUiState.needsPalletizerAuth;
+
+    // Background colour: neutral grey when the line is in an inactive state.
+    Color bgFor(LineUiState ui, ProductionLine line) =>
+        (ui == LineUiState.waitingForThermoforming ||
+                ui == LineUiState.blocked)
+            ? const Color(0xFFF5F5F5)
+            : line.lightColor;
+
     if (isMobile) {
       return TabBarView(
         controller: _tabController,
@@ -340,20 +365,28 @@ class _PalletizingScreenState extends State<PalletizingScreen>
           RefreshIndicator(
             onRefresh: _refreshData,
             child: Container(
-              color: ProductionLine.line1.lightColor,
+              color: bgFor(line1Ui, ProductionLine.line1),
               child: ProductionLineSection(
                 line: ProductionLine.line1,
                 productionLineEntity: line1Entity,
+                canSwitchLine: line2Active,
+                onSwitchLine: line2Active
+                    ? () => _tabController?.animateTo(1)
+                    : null,
               ),
             ),
           ),
           RefreshIndicator(
             onRefresh: _refreshData,
             child: Container(
-              color: ProductionLine.line2.lightColor,
+              color: bgFor(line2Ui, ProductionLine.line2),
               child: ProductionLineSection(
                 line: ProductionLine.line2,
                 productionLineEntity: line2Entity,
+                canSwitchLine: line1Active,
+                onSwitchLine: line1Active
+                    ? () => _tabController?.animateTo(0)
+                    : null,
               ),
             ),
           ),
@@ -367,10 +400,11 @@ class _PalletizingScreenState extends State<PalletizingScreen>
           child: RefreshIndicator(
             onRefresh: _refreshData,
             child: Container(
-              color: ProductionLine.line1.lightColor,
+              color: bgFor(line1Ui, ProductionLine.line1),
               child: ProductionLineSection(
                 line: ProductionLine.line1,
                 productionLineEntity: line1Entity,
+                // Desktop dual-pane: no tab switching — both lines are visible.
               ),
             ),
           ),
@@ -380,7 +414,7 @@ class _PalletizingScreenState extends State<PalletizingScreen>
           child: RefreshIndicator(
             onRefresh: _refreshData,
             child: Container(
-              color: ProductionLine.line2.lightColor,
+              color: bgFor(line2Ui, ProductionLine.line2),
               child: ProductionLineSection(
                 line: ProductionLine.line2,
                 productionLineEntity: line2Entity,

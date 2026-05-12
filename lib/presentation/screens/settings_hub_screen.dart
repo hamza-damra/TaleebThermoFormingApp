@@ -3,7 +3,6 @@ import 'package:google_fonts/google_fonts.dart';
 
 import '../../core/responsive.dart';
 import 'device_settings_screen.dart';
-import 'preset_settings_screen.dart';
 import 'printer_settings_screen.dart';
 
 class SettingsHubScreen extends StatelessWidget {
@@ -51,19 +50,11 @@ class SettingsHubScreen extends StatelessWidget {
             _SettingCard(
               icon: Icons.print,
               title: 'إعدادات الطابعات',
-              description: 'إدارة الطابعات المتصلة',
+              description: 'إدارة الطابعات وأحجام الملصقات',
               onTap: () => Navigator.of(context).push(
                 MaterialPageRoute(
                   builder: (_) => const PrinterSettingsScreen(),
                 ),
-              ),
-            ),
-            _SettingCard(
-              icon: Icons.straighten,
-              title: 'أحجام الملصقات',
-              description: 'إدارة أحجام ملصقات الباركود',
-              onTap: () => Navigator.of(context).push(
-                MaterialPageRoute(builder: (_) => const PresetSettingsScreen()),
               ),
             ),
           ],

@@ -4,15 +4,27 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../core/constants.dart';
 import '../../core/responsive.dart';
 import '../../domain/entities/product_type.dart';
+import 'non_matching_falet_badge.dart';
 
 class CreatePalletDialog extends StatefulWidget {
   final ProductionLine line;
   final ProductType? initialProductType;
 
+  /// Optional override for the default quantity. When set, takes precedence
+  /// over `initialProductType.packageQuantity`. Used by the first-pallet
+  /// suggestion flow to pre-fill `suggestedFaletQuantityForFirstPallet`.
+  final int? initialQuantity;
+
+  /// When > 0, renders a read-only badge informing the user that FALET of a
+  /// different product is open on the line — the Operator App handles it.
+  final int nonMatchingFaletQuantity;
+
   const CreatePalletDialog({
     super.key,
     required this.line,
     this.initialProductType,
+    this.initialQuantity,
+    this.nonMatchingFaletQuantity = 0,
   });
 
   @override
@@ -28,7 +40,9 @@ class _CreatePalletDialogState extends State<CreatePalletDialog> {
   void initState() {
     super.initState();
     _selectedProductType = widget.initialProductType;
-    _quantity = _selectedProductType?.packageQuantity ?? 20;
+    _quantity = widget.initialQuantity ??
+        _selectedProductType?.packageQuantity ??
+        20;
     _quantityController = TextEditingController(text: '$_quantity');
   }
 
@@ -61,6 +75,10 @@ class _CreatePalletDialogState extends State<CreatePalletDialog> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
+            if (widget.nonMatchingFaletQuantity > 0) ...[
+              NonMatchingFaletBadge(count: widget.nonMatchingFaletQuantity),
+              SizedBox(height: spacing),
+            ],
             _buildProductDropdown(context),
             SizedBox(height: spacing),
             _buildQuantityStepper(context),

@@ -111,12 +111,10 @@ class ApiException implements Exception {
         return 'الخط محظور بسبب تسليم معلق';
       case 'PALLET_LINE_MISMATCH':
         return 'الطبلية لا تنتمي لهذا الخط';
-      case 'PENDING_LINE_HANDOVER_EXISTS':
-        return 'يوجد تسليم معلق بالفعل لهذا الخط';
-      case 'LINE_HANDOVER_NOT_FOUND':
-        return 'لم يتم العثور على التسليم';
-      case 'LINE_HANDOVER_ALREADY_RESOLVED':
-        return 'تم معالجة هذا التسليم مسبقاً';
+      // Safety-net: any old build that still calls POST /handover hits this.
+      // Should never fire after the worker UI cleanup is complete.
+      case 'LINE_HANDOVER_NOT_ALLOWED_IN_NEW_WORKFLOW':
+        return 'تم إيقاف تسليم المناوبة من تطبيق الطبليات';
       case 'INVALID_LOOSE_BALANCE':
         return 'عدد العبوات الفالتة غير صحيح';
       case 'INSUFFICIENT_LOOSE_BALANCE':
@@ -128,46 +126,17 @@ class ApiException implements Exception {
       case 'INCOMPLETE_PALLET_ALREADY_RESOLVED':
         return 'تم معالجة الطبلية الناقصة مسبقاً';
       case 'PALLETIZER_SESSION_REQUIRED':
-        return 'انتهت جلسة المُشَتِّح، يرجى تسجيل الدخول مجددًا';
+        return 'انتهت جلسة موظف الطبليات، يرجى تسجيل الدخول مجددًا';
       case 'PALLETIZER_NOT_ALLOWED':
         return 'هذا الموظف غير مصرح له بتسجيل الطبليات';
       case 'NO_ACTIVE_THERMOFORMING_SHIFT_FOR_LINE':
         return 'بانتظار بدء المناوبة من المشغّل';
-      // ── Handover FALET reconciliation errors ──
-      case 'HANDOVER_FALET_DECISION_REQUIRED':
-        return 'يجب حل جميع عناصر الفالت المفتوحة قبل التسليم';
-      case 'HANDOVER_FALET_DECISION_MISSING':
-        return 'قرار مفقود لبعض عناصر الفالت';
-      case 'HANDOVER_FALET_DECISION_DUPLICATE':
-        return 'عنصر فالت مكرر';
-      case 'HANDOVER_FALET_INVALID_ACTION':
-        return 'إجراء غير صالح';
-      case 'HANDOVER_FALET_PALLETE_REQUIRED':
-        return 'اختر طبلية للضم';
-      case 'HANDOVER_FALET_PALLETE_NOT_FOUND':
-        return 'الطبلية المحددة غير موجودة';
-      case 'HANDOVER_FALET_PALLETE_WRONG_SESSION':
-        return 'الطبلية من مناوبة مختلفة';
-      case 'HANDOVER_FALET_PALLETE_WRONG_LINE':
-        return 'الطبلية من خط مختلف';
-      case 'HANDOVER_FALET_PALLETE_CANCELLED':
-        return 'تم إلغاء الطبلية';
-      case 'HANDOVER_FALET_PALLETE_PRODUCT_MISMATCH':
-        return 'نوع المنتج غير متطابق';
-      case 'HANDOVER_FALET_QUANTITY_EXCEEDS_PALLETE':
-        return 'الكمية تتجاوز سعة الطبلية';
-      case 'HANDOVER_FALET_NO_SESSION_PRODUCTION':
-        return 'لا يوجد إنتاج نشط في هذه المناوبة لنوع المنتج. لا يمكن اعتبار الفالت محسوباً.';
-      case 'NO_ACTIVE_PRODUCT_FOR_UNDECLARED_FALET':
-        return 'لا يوجد منتج نشط على الخط';
       case 'FALET_NOT_FOUND':
         return 'الفالت غير موجود';
       case 'FALET_ALREADY_RESOLVED':
         return 'الفالت محلول مسبقاً';
       case 'FALET_LINE_MISMATCH':
         return 'الفالت لا ينتمي لهذا الخط';
-      case 'FALET_MUST_BE_CONSUMED_FIRST':
-        return 'يوجد فالت مفتوح لهذا المنتج يجب استهلاكه أولاً';
       case 'FALET_DISPUTE_NOT_FOUND':
         return 'النزاع غير موجود';
       case 'FALET_DISPUTE_ALREADY_RESOLVED':
@@ -180,21 +149,6 @@ class ApiException implements Exception {
         return 'الكمية تتجاوز المتبقي';
       case 'FALET_DISPUTE_NO_ACTIVE_AUTH_FOR_PALLETIZE':
         return 'يتطلب تفويض نشط للتنصيب';
-      // ── Handover rejection strict-validation errors ──
-      case 'HANDOVER_OBSERVATION_SNAPSHOT_MISMATCH':
-        return 'بيانات التسليم قديمة، يرجى تحديث الصفحة والمحاولة مرة أخرى.';
-      case 'HANDOVER_OBSERVATION_DUPLICATE':
-        return 'تم إرسال نفس بند الفالت أكثر من مرة.';
-      case 'HANDOVER_OBSERVATION_MISSING':
-        return 'يجب تحديد الكمية المرصودة لكل بند فالت.';
-      case 'HANDOVER_OBSERVED_QUANTITY_INVALID':
-        return 'الكمية المرصودة غير صحيحة.';
-      case 'HANDOVER_INCORRECT_QUANTITY_NO_MISMATCH':
-        return 'الكمية المرصودة تطابق الكمية المصرح عنها. لا يمكن الرفض.';
-      case 'HANDOVER_REJECTION_REASON_INVALID':
-        return 'سبب الرفض غير كافٍ. يجب اختيار مشكلة كمية أو فالت غير مصرح عنه.';
-      case 'FALET_STATE_NOT_AVAILABLE_FOR_REJECTION':
-        return 'حالة الفالت تغيرت، يرجى تحديث بيانات الخط.';
       case 'INTERNAL_ERROR':
         return 'حدث خطأ في الخادم. حاول مرة أخرى';
       default:

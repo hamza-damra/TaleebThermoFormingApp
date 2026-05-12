@@ -8,5 +8,5 @@ class PrintingConstants {
   static const double defaultGapMm = 2.0;
   static const double defaultMarginMm = 2.0;
   static const int defaultCopies = 1;
-  static const String defaultPresetId = 'default_50x30';
+  static const String defaultPresetId = 'default_100x100';
 }

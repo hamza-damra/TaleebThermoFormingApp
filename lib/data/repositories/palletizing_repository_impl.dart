@@ -1,8 +1,7 @@
 import '../../domain/entities/bootstrap_response.dart';
 import '../../domain/entities/falet_exists_response.dart';
-import '../../domain/entities/falet_resolution_entry.dart';
 import '../../domain/entities/falet_response.dart';
-import '../../domain/entities/line_handover_info.dart';
+import '../../domain/entities/first_pallet_context.dart';
 import '../../domain/entities/operator.dart';
 import '../../domain/entities/pallet_create_response.dart';
 import '../../domain/entities/palletizer_auth_result.dart';
@@ -16,7 +15,7 @@ import '../datasources/api_client.dart';
 import '../models/bootstrap_response_model.dart';
 import '../models/falet_exists_response_model.dart';
 import '../models/falet_response_model.dart';
-import '../models/line_handover_info_model.dart';
+import '../models/first_pallet_context_model.dart';
 import '../models/operator_model.dart';
 import '../models/pallet_create_response_model.dart';
 import '../models/palletizer_session_model.dart';
@@ -75,6 +74,17 @@ class PalletizingRepositoryImpl implements PalletizingRepository {
       path: '/api/v1/palletizing-line/lines/$lineId/state',
       method: 'GET',
       parser: (json) => BootstrapLineStateModel.fromJson(
+        json['data'] as Map<String, dynamic>,
+      ),
+    );
+  }
+
+  @override
+  Future<FirstPalletContext> getFirstPalletContext(int lineId) async {
+    return await _apiClient.request<FirstPalletContext>(
+      path: '/api/v1/palletizing-line/lines/$lineId/first-pallet-context',
+      method: 'GET',
+      parser: (json) => FirstPalletContextModel.fromJson(
         json['data'] as Map<String, dynamic>,
       ),
     );
@@ -159,116 +169,6 @@ class PalletizingRepositoryImpl implements PalletizingRepository {
   }
 
   @override
-  Future<LineHandoverInfo> createLineHandover(
-    int lineId, {
-    int? lastActiveProductTypeId,
-    int? lastActiveProductFaletQuantity,
-    String? notes,
-    List<FaletResolutionEntry>? faletResolutions,
-  }) async {
-    final data = <String, dynamic>{};
-    if (lastActiveProductTypeId != null) {
-      data['lastActiveProductTypeId'] = lastActiveProductTypeId;
-    }
-    if (lastActiveProductFaletQuantity != null) {
-      data['lastActiveProductFaletQuantity'] = lastActiveProductFaletQuantity;
-    }
-    if (notes != null && notes.isNotEmpty) {
-      data['notes'] = notes;
-    }
-    if (faletResolutions != null && faletResolutions.isNotEmpty) {
-      data['faletResolutions'] = faletResolutions
-          .map((e) => e.toJson())
-          .toList();
-    }
-    return await _apiClient.request<LineHandoverInfo>(
-      path: '/api/v1/palletizing-line/lines/$lineId/handover',
-      method: 'POST',
-      data: data,
-      parser: (json) =>
-          LineHandoverInfoModel.fromJson(json['data'] as Map<String, dynamic>),
-    );
-  }
-
-  @override
-  Future<LineHandoverInfo?> getLineHandover(int lineId) async {
-    try {
-      final result = await _apiClient.request<LineHandoverInfo?>(
-        path: '/api/v1/palletizing-line/lines/$lineId/handover/pending',
-        method: 'GET',
-        parser: (json) {
-          final data = json['data'];
-          if (data == null) return null;
-          return LineHandoverInfoModel.fromJson(data as Map<String, dynamic>);
-        },
-      );
-      return result;
-    } catch (_) {
-      return null;
-    }
-  }
-
-  @override
-  Future<LineHandoverInfo> confirmLineHandover({
-    required int lineId,
-    required int handoverId,
-    String? receiptNotes,
-  }) async {
-    final data = <String, dynamic>{};
-    if (receiptNotes != null && receiptNotes.isNotEmpty) {
-      data['receiptNotes'] = receiptNotes;
-    }
-    return await _apiClient.request<LineHandoverInfo>(
-      path: '/api/v1/palletizing-line/lines/$lineId/handover/$handoverId/confirm',
-      method: 'POST',
-      data: data,
-      parser: (json) =>
-          LineHandoverInfoModel.fromJson(json['data'] as Map<String, dynamic>),
-    );
-  }
-
-  @override
-  Future<LineHandoverInfo> rejectLineHandover({
-    required int lineId,
-    required int handoverId,
-    required bool incorrectQuantity,
-    required bool otherReason,
-    String? otherReasonNotes,
-    List<Map<String, dynamic>>? itemObservations,
-    bool undeclaredFaletFound = false,
-    int? undeclaredFaletObservedQuantity,
-    String? undeclaredFaletNotes,
-  }) async {
-    final data = <String, dynamic>{
-      'incorrectQuantity': incorrectQuantity,
-      'otherReason': otherReason,
-    };
-    if (otherReasonNotes != null && otherReasonNotes.isNotEmpty) {
-      data['otherReasonNotes'] = otherReasonNotes;
-    }
-    if (itemObservations != null) {
-      data['itemObservations'] = itemObservations;
-    }
-    if (undeclaredFaletFound) {
-      data['undeclaredFaletFound'] = true;
-      if (undeclaredFaletObservedQuantity != null) {
-        data['undeclaredFaletObservedQuantity'] =
-            undeclaredFaletObservedQuantity;
-      }
-      if (undeclaredFaletNotes != null && undeclaredFaletNotes.isNotEmpty) {
-        data['undeclaredFaletNotes'] = undeclaredFaletNotes;
-      }
-    }
-    return await _apiClient.request<LineHandoverInfo>(
-      path: '/api/v1/palletizing-line/lines/$lineId/handover/$handoverId/reject',
-      method: 'POST',
-      data: data,
-      parser: (json) =>
-          LineHandoverInfoModel.fromJson(json['data'] as Map<String, dynamic>),
-    );
-  }
-
-  @override
   Future<FaletResponse> getFaletItems(int lineId) async {
     return await _apiClient.request<FaletResponse>(
       path: '/api/v1/palletizing-line/lines/$lineId/falet',
@@ -299,4 +199,5 @@ class PalletizingRepositoryImpl implements PalletizingRepository {
       ),
     );
   }
+
 }

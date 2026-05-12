@@ -3,7 +3,6 @@ import 'operator_model.dart';
 import 'product_type_model.dart';
 import 'production_line_model.dart';
 import 'session_table_row_model.dart';
-import 'line_handover_info_model.dart';
 
 class BootstrapResponseModel extends BootstrapResponse {
   const BootstrapResponseModel({
@@ -48,15 +47,11 @@ class BootstrapLineStateModel extends BootstrapLineState {
     super.authorizedOperator,
     super.authorizedAt,
     super.sessionTable,
-    super.pendingHandover,
     super.blockedReason,
     super.selectedProductType,
     super.currentProductTypeId,
     super.currentProductTypeName,
     super.lineUiMode,
-    super.canInitiateHandover,
-    super.canConfirmHandover,
-    super.canRejectHandover,
     super.hasOpenFalet,
     super.openFaletCount,
   });
@@ -87,7 +82,6 @@ class BootstrapLineStateModel extends BootstrapLineState {
     }
 
     final sessionTableJson = json['sessionTable'] as List<dynamic>? ?? [];
-    final handoverJson = json['pendingHandover'] as Map<String, dynamic>?;
     final selectedProductJson =
         json['selectedProductType'] as Map<String, dynamic>?;
 
@@ -120,17 +114,11 @@ class BootstrapLineStateModel extends BootstrapLineState {
                 SessionTableRowModel.fromJson(item as Map<String, dynamic>),
           )
           .toList(),
-      pendingHandover: handoverJson != null
-          ? LineHandoverInfoModel.fromJson(handoverJson)
-          : null,
       blockedReason: json['blockedReason'] as String?,
       selectedProductType: resolvedSelectedProduct,
       currentProductTypeId: currentProductTypeId,
       currentProductTypeName: currentProductTypeName,
       lineUiMode: json['lineUiMode'] as String?,
-      canInitiateHandover: json['canInitiateHandover'] as bool? ?? false,
-      canConfirmHandover: json['canConfirmHandover'] as bool? ?? false,
-      canRejectHandover: json['canRejectHandover'] as bool? ?? false,
       hasOpenFalet: json['hasOpenFalet'] as bool? ?? false,
       openFaletCount: json['openFaletCount'] as int? ?? 0,
     );

@@ -3,9 +3,8 @@ import 'package:flutter/foundation.dart';
 import '../../core/exceptions/api_exception.dart';
 import '../../data/datasources/auth_local_storage.dart';
 import '../../domain/entities/bootstrap_response.dart';
-import '../../domain/entities/falet_resolution_entry.dart';
 import '../../domain/entities/falet_response.dart';
-import '../../domain/entities/line_handover_info.dart';
+import '../../domain/entities/first_pallet_context.dart';
 import '../../domain/entities/operator.dart';
 import '../../domain/entities/pallet_create_response.dart';
 import '../../domain/entities/palletizer_session.dart';
@@ -21,7 +20,8 @@ enum PalletizingState { idle, loading, loaded, error }
 /// Per-line UI state. Computed from the cached BootstrapLineState plus the
 /// palletizer session, in this priority order:
 ///   1. blocked    (BootstrapLineState.blockedReason != null)
-///   2. handover   (lineUiMode == PENDING_HANDOVER_*)
+///   2. pendingHandover* (lineUiMode == PENDING_HANDOVER_*) — passive
+///      informational state only; legacy handover cleanup is admin-only.
 ///   3. waitingForThermoforming (authorized == false)
 ///   4. needsPalletizerAuth (authorized && no active session)
 ///   5. active     (authorized && active session)
@@ -57,18 +57,15 @@ class PalletizingProvider extends ChangeNotifier {
   final Map<int, List<SessionTableRow>> _sessionTables = {};
   final Map<int, ProductType?> _selectedProductTypes = {};
   final Map<int, PalletCreateResponse?> _lastPalletResponses = {};
-  final Map<int, LineHandoverInfo?> _pendingHandovers = {};
   final Map<int, String?> _blockedReasons = {};
   final Map<int, bool> _lineCreating = {};
   final Map<int, String?> _lineErrors = {};
   final Map<int, String?> _lineUiModes = {};
-  final Map<int, bool> _canInitiateHandovers = {};
-  final Map<int, bool> _canConfirmHandovers = {};
-  final Map<int, bool> _canRejectHandovers = {};
   final Map<int, FaletResponse?> _faletItems = {};
   final Map<int, bool> _faletItemsLoading = {};
   final Map<int, bool> _hasOpenFalet = {};
   final Map<int, int> _openFaletCount = {};
+  final Map<int, bool> _firstPalletContextLoading = {};
 
   // ── Global getters ──
   PalletizingState get state => _state;
@@ -117,9 +114,6 @@ class PalletizingProvider extends ChangeNotifier {
   PalletCreateResponse? getLastPalletResponse(int lineNumber) =>
       _lastPalletResponses[lineNumber];
 
-  LineHandoverInfo? getPendingHandover(int lineNumber) =>
-      _pendingHandovers[lineNumber];
-
   String? getBlockedReason(int lineNumber) => _blockedReasons[lineNumber];
 
   bool isLineCreating(int lineNumber) => _lineCreating[lineNumber] ?? false;
@@ -127,15 +121,6 @@ class PalletizingProvider extends ChangeNotifier {
   String? getLineError(int lineNumber) => _lineErrors[lineNumber];
 
   String? getLineUiMode(int lineNumber) => _lineUiModes[lineNumber];
-
-  bool canInitiateHandover(int lineNumber) =>
-      _canInitiateHandovers[lineNumber] ?? false;
-
-  bool canConfirmHandover(int lineNumber) =>
-      _canConfirmHandovers[lineNumber] ?? false;
-
-  bool canRejectHandover(int lineNumber) =>
-      _canRejectHandovers[lineNumber] ?? false;
 
   FaletResponse? getFaletItems(int lineNumber) => _faletItems[lineNumber];
 
@@ -146,10 +131,14 @@ class PalletizingProvider extends ChangeNotifier {
 
   int getOpenFaletCount(int lineNumber) => _openFaletCount[lineNumber] ?? 0;
 
+  bool isFirstPalletContextLoading(int lineNumber) =>
+      _firstPalletContextLoading[lineNumber] ?? false;
+
   bool isLineBlocked(int lineNumber) {
     final ui = getUiState(lineNumber);
     return ui == LineUiState.blocked ||
         ui == LineUiState.pendingHandoverIncoming ||
+        ui == LineUiState.pendingHandoverReview ||
         ui == LineUiState.waitingForThermoforming ||
         ui == LineUiState.needsPalletizerAuth;
   }
@@ -157,6 +146,12 @@ class PalletizingProvider extends ChangeNotifier {
   /// Single source of truth for the per-line UI branch. Existing blocked /
   /// handover / inactive states always take precedence over the new waiting
   /// card so a real failure never gets masked as "waiting for the operator".
+  ///
+  /// **Key rule**: `isAuthorized` alone is not sufficient. If the backend
+  /// returns `authorized: true` but no `authorizedOperator` data (e.g. the
+  /// Thermoforming Operator ended the shift and the authorization row is
+  /// stale), the line is still treated as `waitingForThermoforming` so the
+  /// blocking overlay appears.
   LineUiState getUiState(int lineNumber) {
     if ((_blockedReasons[lineNumber] ?? '').isNotEmpty) {
       return LineUiState.blocked;
@@ -169,7 +164,11 @@ class PalletizingProvider extends ChangeNotifier {
       return LineUiState.pendingHandoverReview;
     }
     final lineState = _lineStates[lineNumber];
-    if (lineState == null || !lineState.isAuthorized) {
+    // No line state, not authorized, or authorized but operator is missing
+    // (stale / ended shift) → show the blocking "waiting" modal.
+    if (lineState == null ||
+        !lineState.isAuthorized ||
+        lineState.authorizedOperator == null) {
       return LineUiState.waitingForThermoforming;
     }
     if (!hasActivePalletizerSession(lineNumber)) {
@@ -200,24 +199,6 @@ class PalletizingProvider extends ChangeNotifier {
 
       for (final lineState in bootstrap.lines) {
         _hydrateLineState(lineState.lineNumber, lineState);
-      }
-
-      // Fetch full handover details for lines in review mode (existing behavior).
-      for (final lineState in bootstrap.lines) {
-        if (lineState.lineUiMode == 'PENDING_HANDOVER_REVIEW') {
-          try {
-            final fullHandover = await _repository.getLineHandover(
-              lineState.lineId,
-            );
-            if (fullHandover != null) {
-              _pendingHandovers[lineState.lineNumber] = fullHandover;
-            }
-          } catch (e) {
-            debugPrint(
-              'Failed to fetch full handover details for line ${lineState.lineNumber}: $e',
-            );
-          }
-        }
       }
 
       // For every authorized line, sync the palletizer session from the
@@ -259,19 +240,6 @@ class PalletizingProvider extends ChangeNotifier {
       final lineState = await _repository.getLineState(lineId);
       _hydrateLineState(lineNumber, lineState);
 
-      if (lineState.lineUiMode == 'PENDING_HANDOVER_REVIEW') {
-        try {
-          final fullHandover = await _repository.getLineHandover(lineId);
-          if (fullHandover != null) {
-            _pendingHandovers[lineNumber] = fullHandover;
-          }
-        } catch (e) {
-          debugPrint(
-            'Failed to fetch full handover details for line $lineNumber: $e',
-          );
-        }
-      }
-
       // Re-sync the palletizer session whenever line state changes so we drop
       // back to State B if the backend ended the session (e.g. shift-line ended).
       if (lineState.isAuthorized) {
@@ -297,12 +265,8 @@ class PalletizingProvider extends ChangeNotifier {
   void _hydrateLineState(int lineNumber, BootstrapLineState lineState) {
     _lineStates[lineNumber] = lineState;
     _sessionTables[lineNumber] = lineState.sessionTable;
-    _pendingHandovers[lineNumber] = lineState.pendingHandover;
     _blockedReasons[lineNumber] = lineState.blockedReason;
     _lineUiModes[lineNumber] = lineState.lineUiMode;
-    _canInitiateHandovers[lineNumber] = lineState.canInitiateHandover;
-    _canConfirmHandovers[lineNumber] = lineState.canConfirmHandover;
-    _canRejectHandovers[lineNumber] = lineState.canRejectHandover;
     _hasOpenFalet[lineNumber] = lineState.hasOpenFalet;
     _openFaletCount[lineNumber] = lineState.openFaletCount;
     _selectedProductTypes[lineNumber] = _resolveProductType(lineState);
@@ -441,6 +405,33 @@ class PalletizingProvider extends ChangeNotifier {
     }
   }
 
+  // ── First-pallet context ──
+
+  /// Called every time the user taps "إنشاء طبلية جديدة". The backend returns
+  /// rich context telling us whether to open the include-FALET suggestion
+  /// dialog. Throws ApiException on backend errors (notably 409
+  /// `LINE_BLOCKED_BY_PENDING_HANDOVER`); callers must catch and react.
+  Future<FirstPalletContext> fetchFirstPalletContext(int lineNumber) async {
+    final lineId = getLineIdForNumber(lineNumber);
+    if (lineId == null) {
+      throw StateError('No lineId found for lineNumber $lineNumber');
+    }
+
+    _firstPalletContextLoading[lineNumber] = true;
+    notifyListeners();
+
+    try {
+      final ctx = await _repository.getFirstPalletContext(lineId);
+      // Keep the FALET indicator in sync with what the backend just returned
+      // — the context is a more recent snapshot than the cached line state.
+      _hasOpenFalet[lineNumber] = ctx.hasOpenFalet;
+      return ctx;
+    } finally {
+      _firstPalletContextLoading[lineNumber] = false;
+      notifyListeners();
+    }
+  }
+
   // ── Create pallet (line-scoped) ──
 
   Future<PalletCreateResponse?> createPallet({
@@ -534,106 +525,6 @@ class PalletizingProvider extends ChangeNotifier {
       throw StateError('No lineId found for lineNumber $lineNumber');
     }
     return await _repository.getSessionProductionDetail(lineId);
-  }
-
-  // ── Line handover (unchanged surface) ──
-
-  Future<LineHandoverInfo?> createLineHandover(
-    int lineNumber, {
-    int? lastActiveProductTypeId,
-    int? lastActiveProductFaletQuantity,
-    String? notes,
-    List<FaletResolutionEntry>? faletResolutions,
-  }) async {
-    final lineId = getLineIdForNumber(lineNumber);
-    if (lineId == null) return null;
-
-    try {
-      final handover = await _repository.createLineHandover(
-        lineId,
-        lastActiveProductTypeId: lastActiveProductTypeId,
-        lastActiveProductFaletQuantity: lastActiveProductFaletQuantity,
-        notes: notes,
-        faletResolutions: faletResolutions,
-      );
-      _pendingHandovers[lineNumber] = handover;
-
-      await _refreshLineStateFromBackend(lineNumber, lineId);
-
-      notifyListeners();
-      return handover;
-    } on ApiException catch (e) {
-      _lineErrors[lineNumber] = e.displayMessage;
-      notifyListeners();
-      rethrow;
-    }
-  }
-
-  Future<void> confirmLineHandover({
-    required int lineNumber,
-    required int handoverId,
-    String? receiptNotes,
-  }) async {
-    final lineId = getLineIdForNumber(lineNumber);
-    if (lineId == null) return;
-
-    try {
-      await _repository.confirmLineHandover(
-        lineId: lineId,
-        handoverId: handoverId,
-        receiptNotes: receiptNotes,
-      );
-
-      _pendingHandovers[lineNumber] = null;
-
-      await _refreshLineStateFromBackend(lineNumber, lineId);
-      notifyListeners();
-    } on ApiException catch (e) {
-      _lineErrors[lineNumber] = e.displayMessage;
-      notifyListeners();
-      rethrow;
-    }
-  }
-
-  Future<void> rejectLineHandover({
-    required int lineNumber,
-    required int handoverId,
-    required bool incorrectQuantity,
-    required bool otherReason,
-    String? otherReasonNotes,
-    List<Map<String, dynamic>>? itemObservations,
-    bool undeclaredFaletFound = false,
-    int? undeclaredFaletObservedQuantity,
-    String? undeclaredFaletNotes,
-  }) async {
-    final lineId = getLineIdForNumber(lineNumber);
-    if (lineId == null) return;
-
-    try {
-      await _repository.rejectLineHandover(
-        lineId: lineId,
-        handoverId: handoverId,
-        incorrectQuantity: incorrectQuantity,
-        otherReason: otherReason,
-        otherReasonNotes: otherReasonNotes,
-        itemObservations: itemObservations,
-        undeclaredFaletFound: undeclaredFaletFound,
-        undeclaredFaletObservedQuantity: undeclaredFaletObservedQuantity,
-        undeclaredFaletNotes: undeclaredFaletNotes,
-      );
-
-      _pendingHandovers[lineNumber] = null;
-
-      await Future.wait([
-        fetchFaletItems(lineNumber),
-        _refreshLineStateFromBackend(lineNumber, lineId),
-      ]);
-      notifyListeners();
-    } on ApiException catch (e) {
-      _lineErrors[lineNumber] = e.displayMessage;
-      notifyListeners();
-      rethrow;
-    }
   }
 
   // ── FALET Items (unchanged surface) ──

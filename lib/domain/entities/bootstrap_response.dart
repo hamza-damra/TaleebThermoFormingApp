@@ -2,7 +2,6 @@ import 'operator.dart';
 import 'product_type.dart';
 import 'production_line.dart';
 import 'session_table_row.dart';
-import 'line_handover_info.dart';
 
 class BootstrapResponse {
   final List<ProductType> productTypes;
@@ -24,15 +23,11 @@ class BootstrapLineState {
   final Operator? authorizedOperator;
   final DateTime? authorizedAt;
   final List<SessionTableRow> sessionTable;
-  final LineHandoverInfo? pendingHandover;
   final String? blockedReason;
   final ProductType? selectedProductType;
   final int? currentProductTypeId;
   final String? currentProductTypeName;
   final String? lineUiMode;
-  final bool canInitiateHandover;
-  final bool canConfirmHandover;
-  final bool canRejectHandover;
   final bool hasOpenFalet;
   final int openFaletCount;
 
@@ -44,15 +39,11 @@ class BootstrapLineState {
     this.authorizedOperator,
     this.authorizedAt,
     this.sessionTable = const [],
-    this.pendingHandover,
     this.blockedReason,
     this.selectedProductType,
     this.currentProductTypeId,
     this.currentProductTypeName,
     this.lineUiMode,
-    this.canInitiateHandover = false,
-    this.canConfirmHandover = false,
-    this.canRejectHandover = false,
     this.hasOpenFalet = false,
     this.openFaletCount = 0,
   });

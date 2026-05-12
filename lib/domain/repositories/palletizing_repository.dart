@@ -1,8 +1,7 @@
 import '../entities/bootstrap_response.dart';
 import '../entities/falet_exists_response.dart';
-import '../entities/falet_resolution_entry.dart';
 import '../entities/falet_response.dart';
-import '../entities/line_handover_info.dart';
+import '../entities/first_pallet_context.dart';
 import '../entities/pallet_create_response.dart';
 import '../entities/palletizer_auth_result.dart';
 import '../entities/palletizer_session.dart';
@@ -17,6 +16,11 @@ abstract class PalletizingRepository {
 
   /// GET /palletizing-line/lines/{lineId}/state
   Future<BootstrapLineState> getLineState(int lineId);
+
+  /// GET /palletizing-line/lines/{lineId}/first-pallet-context
+  /// Tells the app whether to open the include-FALET suggestion dialog before
+  /// the user submits the normal POST /pallets call.
+  Future<FirstPalletContext> getFirstPalletContext(int lineId);
 
   /// POST /palletizing-line/lines/{lineId}/pallets
   Future<PalletCreateResponse> createLinePallet({
@@ -52,38 +56,6 @@ abstract class PalletizingRepository {
   Future<void> palletizerLogout({
     required int lineId,
     required String sessionToken,
-  });
-
-  /// POST /palletizing-line/lines/{lineId}/handover
-  Future<LineHandoverInfo> createLineHandover(
-    int lineId, {
-    int? lastActiveProductTypeId,
-    int? lastActiveProductFaletQuantity,
-    String? notes,
-    List<FaletResolutionEntry>? faletResolutions,
-  });
-
-  /// GET /palletizing-line/lines/{lineId}/handover/pending
-  Future<LineHandoverInfo?> getLineHandover(int lineId);
-
-  /// POST /palletizing-line/lines/{lineId}/handover/{id}/confirm
-  Future<LineHandoverInfo> confirmLineHandover({
-    required int lineId,
-    required int handoverId,
-    String? receiptNotes,
-  });
-
-  /// POST /palletizing-line/lines/{lineId}/handover/{id}/reject
-  Future<LineHandoverInfo> rejectLineHandover({
-    required int lineId,
-    required int handoverId,
-    required bool incorrectQuantity,
-    required bool otherReason,
-    String? otherReasonNotes,
-    List<Map<String, dynamic>>? itemObservations,
-    bool undeclaredFaletFound = false,
-    int? undeclaredFaletObservedQuantity,
-    String? undeclaredFaletNotes,
   });
 
   /// GET /palletizing-line/lines/{lineId}/falet

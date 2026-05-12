@@ -1,22 +1,5 @@
 import 'package:equatable/equatable.dart';
 
-class PrintJob extends Equatable {
-  final String value;
-  final String printerId;
-  final String presetId;
-  final int copies;
-
-  const PrintJob({
-    required this.value,
-    required this.printerId,
-    required this.presetId,
-    this.copies = 1,
-  });
-
-  @override
-  List<Object?> get props => [value, printerId, presetId, copies];
-}
-
 enum PrintResultStatus { success, error }
 
 class PrintResult extends Equatable {
