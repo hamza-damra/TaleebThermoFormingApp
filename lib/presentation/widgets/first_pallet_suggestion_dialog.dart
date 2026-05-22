@@ -128,11 +128,11 @@ class FirstPalletSuggestionDialog extends StatelessWidget {
 
   Widget _buildInfoCard(bool isMobile) {
     final rows = <Widget>[];
-    final product = context.currentProductName;
+    final product = context.currentPlanItemProductName;
     if (product != null && product.isNotEmpty) {
       rows.add(_InfoRow(label: 'المنتج الحالي', value: product));
     }
-    final pkg = context.packageQuantity;
+    final pkg = context.currentPlanItemPackagesPerPallet;
     if (pkg != null && pkg > 0) {
       rows.add(_InfoRow(label: 'حجم الطبلية', value: '$pkg'));
     }

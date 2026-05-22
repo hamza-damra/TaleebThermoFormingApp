@@ -2,24 +2,35 @@ import 'dart:ui';
 
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:provider/provider.dart';
 
 import '../../core/constants.dart';
 import '../../core/responsive.dart';
-import '../providers/palletizing_provider.dart';
 
-/// Full-screen blocking modal overlay shown when the selected line has no
-/// active Thermoforming Operator ([LineUiState.waitingForThermoforming]).
+/// Blocking modal shown when the selected line has no active Thermoforming
+/// Operator ([LineUiState.waitingForThermoforming]).
 ///
-/// The overlay **blurs and dims** the entire underlying content so the worker
-/// clearly sees that the line is unusable. It is NOT dismissible by tapping
-/// outside or by the back button — the only exit paths are:
-///   • The "تحديث الحالة" button (re-fetches backend state).
-///   • The optional "تغيير الخط" button (switches to another active line tab).
-///   • Automatic dismissal when the provider detects a new operator.
+/// **Why an in-tree overlay, not `showDialog`:** [ProductionLineSection]
+/// renders this widget as a `Positioned.fill` child *only* while the line's
+/// UI state is `waitingForThermoforming`. That makes the modal a pure
+/// function of backend state:
+///   • It can never stack — there is no imperative `showDialog`/`pop` to
+///     guard; the widget simply exists or it does not.
+///   • It is naturally per-line — each machine tab builds its own
+///     [ProductionLineSection], so switching tabs shows the correct line.
+///   • It disappears automatically the instant a backend refresh reports an
+///     operator: the parent rebuilds and stops including this child. No
+///     callback, no manual dismissal.
 ///
-/// Uses warning/amber styling — never success green — to signal inactivity.
-class ThermoformingWaitingCard extends StatefulWidget {
+/// The modal blurs + dims the underlying screen, swallows every tap, and
+/// blocks the Android back button. There is intentionally **no acknowledge
+/// button** — the palletizing employee cannot proceed (and cannot create
+/// pallets) until the Thermoforming Operator starts/claims the line. An
+/// optional "تغيير الخط" action lets the worker hop to the other machine tab
+/// when that line is usable.
+///
+/// Uses warning/amber styling — never success green — to signal inactivity,
+/// and shares the visual language of the takeover dialog.
+class ThermoformingWaitingCard extends StatelessWidget {
   final ProductionLine line;
 
   /// When true the "تغيير الخط" secondary action is shown.
@@ -29,36 +40,29 @@ class ThermoformingWaitingCard extends StatefulWidget {
   /// navigating the TabController / selecting another line.
   final VoidCallback? onSwitchLine;
 
+  /// Optional title override from `LineStateResponse.waitingForOperatorMessageTitle`
+  /// (V81+, 2026-05-21). When non-null, replaces the hardcoded
+  /// "لا يوجد مشغّل على الخط" title. The provider already strips empty /
+  /// whitespace values, so no inline trim is needed here.
+  final String? titleOverride;
+
+  /// Optional body override from `LineStateResponse.waitingForOperatorMessage`
+  /// (V81+, 2026-05-21). When non-null, replaces the hardcoded body text.
+  final String? bodyOverride;
+
   const ThermoformingWaitingCard({
     super.key,
     required this.line,
     this.canSwitchLine = false,
     this.onSwitchLine,
+    this.titleOverride,
+    this.bodyOverride,
   });
 
-  @override
-  State<ThermoformingWaitingCard> createState() =>
-      _ThermoformingWaitingCardState();
-}
-
-class _ThermoformingWaitingCardState extends State<ThermoformingWaitingCard> {
-  bool _isRefreshing = false;
-
-  Future<void> _handleRefresh() async {
-    if (_isRefreshing) return;
-    setState(() => _isRefreshing = true);
-    await context.read<PalletizingProvider>().refreshLineState(
-      widget.line.number,
-    );
-    if (mounted) setState(() => _isRefreshing = false);
-  }
-
-  // ── Warning palette ────────────────────────────────────────────────────────
+  // ── Warning palette (shared with TakeoverDialog) ──────────────────────────
   static const Color _amber = Color(0xFFF59E0B);
   static const Color _amberDark = Color(0xFFD97706);
   static const Color _amberLight = Color(0xFFFEF3C7);
-  static const Color _amberIconBg = Color(0x1AF59E0B); // 10%
-  static const Color _amberBorder = Color(0x4DF59E0B); // 30%
 
   @override
   Widget build(BuildContext context) {
@@ -66,11 +70,9 @@ class _ThermoformingWaitingCardState extends State<ThermoformingWaitingCard> {
 
     // ── Full-screen blur + dim backdrop ───────────────────────────────────
     //
-    // - `PopScope(canPop: false)` blocks the Android back button from
-    //   dismissing the waiting state.
-    // - The outer `GestureDetector` with `HitTestBehavior.opaque` and an
-    //   empty `onTap` absorbs taps so they never reach the underlying
-    //   production UI (which must be uninteractive while in waiting mode).
+    // - `PopScope(canPop: false)` blocks the Android back button.
+    // - The outer `GestureDetector` (opaque, empty `onTap`) absorbs taps so
+    //   they never reach the production UI behind the modal.
     return PopScope(
       canPop: false,
       child: GestureDetector(
@@ -89,7 +91,10 @@ class _ThermoformingWaitingCardState extends State<ThermoformingWaitingCard> {
                     padding: EdgeInsets.symmetric(
                       horizontal: isMobile ? 24 : 40,
                     ),
-                    child: _buildDialog(isMobile),
+                    child: Directionality(
+                      textDirection: TextDirection.rtl,
+                      child: _buildDialog(isMobile),
+                    ),
                   ),
                 ),
               ),
@@ -106,7 +111,6 @@ class _ThermoformingWaitingCardState extends State<ThermoformingWaitingCard> {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: _amberBorder, width: 1.5),
         boxShadow: [
           BoxShadow(
             color: _amber.withValues(alpha: 0.22),
@@ -125,112 +129,117 @@ class _ThermoformingWaitingCardState extends State<ThermoformingWaitingCard> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // ── Icon ──
+            // ── Soft colored icon circle ──
             Container(
               padding: EdgeInsets.all(isMobile ? 20 : 24),
               decoration: const BoxDecoration(
-                color: _amberIconBg,
+                color: _amberLight,
                 shape: BoxShape.circle,
               ),
               child: Icon(
-                Icons.hourglass_top_rounded,
+                Icons.person_off_outlined,
                 color: _amberDark,
                 size: isMobile ? 42 : 52,
               ),
             ),
-            SizedBox(height: isMobile ? 20 : 24),
+            SizedBox(height: isMobile ? 18 : 22),
 
             // ── Title ──
+            //
+            // V81+ (2026-05-21): backend may send a localized title via
+            // `LineStateResponse.waitingForOperatorMessageTitle` (e.g.
+            // "بانتظار استلام الخط"). Render verbatim when provided; fall
+            // back to the original hardcoded title otherwise (non-thermoforming
+            // lines or pre-V81+ servers).
             Text(
-              'بانتظار استلام الخط',
+              titleOverride ?? 'لا يوجد مشغّل على الخط',
+              textAlign: TextAlign.center,
               style: GoogleFonts.cairo(
-                fontSize: isMobile ? 22 : 28,
+                fontSize: isMobile ? 22 : 27,
                 fontWeight: FontWeight.bold,
                 color: Colors.black87,
               ),
-              textAlign: TextAlign.center,
             ),
-            SizedBox(height: isMobile ? 12 : 14),
+            const SizedBox(height: 4),
 
-            // ── Body ──
+            // ── Machine name ──
+            Text(
+              'ماكنة ${line.number}',
+              textAlign: TextAlign.center,
+              style: GoogleFonts.cairo(
+                fontSize: isMobile ? 15 : 17,
+                fontWeight: FontWeight.w600,
+                color: _amberDark,
+              ),
+            ),
+            SizedBox(height: isMobile ? 14 : 18),
+
+            // ── Highlighted message box ──
             Container(
               width: double.infinity,
               padding: EdgeInsets.symmetric(
-                horizontal: isMobile ? 14 : 18,
-                vertical: isMobile ? 12 : 16,
+                horizontal: isMobile ? 16 : 18,
+                vertical: isMobile ? 14 : 16,
               ),
               decoration: BoxDecoration(
                 color: _amberLight,
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Text(
-                'تم إنهاء مناوبة مشغّل التشكيل أو لا يوجد مشغّل حالي على هذا الخط.\n'
-                'لا يمكن تكوين طلبية جديدة حتى يستلم مشغّل التشكيل الخط من تطبيقه.',
+                // V81+ (2026-05-21): backend body via
+                // `LineStateResponse.waitingForOperatorMessage` takes
+                // precedence; hardcoded fallback below is used only when the
+                // backend does not provide the field.
+                bodyOverride ??
+                    'لا يوجد مشغّل تشكيل حراري على هذه الماكينة حاليًا. '
+                        'يرجى الانتظار حتى يبدأ المشغّل مناوبته على الخط، '
+                        'وسيتم فتح هذه الشاشة تلقائيًا عند توفره.',
+                textAlign: TextAlign.center,
                 style: GoogleFonts.cairo(
                   fontSize: isMobile ? 14 : 16,
+                  height: 1.7,
                   color: Colors.grey.shade800,
-                  height: 1.6,
                 ),
-                textAlign: TextAlign.center,
               ),
             ),
-            SizedBox(height: isMobile ? 28 : 36),
+            SizedBox(height: isMobile ? 18 : 22),
 
-            // ── Primary: "تحديث الحالة" ──
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton.icon(
-                onPressed: _isRefreshing ? null : _handleRefresh,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: _amber,
-                  foregroundColor: Colors.white,
-                  disabledBackgroundColor: _amber.withValues(alpha: 0.5),
-                  padding: EdgeInsets.symmetric(
-                    vertical: isMobile ? 16 : 20,
+            // ── Waiting status (no acknowledge button) ──
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                SizedBox(
+                  width: isMobile ? 16 : 18,
+                  height: isMobile ? 16 : 18,
+                  child: const CircularProgressIndicator(
+                    strokeWidth: 2.4,
+                    valueColor: AlwaysStoppedAnimation<Color>(_amberDark),
                   ),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                  elevation: 0,
                 ),
-                icon: _isRefreshing
-                    ? SizedBox(
-                        width: isMobile ? 20 : 22,
-                        height: isMobile ? 20 : 22,
-                        child: const CircularProgressIndicator(
-                          color: Colors.white,
-                          strokeWidth: 2.5,
-                        ),
-                      )
-                    : Icon(
-                        Icons.refresh_rounded,
-                        size: isMobile ? 22 : 26,
-                      ),
-                label: Text(
-                  'تحديث الحالة',
+                SizedBox(width: isMobile ? 10 : 12),
+                Text(
+                  'بانتظار توفر المشغّل...',
                   style: GoogleFonts.cairo(
-                    fontSize: isMobile ? 17 : 20,
-                    fontWeight: FontWeight.bold,
+                    fontSize: isMobile ? 13.5 : 15,
+                    fontWeight: FontWeight.w600,
+                    color: _amberDark,
                   ),
                 ),
-              ),
+              ],
             ),
 
             // ── Secondary: "تغيير الخط" (optional) ──
-            if (widget.canSwitchLine && widget.onSwitchLine != null) ...[
-              SizedBox(height: isMobile ? 12 : 14),
+            if (canSwitchLine && onSwitchLine != null) ...[
+              SizedBox(height: isMobile ? 18 : 22),
               SizedBox(
                 width: double.infinity,
                 child: OutlinedButton.icon(
-                  onPressed: widget.onSwitchLine,
+                  onPressed: onSwitchLine,
                   style: OutlinedButton.styleFrom(
                     foregroundColor: Colors.grey.shade700,
-                    side: BorderSide(
-                      color: Colors.grey.shade400,
-                      width: 1.5,
-                    ),
+                    side: BorderSide(color: Colors.grey.shade400, width: 1.5),
                     padding: EdgeInsets.symmetric(
-                      vertical: isMobile ? 14 : 18,
+                      vertical: isMobile ? 14 : 16,
                     ),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(14),
@@ -238,12 +247,12 @@ class _ThermoformingWaitingCardState extends State<ThermoformingWaitingCard> {
                   ),
                   icon: Icon(
                     Icons.swap_horiz_rounded,
-                    size: isMobile ? 22 : 26,
+                    size: isMobile ? 20 : 24,
                   ),
                   label: Text(
                     'تغيير الخط',
                     style: GoogleFonts.cairo(
-                      fontSize: isMobile ? 16 : 18,
+                      fontSize: isMobile ? 15 : 17,
                       fontWeight: FontWeight.bold,
                     ),
                   ),

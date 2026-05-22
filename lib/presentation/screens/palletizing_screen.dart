@@ -9,6 +9,7 @@ import '../../core/responsive.dart';
 import '../providers/palletizing_provider.dart';
 import '../widgets/production_line_section.dart';
 import '../widgets/reprint_by_id_dialog.dart';
+import '../widgets/takeover_dialog.dart';
 import '../widgets/shimmer/palletizing_shimmer.dart';
 import 'settings_hub_screen.dart';
 
@@ -22,10 +23,12 @@ class PalletizingScreen extends StatefulWidget {
 class _PalletizingScreenState extends State<PalletizingScreen>
     with SingleTickerProviderStateMixin, WidgetsBindingObserver {
   late Timer _timer;
-  Timer? _lineMonitoringTimer;
   String _currentDateTime = '';
   TabController? _tabController;
   int _activeTabIndex = 0;
+
+  /// Guards against stacking takeover dialogs while one is already open.
+  bool _takeoverDialogOpen = false;
 
   @override
   void initState() {
@@ -39,16 +42,42 @@ class _PalletizingScreenState extends State<PalletizingScreen>
     _tabController!.animation!.addListener(_handleTabAnimation);
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       final palletizingProvider = context.read<PalletizingProvider>();
+      // Show the blocking takeover dialog whenever the provider flags a new
+      // pending request for any line.
+      palletizingProvider.addListener(_maybeShowTakeoverDialog);
       await palletizingProvider.loadBootstrap();
-
-      // Combined 15s monitoring poll: FALET existence on every authorized
-      // line + full line-state refresh for any line waiting for the
-      // Thermoforming operator to open it.
-      _lineMonitoringTimer = Timer.periodic(
-        const Duration(seconds: 15),
-        (_) => context.read<PalletizingProvider>().pollLineMonitoring(),
-      );
+      if (!mounted) return;
+      // Hand the refresh cadence to the provider's RefreshCoordinator: it owns
+      // the single poll timer + the device-level SSE stream and adapts the
+      // cadence to the SSE connection state. The screen only forwards
+      // lifecycle signals from here on.
+      palletizingProvider.startRefreshLoop();
+      _maybeShowTakeoverDialog();
     });
+  }
+
+  /// Pops the blocking [TakeoverDialog] for the first line with an
+  /// unacknowledged pending request. One dialog at a time — a second line's
+  /// request pops after the first is dismissed.
+  void _maybeShowTakeoverDialog() {
+    if (!mounted || _takeoverDialogOpen) return;
+    final provider = context.read<PalletizingProvider>();
+    for (final n in const [1, 2]) {
+      if (!provider.isTakeoverDialogPending(n)) continue;
+      provider.consumeTakeoverDialogSignal(n);
+      final takeover = provider.getTakeover(n);
+      if (takeover == null || !takeover.status.isActive) continue;
+      _takeoverDialogOpen = true;
+      showDialog<void>(
+        context: context,
+        barrierDismissible: false,
+        builder: (_) => TakeoverDialog(lineNumber: n),
+      ).whenComplete(() {
+        _takeoverDialogOpen = false;
+        if (mounted) _maybeShowTakeoverDialog();
+      });
+      break;
+    }
   }
 
   void _handleTabAnimation() {
@@ -63,12 +92,20 @@ class _PalletizingScreenState extends State<PalletizingScreen>
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     super.didChangeAppLifecycleState(state);
-    if (state == AppLifecycleState.resumed && mounted) {
+    if (!mounted) return;
+    final provider = context.read<PalletizingProvider>();
+    if (state == AppLifecycleState.resumed) {
       // Resume could span a backend session end (Thermoforming operator
-      // ended the shift-line). loadBootstrap re-fetches everything and
-      // re-syncs each line's palletizer session, dropping to State B if
-      // the backend ended it while we were backgrounded.
-      context.read<PalletizingProvider>().loadBootstrap();
+      // ended the shift-line) or a takeover transition. The coordinator
+      // restarts the SSE stream and runs one immediate refresh internally.
+      provider.resumeRefreshLoop();
+      _maybeShowTakeoverDialog();
+    } else if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.detached ||
+        state == AppLifecycleState.hidden) {
+      // Stop the poll timer + SSE stream while backgrounded — resume restarts
+      // them. Never leave a timer or socket running off-screen.
+      provider.pauseRefreshLoop();
     }
   }
 
@@ -76,9 +113,14 @@ class _PalletizingScreenState extends State<PalletizingScreen>
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _timer.cancel();
-    _lineMonitoringTimer?.cancel();
     _tabController?.animation?.removeListener(_handleTabAnimation);
     _tabController?.dispose();
+    // The provider may outlive this screen — drop our listener explicitly.
+    try {
+      context.read<PalletizingProvider>().removeListener(
+        _maybeShowTakeoverDialog,
+      );
+    } catch (_) {}
     super.dispose();
   }
 

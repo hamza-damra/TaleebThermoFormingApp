@@ -32,16 +32,16 @@ class CreatePalletDialog extends StatefulWidget {
 }
 
 class _CreatePalletDialogState extends State<CreatePalletDialog> {
-  late ProductType? _selectedProductType;
+  late ProductType? _plannedProductType;
   late int _quantity;
   late TextEditingController _quantityController;
 
   @override
   void initState() {
     super.initState();
-    _selectedProductType = widget.initialProductType;
+    _plannedProductType = widget.initialProductType;
     _quantity = widget.initialQuantity ??
-        _selectedProductType?.packageQuantity ??
+        _plannedProductType?.packageQuantity ??
         20;
     _quantityController = TextEditingController(text: '$_quantity');
   }
@@ -79,7 +79,7 @@ class _CreatePalletDialogState extends State<CreatePalletDialog> {
               NonMatchingFaletBadge(count: widget.nonMatchingFaletQuantity),
               SizedBox(height: spacing),
             ],
-            _buildProductDropdown(context),
+            _buildPlannedProductDisplay(context),
             SizedBox(height: spacing),
             _buildQuantityStepper(context),
           ],
@@ -118,7 +118,11 @@ class _CreatePalletDialogState extends State<CreatePalletDialog> {
     );
   }
 
-  Widget _buildProductDropdown(BuildContext context) {
+  // Read-only label showing the current Thermoforming Production Plan
+  // product. NOT a picker — the operator cannot change the product here.
+  // Source of truth is `widget.initialProductType`, which the caller derives
+  // from `PalletizingProvider.getCurrentPlanItemProductType`.
+  Widget _buildPlannedProductDisplay(BuildContext context) {
     final isMobile = ResponsiveHelper.isMobile(context);
     final fontSize = isMobile ? 14.0 : 16.0;
 
@@ -150,19 +154,19 @@ class _CreatePalletDialogState extends State<CreatePalletDialog> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      _selectedProductType?.productName ?? 'لا يوجد منتج نشط',
+                      _plannedProductType?.productName ?? 'لا يوجد منتج نشط',
                       style: GoogleFonts.cairo(
                         fontSize: fontSize,
-                        color: _selectedProductType != null
+                        color: _plannedProductType != null
                             ? Colors.black87
                             : Colors.grey.shade600,
                       ),
                       overflow: TextOverflow.ellipsis,
                     ),
-                    if (_selectedProductType?.description != null &&
-                        _selectedProductType!.description!.trim().isNotEmpty)
+                    if (_plannedProductType?.description != null &&
+                        _plannedProductType!.description!.trim().isNotEmpty)
                       Text(
-                        _selectedProductType!.description!,
+                        _plannedProductType!.description!,
                         style: GoogleFonts.cairo(
                           fontSize: fontSize - 2,
                           color: Colors.grey.shade500,
@@ -267,12 +271,13 @@ class _CreatePalletDialogState extends State<CreatePalletDialog> {
   }
 
   bool _canConfirm() {
-    return _selectedProductType != null && _quantity > 0;
+    return _plannedProductType != null && _quantity > 0;
   }
 
   void _handleConfirm() {
-    Navigator.of(
-      context,
-    ).pop({'productType': _selectedProductType, 'quantity': _quantity});
+    // Return only the quantity. The product is forced by the caller from the
+    // current plan item — the dialog has no picker and must not surface a
+    // product id to downstream code.
+    Navigator.of(context).pop({'quantity': _quantity});
   }
 }

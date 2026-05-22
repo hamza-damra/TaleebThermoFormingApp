@@ -1,8 +1,9 @@
 class FirstPalletContext {
   final int lineId;
-  final int? currentProductTypeId;
-  final String? currentProductName;
-  final int? packageQuantity;
+  final int? currentPlanItemId;
+  final int? currentPlanItemProductTypeId;
+  final String? currentPlanItemProductName;
+  final int? currentPlanItemPackagesPerPallet;
   final bool hasOpenFalet;
   final int matchingProductFaletQuantity;
   final int nonMatchingFaletQuantity;
@@ -14,9 +15,10 @@ class FirstPalletContext {
 
   const FirstPalletContext({
     required this.lineId,
-    this.currentProductTypeId,
-    this.currentProductName,
-    this.packageQuantity,
+    this.currentPlanItemId,
+    this.currentPlanItemProductTypeId,
+    this.currentPlanItemProductName,
+    this.currentPlanItemPackagesPerPallet,
     this.hasOpenFalet = false,
     this.matchingProductFaletQuantity = 0,
     this.nonMatchingFaletQuantity = 0,

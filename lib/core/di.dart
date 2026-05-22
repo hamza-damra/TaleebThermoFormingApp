@@ -9,6 +9,8 @@ import '../domain/repositories/preset_repository.dart';
 import '../domain/repositories/printer_repository.dart';
 import '../presentation/providers/palletizing_provider.dart';
 import '../presentation/providers/printing_provider.dart';
+import 'services/sse_client.dart';
+import 'services/takeover_notification_service.dart';
 
 class ServiceLocator {
   static final ServiceLocator _instance = ServiceLocator._internal();
@@ -20,12 +22,21 @@ class ServiceLocator {
   late PalletizingRepository _palletizingRepository;
   late PrinterRepository _printerRepository;
   late PresetRepository _presetRepository;
+  late TakeoverNotificationService _takeoverNotifications;
+  late SseClient _sseClient;
 
   Future<void> init() async {
     _authLocalStorage = AuthLocalStorage();
     _apiClient = ApiClient(authStorage: _authLocalStorage);
 
     _palletizingRepository = PalletizingRepositoryImpl(apiClient: _apiClient);
+    _takeoverNotifications = TakeoverNotificationService();
+    // One device-level SSE stream for the whole app, shared by the single
+    // PalletizingProvider.
+    _sseClient = SseClient(
+      dio: _apiClient.dio,
+      authStorage: _authLocalStorage,
+    );
 
     await PrintingLocalStorage.initialize();
     _printerRepository = PrinterRepositoryImpl();
@@ -33,7 +44,12 @@ class ServiceLocator {
   }
 
   PalletizingProvider createPalletizingProvider() {
-    return PalletizingProvider(_palletizingRepository, _authLocalStorage);
+    return PalletizingProvider(
+      _palletizingRepository,
+      _authLocalStorage,
+      _takeoverNotifications,
+      sseClient: _sseClient,
+    );
   }
 
   PrintingProvider createPrintingProvider() {

@@ -109,6 +109,14 @@ class ApiException implements Exception {
         return 'لا يوجد مشغل مصرح على هذا الخط';
       case 'LINE_BLOCKED_BY_PENDING_HANDOVER':
         return 'الخط محظور بسبب تسليم معلق';
+      // Line Takeover Request (V75) — pallet creation rejected because the
+      // line is mid-takeover / auto-released. Backend stays authoritative.
+      case 'LINE_BLOCKED_BY_TAKEOVER':
+      case 'LINE_TAKEOVER_IN_PROGRESS':
+      case 'TAKEOVER_REQUEST_PENDING':
+      case 'LINE_AWAITING_TAKEOVER_CLAIM':
+        return 'لا يمكن إنشاء طبليات الآن — الخط في وضع تسليم. '
+            'الرجاء الانتظار حتى يكمل المشغّل استلام الخط.';
       case 'PALLET_LINE_MISMATCH':
         return 'الطبلية لا تنتمي لهذا الخط';
       // Safety-net: any old build that still calls POST /handover hits this.
@@ -149,6 +157,17 @@ class ApiException implements Exception {
         return 'الكمية تتجاوز المتبقي';
       case 'FALET_DISPUTE_NO_ACTIVE_AUTH_FOR_PALLETIZE':
         return 'يتطلب تفويض نشط للتنصيب';
+      // ── Thermoforming Production Plan enforcement (V81) ──
+      case 'PRODUCTION_PLAN_ITEM_REQUIRED':
+        return 'لا يوجد بند إنتاج نشط لهذا الخط. '
+            'يرجى مراجعة الإدارة لإضافة بند إلى خطة الإنتاج.';
+      case 'PRODUCTION_PLAN_PRODUCT_MISMATCH':
+        return 'المنتج المحدد لا يطابق بند خطة الإنتاج الحالي لهذا الخط.';
+      case 'PRODUCTION_PLAN_ITEM_CLOSED':
+        return 'بند خطة الإنتاج مغلق ولا يمكن تسجيل إنتاج عليه.';
+      case 'PRODUCTION_PLAN_TARGET_EXCEEDED_CONFIRMATION_REQUIRED':
+        return 'تم تجاوز حد الخطة. العدد الحالي تجاوز الكمية المطلوبة. '
+            'هل تريد المتابعة؟';
       case 'INTERNAL_ERROR':
         return 'حدث خطأ في الخادم. حاول مرة أخرى';
       default:

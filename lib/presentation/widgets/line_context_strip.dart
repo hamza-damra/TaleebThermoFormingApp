@@ -9,7 +9,8 @@ import '../providers/palletizing_provider.dart';
 /// State C top context strip for a single line. Three read-only identity rows
 /// in the existing card style: operator on duty (المشغّل), palletizer using
 /// this device (موظف الطبليات — with a small logout icon), and current product
-/// (المنتج الحالي — read-only with the "managed by Thermoforming app" hint).
+/// (المنتج الحالي — read-only, sourced from the Thermoforming Production
+/// Plan item).
 class LineContextStrip extends StatelessWidget {
   final ProductionLine line;
 
@@ -21,7 +22,13 @@ class LineContextStrip extends StatelessWidget {
     final isMobile = ResponsiveHelper.isMobile(context);
     final operator = provider.getAuthorizedOperator(line.number);
     final palletizerName = provider.getPalletizerName(line.number);
-    final productType = provider.getSelectedProductType(line.number);
+
+    // Source of truth is the current Thermoforming Production Plan item. When
+    // there is no plan item the row renders an explicit no-plan state.
+    final planProductName =
+        provider.getCurrentPlanItemProductName(line.number);
+    final planBlockedMessage =
+        provider.getProductionPlanBlockedMessage(line.number);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -48,7 +55,8 @@ class LineContextStrip extends StatelessWidget {
         _buildProductRow(
           context: context,
           isMobile: isMobile,
-          productName: productType?.productName,
+          productName: planProductName,
+          planBlockedMessage: planBlockedMessage,
         ),
       ],
     );
@@ -198,16 +206,7 @@ class LineContextStrip extends StatelessWidget {
                   ),
                 ),
               ),
-              if (palletizerName != null)
-                IconButton(
-                  tooltip: 'تسجيل خروج موظف الطبليات',
-                  onPressed: () => _confirmLogout(context),
-                  icon: Icon(
-                    Icons.logout_rounded,
-                    color: line.color,
-                    size: isMobile ? 22 : 24,
-                  ),
-                ),
+              if (palletizerName != null) _LeaveLineButton(line: line),
             ],
           ),
         ),
@@ -219,8 +218,14 @@ class LineContextStrip extends StatelessWidget {
     required BuildContext context,
     required bool isMobile,
     required String? productName,
+    required String? planBlockedMessage,
   }) {
     final hasProduct = productName != null && productName.isNotEmpty;
+    // No active plan item — show the backend-localized message (or a safe
+    // Arabic fallback) instead of a product label.
+    final emptyText = planBlockedMessage ??
+        'لا يوجد بند إنتاج نشط لهذا الخط. '
+            'يرجى مراجعة الإدارة لإضافة بند إلى خطة الإنتاج.';
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -228,7 +233,7 @@ class LineContextStrip extends StatelessWidget {
         _buildLabelRow(
           context,
           icon: Icons.inventory_2_outlined,
-          label: 'المنتج الحالي',
+          label: 'المنتج المخطط',
           isMobile: isMobile,
         ),
         SizedBox(height: isMobile ? 12 : 14),
@@ -267,20 +272,20 @@ class LineContextStrip extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      hasProduct ? productName : 'لم يتم اختيار منتج',
+                      hasProduct ? productName : emptyText,
                       style: GoogleFonts.cairo(
                         fontSize: isMobile ? 15 : 17,
                         fontWeight: FontWeight.w600,
                         color: hasProduct
                             ? Colors.black87
-                            : Colors.grey.shade500,
-                        height: 1.3,
+                            : Colors.grey.shade700,
+                        height: 1.4,
                       ),
                       softWrap: true,
                     ),
                     SizedBox(height: isMobile ? 4 : 6),
                     Text(
-                      'المنتج مُدار من تطبيق التشكيل الحراري',
+                      'المنتج مُدار من خطة الإنتاج (تطبيق التشكيل الحراري)',
                       style: GoogleFonts.cairo(
                         fontSize: isMobile ? 12 : 13,
                         color: Colors.grey.shade600,
@@ -296,44 +301,141 @@ class LineContextStrip extends StatelessWidget {
     );
   }
 
-  Future<void> _confirmLogout(BuildContext context) async {
-    final confirmed = await showDialog<bool>(
+}
+
+/// Red, clearly-destructive "leave the line now" action shown in the
+/// "موظف الطبليات" row — replaces the old logout icon button.
+///
+/// Tapping it asks for an explicit responsibility-accepting confirmation,
+/// then calls the existing [PalletizingProvider.palletizerLogout] release
+/// path **exactly once**. It is a [StatefulWidget] purely so it can guard
+/// against double taps: once the release is in flight `_isLeaving` disables
+/// the button and shows a spinner until it completes.
+class _LeaveLineButton extends StatefulWidget {
+  final ProductionLine line;
+
+  const _LeaveLineButton({required this.line});
+
+  @override
+  State<_LeaveLineButton> createState() => _LeaveLineButtonState();
+}
+
+class _LeaveLineButtonState extends State<_LeaveLineButton> {
+  /// True while [PalletizingProvider.palletizerLogout] is in flight — blocks
+  /// re-entry so a second tap can never fire a duplicate release.
+  bool _isLeaving = false;
+
+  Future<void> _handleTap() async {
+    if (_isLeaving) return;
+
+    final confirmed = await _confirmLeave();
+    // The strip may be torn down while the dialog is open (e.g. the line state
+    // changed underneath us) — bail before touching state / context again.
+    if (confirmed != true || !mounted) return;
+
+    setState(() => _isLeaving = true);
+    // Capture the messenger before the await so we never read context after
+    // this widget may have been disposed by the post-logout state change.
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      await context.read<PalletizingProvider>().palletizerLogout(
+        widget.line.number,
+      );
+    } catch (e) {
+      messenger.showSnackBar(
+        SnackBar(
+          backgroundColor: Colors.red,
+          content: Text(
+            'تعذّر إتمام مغادرة الخط. الرجاء المحاولة مرة أخرى.',
+            style: GoogleFonts.cairo(),
+            textDirection: TextDirection.rtl,
+          ),
+        ),
+      );
+    } finally {
+      // A successful logout drops the line to State B and disposes this
+      // widget — only touch state when still mounted.
+      if (mounted) setState(() => _isLeaving = false);
+    }
+  }
+
+  Future<bool?> _confirmLeave() {
+    return showDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Text(
-          'تسجيل خروج موظف الطبليات',
-          style: GoogleFonts.cairo(fontWeight: FontWeight.bold),
-        ),
-        content: Text(
-          'هل تريد تسجيل خروج موظف الطبليات من هذا الخط؟',
-          style: GoogleFonts.cairo(),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
-            child: Text(
-              'إلغاء',
-              style: GoogleFonts.cairo(color: Colors.grey.shade700),
-            ),
+      builder: (ctx) => Directionality(
+        textDirection: TextDirection.rtl,
+        child: AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
           ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: line.color,
-              foregroundColor: Colors.white,
-            ),
-            onPressed: () => Navigator.of(ctx).pop(true),
-            child: Text(
-              'خروج',
-              style: GoogleFonts.cairo(fontWeight: FontWeight.bold),
-            ),
+          title: Text(
+            'تأكيد مغادرة الخط',
+            style: GoogleFonts.cairo(fontWeight: FontWeight.bold),
           ),
-        ],
+          content: Text(
+            'أنت على وشك مغادرة الخط قبل انتهاء المناوبة الحالية. '
+            'قد يؤدي ذلك إلى تعطيل متابعة الإنتاج على هذه الماكينة، '
+            'وستتحمل مسؤولية هذا الإجراء. هل تريد المتابعة؟',
+            style: GoogleFonts.cairo(height: 1.7),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(false),
+              child: Text(
+                'إلغاء',
+                style: GoogleFonts.cairo(color: Colors.grey.shade700),
+              ),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.red.shade600,
+                foregroundColor: Colors.white,
+              ),
+              onPressed: () => Navigator.of(ctx).pop(true),
+              child: Text(
+                'نعم، مغادرة الآن',
+                style: GoogleFonts.cairo(fontWeight: FontWeight.bold),
+              ),
+            ),
+          ],
+        ),
       ),
     );
+  }
 
-    if (confirmed == true && context.mounted) {
-      await context.read<PalletizingProvider>().palletizerLogout(line.number);
-    }
+  @override
+  Widget build(BuildContext context) {
+    final isMobile = ResponsiveHelper.isMobile(context);
+    return TextButton.icon(
+      onPressed: _isLeaving ? null : _handleTap,
+      style: TextButton.styleFrom(
+        foregroundColor: Colors.red.shade600,
+        disabledForegroundColor: Colors.red.shade200,
+        padding: EdgeInsets.symmetric(
+          horizontal: isMobile ? 10 : 12,
+          vertical: isMobile ? 6 : 8,
+        ),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(10),
+        ),
+      ),
+      icon: _isLeaving
+          ? SizedBox(
+              width: isMobile ? 15 : 16,
+              height: isMobile ? 15 : 16,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                valueColor: AlwaysStoppedAnimation<Color>(Colors.red.shade400),
+              ),
+            )
+          : Icon(Icons.logout_rounded, size: isMobile ? 18 : 20),
+      label: Text(
+        'مغادرة الآن',
+        style: GoogleFonts.cairo(
+          fontSize: isMobile ? 13.5 : 15,
+          fontWeight: FontWeight.bold,
+        ),
+      ),
+    );
   }
 }

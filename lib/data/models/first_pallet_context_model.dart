@@ -3,9 +3,10 @@ import '../../domain/entities/first_pallet_context.dart';
 class FirstPalletContextModel extends FirstPalletContext {
   const FirstPalletContextModel({
     required super.lineId,
-    super.currentProductTypeId,
-    super.currentProductName,
-    super.packageQuantity,
+    super.currentPlanItemId,
+    super.currentPlanItemProductTypeId,
+    super.currentPlanItemProductName,
+    super.currentPlanItemPackagesPerPallet,
     super.hasOpenFalet,
     super.matchingProductFaletQuantity,
     super.nonMatchingFaletQuantity,
@@ -19,9 +20,13 @@ class FirstPalletContextModel extends FirstPalletContext {
   factory FirstPalletContextModel.fromJson(Map<String, dynamic> json) {
     return FirstPalletContextModel(
       lineId: json['lineId'] as int,
-      currentProductTypeId: json['currentProductTypeId'] as int?,
-      currentProductName: json['currentProductName'] as String?,
-      packageQuantity: json['packageQuantity'] as int?,
+      currentPlanItemId: json['currentPlanItemId'] as int?,
+      currentPlanItemProductTypeId:
+          json['currentPlanItemProductTypeId'] as int?,
+      currentPlanItemProductName:
+          json['currentPlanItemProductName'] as String?,
+      currentPlanItemPackagesPerPallet:
+          json['currentPlanItemPackagesPerPallet'] as int?,
       hasOpenFalet: json['hasOpenFalet'] as bool? ?? false,
       matchingProductFaletQuantity:
           json['matchingProductFaletQuantity'] as int? ?? 0,

@@ -95,11 +95,16 @@ class PalletizingRepositoryImpl implements PalletizingRepository {
     required int lineId,
     required int productTypeId,
     required int quantity,
+    bool confirmOverproduction = false,
   }) async {
     return await _apiClient.request<PalletCreateResponse>(
       path: '/api/v1/palletizing-line/lines/$lineId/pallets',
       method: 'POST',
-      data: {'productTypeId': productTypeId, 'quantity': quantity},
+      data: {
+        'productTypeId': productTypeId,
+        'quantity': quantity,
+        'confirmOverproduction': confirmOverproduction,
+      },
       parser: (json) => PalletCreateResponseModel.fromJson(
         json['data'] as Map<String, dynamic>,
       ),

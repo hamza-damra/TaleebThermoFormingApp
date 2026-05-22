@@ -31,18 +31,4 @@ class ProductTypeModel extends ProductType {
     );
   }
 
-  /// Construct a minimal ProductType from just id + name (e.g. from
-  /// `currentProductTypeId` / `currentProductTypeName` in LineStateResponse).
-  factory ProductTypeModel.minimal({required int id, required String name}) {
-    return ProductTypeModel(
-      id: id,
-      name: name,
-      productName: name,
-      prefix: '',
-      color: '',
-      packageQuantity: 0,
-      packageUnit: '',
-      packageUnitDisplayName: '',
-    );
-  }
 }

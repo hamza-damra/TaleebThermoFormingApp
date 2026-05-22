@@ -13,10 +13,12 @@ import 'create_pallet_dialog.dart';
 import 'first_pallet_suggestion_dialog.dart';
 import 'legacy_handover_info_card.dart';
 import 'line_context_strip.dart';
+import 'overproduction_confirmation_dialog.dart';
 import 'pallet_success_dialog.dart';
 import 'palletizer_pin_screen.dart';
 import 'falet_screen.dart';
 import 'session_table_widget.dart';
+import 'takeover_banner.dart';
 import 'thermoforming_waiting_card.dart';
 
 class ProductionLineSection extends StatelessWidget {
@@ -116,6 +118,17 @@ class ProductionLineSection extends StatelessWidget {
           ),
         ),
 
+        // Persistent takeover banner — a NON-blocking strip pinned to the top.
+        // Placed before the full-screen overlays so those still cover it when
+        // present; on an active line it is the only takeover UI on screen.
+        // Renders nothing when there is no takeover (see TakeoverBanner).
+        Positioned(
+          top: 0,
+          left: 0,
+          right: 0,
+          child: TakeoverBanner(line: line),
+        ),
+
         // Per-line state overlays. Order matters: blocked / legacy-handover
         // pending always wins so a real failure never gets masked as
         // "waiting for the operator". Positioned.fill is REQUIRED — without
@@ -130,6 +143,13 @@ class ProductionLineSection extends StatelessWidget {
               line: line,
               canSwitchLine: showSwitchLine,
               onSwitchLine: onSwitchLine,
+              // V81+ (2026-05-21): when backend provides waiting-for-operator
+              // Arabic copy, render verbatim; the provider getters return
+              // `null` for absent / whitespace, which makes the card fall back
+              // to its hardcoded Arabic strings.
+              titleOverride: provider.getWaitingForOperatorTitle(line.number),
+              bodyOverride:
+                  provider.getWaitingForOperatorMessage(line.number),
             ),
           ),
         if (uiState == LineUiState.needsPalletizerAuth)
@@ -233,11 +253,31 @@ class ProductionLineSection extends StatelessWidget {
   Widget _buildCreateButton(BuildContext context) {
     final provider = context.watch<PalletizingProvider>();
     final isMobile = ResponsiveHelper.isMobile(context);
-    final isBlocked = provider.isLineBlocked(line.number);
+    // isPalletCreationBlocked folds in the existing line blocks plus the
+    // takeover-specific blocks (backend `blocked`, auto-released line).
+    final isBlocked = provider.isPalletCreationBlocked(line.number);
     final isCreating = provider.isLineCreating(line.number);
 
-    return ElevatedButton(
-      onPressed: (isCreating || isBlocked)
+    // V81 plan enforcement — the backend rejects pallet creation without a
+    // current plan item, so the button stays disabled until one exists.
+    // Either `productionPlanBlocked` is set, or the line is missing the plan
+    // product id altogether (older responses / edge cases).
+    final planBlocked = provider.isProductionPlanBlocked(line.number);
+    final missingPlanProduct =
+        provider.getCurrentPlanItemProductTypeId(line.number) == null;
+    final planMessage =
+        provider.getProductionPlanBlockedMessage(line.number) ??
+            'لا يوجد بند إنتاج نشط لهذا الخط. '
+                'يرجى مراجعة الإدارة لإضافة بند إلى خطة الإنتاج.';
+    final blockedByPlan = planBlocked || missingPlanProduct;
+
+    // When the block is caused by a takeover, surface the reason — otherwise a
+    // disabled button with no explanation reads as a bug.
+    final takeover = provider.getTakeover(line.number);
+    final blockedByTakeover = isBlocked && takeover != null;
+
+    final button = ElevatedButton(
+      onPressed: (isCreating || isBlocked || blockedByPlan)
           ? null
           : () => _showCreateDialog(context),
       style: ElevatedButton.styleFrom(
@@ -277,10 +317,54 @@ class ProductionLineSection extends StatelessWidget {
               ],
             ),
     );
+
+    // Pick the explanation that matches the reason create is disabled.
+    // Plan-blocked is the more specific reason and should win when both apply.
+    String? footerMessage;
+    if (blockedByPlan) {
+      footerMessage = planMessage;
+    } else if (blockedByTakeover) {
+      footerMessage = 'لا يمكن إنشاء طبليات الآن — الخط في وضع تسليم. '
+          'الرجاء الانتظار حتى يكمل المشغّل استلام الخط.';
+    }
+
+    if (footerMessage == null) return button;
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        button,
+        const SizedBox(height: 8),
+        Text(
+          footerMessage,
+          textAlign: TextAlign.center,
+          textDirection: TextDirection.rtl,
+          style: GoogleFonts.cairo(
+            fontSize: 12.5,
+            height: 1.5,
+            color: Colors.grey.shade700,
+          ),
+        ),
+      ],
+    );
   }
 
   Future<void> _showCreateDialog(BuildContext context) async {
     final provider = context.read<PalletizingProvider>();
+
+    // Pre-flight V81 plan gate. The button is disabled when the plan is
+    // blocked or there is no plan product, but a stale frame could still
+    // trigger this path — surface the backend message and stop.
+    if (provider.isProductionPlanBlocked(line.number) ||
+        provider.getCurrentPlanItemProductTypeId(line.number) == null) {
+      _showInfoSnack(
+        context,
+        provider.getProductionPlanBlockedMessage(line.number) ??
+            'لا يوجد بند إنتاج نشط لهذا الخط. '
+                'يرجى مراجعة الإدارة لإضافة بند إلى خطة الإنتاج.',
+      );
+      return;
+    }
 
     // Step 1 — call the new first-pallet-context endpoint. The backend tells
     // us whether to open the include-FALET suggestion dialog and surfaces
@@ -296,6 +380,14 @@ class ProductionLineSection extends StatelessWidget {
         await provider.refreshLineState(line.number);
         return;
       }
+      // V81: defense-in-depth. The plan-required write-path 409 maps to the
+      // same Arabic message + a line-state refresh that re-routes the UI.
+      if (e.code == 'PRODUCTION_PLAN_ITEM_REQUIRED') {
+        await provider.refreshLineState(line.number);
+        if (!context.mounted) return;
+        _showInfoSnack(context, e.displayMessage);
+        return;
+      }
       _showErrorSnack(context, e.displayMessage);
       return;
     } catch (_) {
@@ -306,15 +398,16 @@ class ProductionLineSection extends StatelessWidget {
 
     if (!context.mounted) return;
 
-    // Step 2 — soft block: no current product set on the line. The product is
-    // managed by the Thermoforming/Roll Worker apps; we just surface the
-    // backend-localized hint and stop.
-    if (ctx.blockReason == 'CURRENT_PRODUCT_REQUIRED') {
+    // Step 2 — soft block: no active production-plan item on the line. The
+    // plan is managed centrally; we just surface the backend-localized hint
+    // verbatim (V81 backend returns the canonical Arabic message) and stop.
+    if (ctx.blockReason == 'NO_ACTIVE_PLAN_ITEM') {
       _showInfoSnack(
         context,
         (ctx.messageAr?.isNotEmpty ?? false)
             ? ctx.messageAr!
-            : 'اختر المنتج الحالي على الخط قبل إنشاء طبلية',
+            : 'لا يوجد بند إنتاج نشط لهذا الخط. '
+                'يرجى مراجعة الإدارة لإضافة بند إلى خطة الإنتاج.',
       );
       return;
     }
@@ -333,46 +426,107 @@ class ProductionLineSection extends StatelessWidget {
       }
     }
 
-    // Step 4 — resolve the product to pre-select. Prefer the productType
-    // returned by the context (server-authoritative); fall back to whatever
-    // the line cache already had.
-    ProductType? initialProductType = provider.getSelectedProductType(
-      line.number,
-    );
-    final ctxProductId = ctx.currentProductTypeId;
-    if (ctxProductId != null) {
-      final match = provider.productTypes
-          .where((p) => p.id == ctxProductId)
-          .firstOrNull;
-      if (match != null) initialProductType = match;
+    // Step 4 — refresh line state once so the production-plan defaults
+    // reflect a recently-changed plan item before opening the dialog.
+    await provider.refreshLineState(line.number);
+    if (!context.mounted) return;
+
+    // Re-check the plan gate after the refresh — admin may have closed the
+    // item between the button press and this point.
+    final planProductId =
+        provider.getCurrentPlanItemProductTypeId(line.number);
+    if (planProductId == null ||
+        provider.isProductionPlanBlocked(line.number)) {
+      _showInfoSnack(
+        context,
+        provider.getProductionPlanBlockedMessage(line.number) ??
+            'لا يوجد بند إنتاج نشط لهذا الخط. '
+                'يرجى مراجعة الإدارة لإضافة بند إلى خطة الإنتاج.',
+      );
+      return;
     }
+
+    // The product cache is derived purely from the current plan item (see
+    // PalletizingProvider._resolveProductType). Use it as the read-only
+    // product to display in the dialog.
+    final ProductType? planProduct =
+        provider.getCurrentPlanItemProductType(line.number);
+
+    // Default quantity priority: FALET first-pallet suggestion wins (explicit
+    // operator choice); otherwise the current plan item's packages-per-pallet;
+    // CreatePalletDialog then falls back to ProductType.packageQuantity / 20
+    // — but only when `defaultPackageQuantitySource == PRODUCT_TYPE`. Under
+    // the enforced plan flow the source is PLAN_ITEM.
+    final planDefault =
+        provider.getCurrentPlanItemPackagesPerPallet(line.number);
 
     final result = await showDialog<Map<String, dynamic>>(
       context: context,
       builder: (context) => CreatePalletDialog(
         line: line,
-        initialProductType: initialProductType,
-        initialQuantity: prefilledQuantity,
+        initialProductType: planProduct,
+        initialQuantity: prefilledQuantity ?? planDefault,
         nonMatchingFaletQuantity: ctx.nonMatchingFaletQuantity,
       ),
     );
 
     if (result == null || !context.mounted) return;
 
-    final productType = result['productType'] as ProductType;
+    // Dialog returns only `quantity` by construction — there is no product
+    // picker. The request product is the current plan item id.
     final quantity = result['quantity'] as int;
 
+    await _submitCreatePallet(
+      context,
+      productTypeId: planProductId,
+      quantity: quantity,
+    );
+  }
+
+  /// Submits the create-pallet request with optional overproduction confirm.
+  /// On `PRODUCTION_PLAN_TARGET_EXCEEDED_CONFIRMATION_REQUIRED`, opens the
+  /// confirmation dialog and, on confirm, re-submits the IDENTICAL payload
+  /// with `confirmOverproduction: true`. On
+  /// `PRODUCTION_PLAN_PRODUCT_MISMATCH` the line state was already refreshed
+  /// inside the provider — surface the Arabic message and stop.
+  Future<void> _submitCreatePallet(
+    BuildContext context, {
+    required int productTypeId,
+    required int quantity,
+    bool confirmOverproduction = false,
+  }) async {
+    final provider = context.read<PalletizingProvider>();
     try {
       final palletResponse = await provider.createPallet(
         lineNumber: line.number,
-        productTypeId: productType.id,
+        productTypeId: productTypeId,
         quantity: quantity,
+        confirmOverproduction: confirmOverproduction,
       );
       if (context.mounted) {
         _showSuccessDialog(context, palletResponse);
       }
     } on ApiException catch (e) {
       if (!context.mounted) return;
+      if (e.code == 'PRODUCTION_PLAN_TARGET_EXCEEDED_CONFIRMATION_REQUIRED' &&
+          !confirmOverproduction) {
+        final confirmed = await OverproductionConfirmationDialog.show(
+          context,
+          message: e.displayMessage,
+        );
+        if (!context.mounted) return;
+        if (!confirmed) return; // operator cancelled — abort
+        await _submitCreatePallet(
+          context,
+          productTypeId: productTypeId,
+          quantity: quantity,
+          confirmOverproduction: true,
+        );
+        return;
+      }
+      // PRODUCTION_PLAN_PRODUCT_MISMATCH: the provider already refreshed line
+      // state, so the screen will re-render with the new plan product. Show
+      // only the Arabic message — never the raw English backend text.
       _showErrorSnack(context, e.displayMessage);
     } catch (e) {
       if (context.mounted) {

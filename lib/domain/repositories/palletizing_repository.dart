@@ -23,10 +23,18 @@ abstract class PalletizingRepository {
   Future<FirstPalletContext> getFirstPalletContext(int lineId);
 
   /// POST /palletizing-line/lines/{lineId}/pallets
+  ///
+  /// Production-plan enforcement (V81): [productTypeId] MUST be the line's
+  /// current plan-item product id; the backend rejects anything else with
+  /// `PRODUCTION_PLAN_PRODUCT_MISMATCH`. Pass [confirmOverproduction] = true
+  /// only when re-sending the same request after the backend returned
+  /// `PRODUCTION_PLAN_TARGET_EXCEEDED_CONFIRMATION_REQUIRED` and the operator
+  /// confirmed the warning dialog.
   Future<PalletCreateResponse> createLinePallet({
     required int lineId,
     required int productTypeId,
     required int quantity,
+    bool confirmOverproduction = false,
   });
 
   /// POST /palletizing-line/lines/{lineId}/pallets/{palletId}/print-attempts
