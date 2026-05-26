@@ -6,7 +6,6 @@ class AuthLocalStorage {
   static const _userNameKey = 'user_name';
   static const _userEmailKey = 'user_email';
   static const _userRoleKey = 'user_role';
-  static const _deviceKeyKey = 'device_api_key';
 
   final FlutterSecureStorage _storage;
 
@@ -59,24 +58,17 @@ class AuthLocalStorage {
     return token != null && token.isNotEmpty;
   }
 
-  // ── Device Key ──
+  // ── Device Key (static) ──
 
-  Future<void> saveDeviceKey(String key) async {
-    await _storage.write(key: _deviceKeyKey, value: key);
-  }
+  static const String _staticDeviceKey = 'taleeb-device-key-2025-default';
 
-  Future<String?> getDeviceKey() async {
-    return await _storage.read(key: _deviceKeyKey);
-  }
+  Future<void> saveDeviceKey(String key) async {}
 
-  Future<bool> hasDeviceKey() async {
-    final key = await getDeviceKey();
-    return key != null && key.isNotEmpty;
-  }
+  Future<String?> getDeviceKey() async => _staticDeviceKey;
 
-  Future<void> clearDeviceKey() async {
-    await _storage.delete(key: _deviceKeyKey);
-  }
+  Future<bool> hasDeviceKey() async => true;
+
+  Future<void> clearDeviceKey() async {}
 
   // ── Palletizer Session Token (per backend lineId) ──
   // Keys are namespaced by backend lineId, not UI lineNumber, so storage stays

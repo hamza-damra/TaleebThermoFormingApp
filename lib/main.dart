@@ -1,16 +1,39 @@
+import 'dart:io';
+
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:provider/provider.dart';
+import 'core/config.dart';
 import 'core/di.dart';
+import 'core/http/staging_http_overrides.dart';
 import 'core/theme.dart';
-import 'data/datasources/auth_local_storage.dart';
 import 'presentation/providers/palletizing_provider.dart';
 import 'presentation/providers/printing_provider.dart';
-import 'presentation/screens/device_settings_screen.dart';
 import 'presentation/screens/palletizing_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Install staging TLS override BEFORE any HttpClient is constructed. The
+  // getter is itself triple-gated (non-production env, opt-in dart-define,
+  // host on the staging whitelist) — production builds always fall through.
+  if (AppConfig.allowStagingSelfSignedCert) {
+    HttpOverrides.global =
+        StagingSelfSignedHttpOverrides(AppConfig.stagingTlsHosts);
+  }
+
+  // Release-visible startup banner — appears in `adb logcat` even when
+  // kDebugMode is false. Lets a tablet operator confirm WHICH build is running,
+  // which environment it targets, and whether the staging TLS bypass is on.
+  // Never logs secrets (device key, tokens, credentials).
+  debugPrint(
+    '[Startup] buildLabel=${AppConfig.buildLabel} '
+    'appEnv=${AppConfig.envLabel()} '
+    'baseUrl=${AppConfig.baseUrl} '
+    'allowStagingSelfSignedCert=${AppConfig.allowStagingSelfSignedCert} '
+    'mode=${kReleaseMode ? "release" : "debug"}',
+  );
   await serviceLocator.init();
   runApp(const MyApp());
 }
@@ -40,66 +63,8 @@ class MyApp extends StatelessWidget {
           GlobalWidgetsLocalizations.delegate,
           GlobalCupertinoLocalizations.delegate,
         ],
-        home: const DeviceKeyWrapper(),
+        home: const PalletizingScreen(),
       ),
     );
-  }
-}
-
-/// Checks if a device key is configured. If not, shows the setup screen.
-/// Once configured, proceeds directly to the palletizing workflow.
-class DeviceKeyWrapper extends StatefulWidget {
-  const DeviceKeyWrapper({super.key});
-
-  @override
-  State<DeviceKeyWrapper> createState() => _DeviceKeyWrapperState();
-}
-
-class _DeviceKeyWrapperState extends State<DeviceKeyWrapper> {
-  final _storage = AuthLocalStorage();
-  bool _checking = true;
-  bool _hasDeviceKey = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _checkDeviceKey();
-  }
-
-  Future<void> _checkDeviceKey() async {
-    final hasKey = await _storage.hasDeviceKey();
-    if (mounted) {
-      setState(() {
-        _hasDeviceKey = hasKey;
-        _checking = false;
-      });
-    }
-  }
-
-  void _onDeviceKeyConfigured() {
-    setState(() {
-      _hasDeviceKey = true;
-    });
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    if (_checking) {
-      return Scaffold(
-        backgroundColor: Colors.white,
-        body: Center(
-          child: Image.asset('assets/images/icon.jpg', width: 200, height: 200),
-        ),
-      );
-    }
-
-    if (!_hasDeviceKey) {
-      return DeviceSettingsScreen(
-        isSetup: true,
-        onDeviceKeyConfigured: _onDeviceKeyConfigured,
-      );
-    }
-
-    return const PalletizingScreen();
   }
 }

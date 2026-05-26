@@ -1,4 +1,7 @@
+import 'package:flutter/foundation.dart';
+
 import '../../domain/entities/bootstrap_response.dart';
+import '../../domain/entities/production_line.dart';
 import 'operator_model.dart';
 import 'product_type_model.dart';
 import 'production_line_model.dart';
@@ -13,28 +16,83 @@ class BootstrapResponseModel extends BootstrapResponse {
   });
 
   factory BootstrapResponseModel.fromJson(Map<String, dynamic> json) {
-    final productTypesJson = json['productTypes'] as List<dynamic>? ?? [];
-    final productionLinesJson = json['productionLines'] as List<dynamic>? ?? [];
-    final linesJson = json['lines'] as List<dynamic>? ?? [];
+    final productTypesJson = json['productTypes'] as List<dynamic>? ?? const [];
+    final productionLinesJson =
+        json['productionLines'] as List<dynamic>? ?? const [];
+    // Accept `lines` (current contract) OR `lineStates` (alternate name some
+    // backend revisions ship under). Whichever is present and non-empty wins;
+    // both falling through to `[]` produces an empty-state diagnostic upstream
+    // instead of a silent zero-line render.
+    List<dynamic> linesJson = json['lines'] as List<dynamic>? ?? const [];
+    if (linesJson.isEmpty) {
+      final alt = json['lineStates'] as List<dynamic>?;
+      if (alt != null && alt.isNotEmpty) linesJson = alt;
+    }
+
+    final parsedLines = <BootstrapLineStateModel>[];
+    for (final item in linesJson) {
+      if (item is! Map<String, dynamic>) continue;
+      try {
+        parsedLines.add(BootstrapLineStateModel.fromJson(item));
+      } catch (e) {
+        // A single malformed line must not zero out the whole list — log it
+        // (always-on so release-mode logcat catches it) and keep going so the
+        // other line still renders.
+        debugPrint(
+          '[Bootstrap PARSE ERROR] failed to parse line entry: $e :: '
+          'keys=${item.keys.toList()}',
+        );
+      }
+    }
+
+    final parsedProductionLines = productionLinesJson
+        .whereType<Map<String, dynamic>>()
+        .map(ProductionLineModel.fromJson)
+        .toList();
+
+    // Backfill `productionLines` from the parsed line states when the backend
+    // omits the dedicated catalog. `getLineIdForNumber` and the line-tab
+    // colors only need {id, name, lineNumber} — they were the silent
+    // dependency that caused "no lines available" to appear even when
+    // bootstrap actually contained line-state objects.
+    final List<ProductionLine> productionLines = parsedProductionLines.isNotEmpty
+        ? parsedProductionLines
+        : parsedLines
+            .map(
+              (l) => ProductionLine(
+                id: l.lineId,
+                name: l.lineName.isNotEmpty ? l.lineName : 'خط ${l.lineNumber}',
+                code: 'L${l.lineNumber}',
+                lineNumber: l.lineNumber,
+              ),
+            )
+            .toList();
+
+    // Always-on summary + per-line breakdown — release tablets need this in
+    // logcat to diagnose "no lines" / wrong-routing reports without rebuilding
+    // a debug APK. Never logs the device key or operator names.
+    debugPrint(
+      '[Bootstrap PARSE] rawLines=${linesJson.length} '
+      'parsedLines=${parsedLines.length} '
+      'productionLines=${productionLines.length} '
+      'productTypes=${productTypesJson.length}',
+    );
+    for (final l in parsedLines) {
+      debugPrint(
+        '[Bootstrap PARSE] line id=${l.lineId} number=${l.lineNumber} '
+        'name="${l.lineName}" authorized=${l.isAuthorized} '
+        'blocked=${l.blocked} reason=${l.blockedReason ?? "null"} '
+        'uiMode=${l.lineUiMode ?? "null"}',
+      );
+    }
 
     return BootstrapResponseModel(
       productTypes: productTypesJson
-          .map(
-            (item) => ProductTypeModel.fromJson(item as Map<String, dynamic>),
-          )
+          .whereType<Map<String, dynamic>>()
+          .map(ProductTypeModel.fromJson)
           .toList(),
-      productionLines: productionLinesJson
-          .map(
-            (item) =>
-                ProductionLineModel.fromJson(item as Map<String, dynamic>),
-          )
-          .toList(),
-      lines: linesJson
-          .map(
-            (item) =>
-                BootstrapLineStateModel.fromJson(item as Map<String, dynamic>),
-          )
-          .toList(),
+      productionLines: productionLines,
+      lines: parsedLines,
     );
   }
 }

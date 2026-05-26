@@ -1,3 +1,5 @@
+import 'package:flutter/foundation.dart';
+
 import '../../domain/entities/bootstrap_response.dart';
 import '../../domain/entities/falet_exists_response.dart';
 import '../../domain/entities/falet_response.dart';
@@ -61,17 +63,58 @@ class PalletizingRepositoryImpl implements PalletizingRepository {
   @override
   Future<BootstrapResponse> bootstrap() async {
     return await _apiClient.request<BootstrapResponse>(
-      path: '/api/v1/palletizing-line/bootstrap',
+      path: '/palletizing-line/bootstrap',
       method: 'GET',
-      parser: (json) =>
-          BootstrapResponseModel.fromJson(json['data'] as Map<String, dynamic>),
+      parser: (json) {
+        // Raw-shape diagnostic — ALWAYS-ON (not kDebugMode-gated) so release
+        // APKs surface the actual wire shape in `adb logcat`. Never logs the
+        // device key or any operator data. Confirms whether the parser sees
+        // `data.lines` at all and which top-level keys the backend actually
+        // returns, so a future schema rename never silently parses to zero
+        // lines again.
+        final topKeys = json.keys.toList();
+        final dataRaw = json['data'];
+        List<String> dataKeys = const [];
+        int linesCount = 0;
+        int? lineStatesCount;
+        int prodLinesCount = 0;
+        int prodTypesCount = 0;
+        if (dataRaw is Map<String, dynamic>) {
+          dataKeys = dataRaw.keys.toList();
+          final l = dataRaw['lines'];
+          if (l is List) linesCount = l.length;
+          final ls = dataRaw['lineStates'];
+          if (ls is List) lineStatesCount = ls.length;
+          final pl = dataRaw['productionLines'];
+          if (pl is List) prodLinesCount = pl.length;
+          final pt = dataRaw['productTypes'];
+          if (pt is List) prodTypesCount = pt.length;
+        }
+        debugPrint(
+          '[Bootstrap RAW] topKeys=$topKeys '
+          'data.exists=${dataRaw is Map} '
+          'data.keys=$dataKeys '
+          'data.lines=$linesCount '
+          'data.lineStates=${lineStatesCount ?? "absent"} '
+          'data.productionLines=$prodLinesCount '
+          'data.productTypes=$prodTypesCount',
+        );
+        final data = json['data'];
+        if (data is! Map<String, dynamic>) {
+          throw StateError(
+            'Bootstrap response missing top-level "data" object '
+            '(got ${data.runtimeType}). Top-level keys: ${json.keys.toList()}',
+          );
+        }
+        return BootstrapResponseModel.fromJson(data);
+      },
     );
   }
 
   @override
   Future<BootstrapLineState> getLineState(int lineId) async {
     return await _apiClient.request<BootstrapLineState>(
-      path: '/api/v1/palletizing-line/lines/$lineId/state',
+      path: '/palletizing-line/lines/$lineId/state',
       method: 'GET',
       parser: (json) => BootstrapLineStateModel.fromJson(
         json['data'] as Map<String, dynamic>,
@@ -82,7 +125,7 @@ class PalletizingRepositoryImpl implements PalletizingRepository {
   @override
   Future<FirstPalletContext> getFirstPalletContext(int lineId) async {
     return await _apiClient.request<FirstPalletContext>(
-      path: '/api/v1/palletizing-line/lines/$lineId/first-pallet-context',
+      path: '/palletizing-line/lines/$lineId/first-pallet-context',
       method: 'GET',
       parser: (json) => FirstPalletContextModel.fromJson(
         json['data'] as Map<String, dynamic>,
@@ -98,7 +141,7 @@ class PalletizingRepositoryImpl implements PalletizingRepository {
     bool confirmOverproduction = false,
   }) async {
     return await _apiClient.request<PalletCreateResponse>(
-      path: '/api/v1/palletizing-line/lines/$lineId/pallets',
+      path: '/palletizing-line/lines/$lineId/pallets',
       method: 'POST',
       data: {
         'productTypeId': productTypeId,
@@ -120,7 +163,7 @@ class PalletizingRepositoryImpl implements PalletizingRepository {
     String? failureReason,
   }) async {
     return await _apiClient.request<PrintAttemptResult>(
-      path: '/api/v1/palletizing-line/lines/$lineId/pallets/$palletId/print-attempts',
+      path: '/palletizing-line/lines/$lineId/pallets/$palletId/print-attempts',
       method: 'POST',
       data: {
         'printerIdentifier': printerIdentifier,
@@ -141,7 +184,7 @@ class PalletizingRepositoryImpl implements PalletizingRepository {
     required String pin,
   }) async {
     return await _apiClient.request<PalletizerAuthResult>(
-      path: '/api/v1/palletizing-line/lines/$lineId/palletizer-auth',
+      path: '/palletizing-line/lines/$lineId/palletizer-auth',
       method: 'POST',
       data: {'pin': pin},
       parser: (json) => PalletizerAuthResultModel.fromJson(
@@ -153,7 +196,7 @@ class PalletizingRepositoryImpl implements PalletizingRepository {
   @override
   Future<PalletizerSession> getCurrentPalletizerSession(int lineId) async {
     return await _apiClient.request<PalletizerSession>(
-      path: '/api/v1/palletizing-line/lines/$lineId/palletizer-session/current',
+      path: '/palletizing-line/lines/$lineId/palletizer-session/current',
       method: 'GET',
       parser: (json) =>
           PalletizerSessionModel.fromJson(json['data'] as Map<String, dynamic>),
@@ -166,7 +209,7 @@ class PalletizingRepositoryImpl implements PalletizingRepository {
     required String sessionToken,
   }) async {
     await _apiClient.request<void>(
-      path: '/api/v1/palletizing-line/lines/$lineId/palletizer-logout',
+      path: '/palletizing-line/lines/$lineId/palletizer-logout',
       method: 'POST',
       data: {'sessionToken': sessionToken},
       parser: (_) {},
@@ -176,7 +219,7 @@ class PalletizingRepositoryImpl implements PalletizingRepository {
   @override
   Future<FaletResponse> getFaletItems(int lineId) async {
     return await _apiClient.request<FaletResponse>(
-      path: '/api/v1/palletizing-line/lines/$lineId/falet',
+      path: '/palletizing-line/lines/$lineId/falet',
       method: 'GET',
       parser: (json) =>
           FaletResponseModel.fromJson(json['data'] as Map<String, dynamic>),
@@ -186,7 +229,7 @@ class PalletizingRepositoryImpl implements PalletizingRepository {
   @override
   Future<SessionProductionDetail> getSessionProductionDetail(int lineId) async {
     return await _apiClient.request<SessionProductionDetail>(
-      path: '/api/v1/palletizing-line/lines/$lineId/session-production-detail',
+      path: '/palletizing-line/lines/$lineId/session-production-detail',
       method: 'GET',
       parser: (json) => SessionProductionDetailModel.fromJson(
         json['data'] as Map<String, dynamic>,
@@ -197,7 +240,7 @@ class PalletizingRepositoryImpl implements PalletizingRepository {
   @override
   Future<FaletExistsResponse> checkFaletExists(int lineId) async {
     return await _apiClient.request<FaletExistsResponse>(
-      path: '/api/v1/palletizing-line/lines/$lineId/falet/exists',
+      path: '/palletizing-line/lines/$lineId/falet/exists',
       method: 'GET',
       parser: (json) => FaletExistsResponseModel.fromJson(
         json['data'] as Map<String, dynamic>,

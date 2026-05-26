@@ -8,6 +8,9 @@
 .build/
 .buildlog/
 .history
+# Local-only — never commit (may hold tokens / IDE settings).
+.mcp.json
+.vscode/
 .svn/
 .swiftpm/
 migrate_working_dir/

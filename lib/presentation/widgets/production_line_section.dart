@@ -12,6 +12,7 @@ import '../providers/palletizing_provider.dart';
 import 'create_pallet_dialog.dart';
 import 'first_pallet_suggestion_dialog.dart';
 import 'legacy_handover_info_card.dart';
+import 'line_blocked_card.dart';
 import 'line_context_strip.dart';
 import 'overproduction_confirmation_dialog.dart';
 import 'pallet_success_dialog.dart';
@@ -152,6 +153,14 @@ class ProductionLineSection extends StatelessWidget {
                   provider.getWaitingForOperatorMessage(line.number),
             ),
           ),
+        // Backend-authoritative `blocked` for a line that still has an
+        // operator. Previously rendered no overlay, leaving the worker with a
+        // silently disabled "Create Pallet" button and no explanation —
+        // exactly the gap where downstream error snackbars from create /
+        // FALET calls were taking over and surfacing misleading credentials
+        // text. The card maps known blockedReason values to Arabic copy.
+        if (uiState == LineUiState.blocked)
+          Positioned.fill(child: LineBlockedCard(line: line)),
         if (uiState == LineUiState.needsPalletizerAuth)
           Positioned.fill(child: PalletizerPinScreen(line: line)),
       ],
@@ -412,22 +421,62 @@ class ProductionLineSection extends StatelessWidget {
       return;
     }
 
-    // Step 3 — optional first-pallet suggestion when matching FALET is open.
-    int? prefilledQuantity;
+    // Step 3 — mandatory first-pallet FALET-consumption confirmation when the
+    // backend says matching FALET is open for this product. The dialog itself
+    // IS the confirmation step — on confirm we submit a full-target-quantity
+    // pallet directly. There is no second CreatePalletDialog, and the FALET
+    // bypass is forbidden (cancel aborts).
     if (ctx.canSuggestFirstPalletDialog) {
-      final choice = await showDialog<FirstPalletDialogResult>(
+      final confirmed = await showDialog<bool>(
         context: context,
+        barrierDismissible: false,
         builder: (_) => FirstPalletSuggestionDialog(line: line, context: ctx),
       );
       if (!context.mounted) return;
-      if (choice == null) return; // user dismissed → abort, no pallet created
-      if (choice == FirstPalletDialogResult.useFalet) {
-        prefilledQuantity = ctx.suggestedFaletQuantityForFirstPallet;
+      if (confirmed != true) return; // cancelled / dismissed → abort
+
+      // Safety re-check: a plan item may have been closed between the button
+      // press and the operator's confirm tap. Refresh, then validate.
+      await provider.refreshLineState(line.number);
+      if (!context.mounted) return;
+
+      final firstPalletProductId =
+          provider.getCurrentPlanItemProductTypeId(line.number);
+      if (firstPalletProductId == null ||
+          provider.isProductionPlanBlocked(line.number)) {
+        _showInfoSnack(
+          context,
+          provider.getProductionPlanBlockedMessage(line.number) ??
+              'لا يوجد بند إنتاج نشط لهذا الخط. '
+                  'يرجى مراجعة الإدارة لإضافة بند إلى خطة الإنتاج.',
+        );
+        return;
       }
+
+      // Submit the FIRST pallet with the full target quantity. The backend
+      // attributes the matching FALET to this pallet automatically; the
+      // request payload is the total pallet target, NOT the FALET count.
+      // currentPlanItemPackagesPerPallet is the canonical target — fall back
+      // to the provider's plan default only if the context was missing it.
+      final totalQuantity = ctx.currentPlanItemPackagesPerPallet ??
+          provider.getCurrentPlanItemPackagesPerPallet(line.number) ??
+          0;
+      if (totalQuantity <= 0) {
+        _showErrorSnack(context, 'تعذّر تحديد حجم الطبلية الهدف');
+        return;
+      }
+
+      await _submitCreatePallet(
+        context,
+        productTypeId: firstPalletProductId,
+        quantity: totalQuantity,
+      );
+      return;
     }
 
-    // Step 4 — refresh line state once so the production-plan defaults
-    // reflect a recently-changed plan item before opening the dialog.
+    // Step 4 — normal pallet creation path (no matching FALET to consume).
+    // Refresh line state once so the production-plan defaults reflect a
+    // recently-changed plan item before opening the dialog.
     await provider.refreshLineState(line.number);
     if (!context.mounted) return;
 
@@ -452,11 +501,6 @@ class ProductionLineSection extends StatelessWidget {
     final ProductType? planProduct =
         provider.getCurrentPlanItemProductType(line.number);
 
-    // Default quantity priority: FALET first-pallet suggestion wins (explicit
-    // operator choice); otherwise the current plan item's packages-per-pallet;
-    // CreatePalletDialog then falls back to ProductType.packageQuantity / 20
-    // — but only when `defaultPackageQuantitySource == PRODUCT_TYPE`. Under
-    // the enforced plan flow the source is PLAN_ITEM.
     final planDefault =
         provider.getCurrentPlanItemPackagesPerPallet(line.number);
 
@@ -465,7 +509,7 @@ class ProductionLineSection extends StatelessWidget {
       builder: (context) => CreatePalletDialog(
         line: line,
         initialProductType: planProduct,
-        initialQuantity: prefilledQuantity ?? planDefault,
+        initialQuantity: planDefault,
         nonMatchingFaletQuantity: ctx.nonMatchingFaletQuantity,
       ),
     );

@@ -11,6 +11,7 @@ import '../widgets/production_line_section.dart';
 import '../widgets/reprint_by_id_dialog.dart';
 import '../widgets/takeover_dialog.dart';
 import '../widgets/shimmer/palletizing_shimmer.dart';
+import 'device_settings_screen.dart';
 import 'settings_hub_screen.dart';
 
 class PalletizingScreen extends StatefulWidget {
@@ -197,6 +198,11 @@ class _PalletizingScreenState extends State<PalletizingScreen>
         toolbarHeight: 56,
         actions: [
           IconButton(
+            icon: const Icon(Icons.refresh_rounded),
+            onPressed: _refreshData,
+            tooltip: 'تحديث',
+          ),
+          IconButton(
             icon: const Icon(Icons.print_rounded),
             onPressed: () => showDialog(
               context: context,
@@ -206,9 +212,7 @@ class _PalletizingScreenState extends State<PalletizingScreen>
           ),
           IconButton(
             icon: const Icon(Icons.settings),
-            onPressed: () => Navigator.of(context).push(
-              MaterialPageRoute(builder: (_) => const SettingsHubScreen()),
-            ),
+            onPressed: _openSettings,
             tooltip: 'الإعدادات',
           ),
         ],
@@ -305,6 +309,14 @@ class _PalletizingScreenState extends State<PalletizingScreen>
         Padding(
           padding: EdgeInsets.symmetric(horizontal: isTablet ? 4 : 8),
           child: IconButton(
+            icon: const Icon(Icons.refresh_rounded),
+            onPressed: _refreshData,
+            tooltip: 'تحديث',
+          ),
+        ),
+        Padding(
+          padding: EdgeInsets.symmetric(horizontal: isTablet ? 4 : 8),
+          child: IconButton(
             icon: const Icon(Icons.print_rounded),
             onPressed: () => showDialog(
               context: context,
@@ -317,9 +329,7 @@ class _PalletizingScreenState extends State<PalletizingScreen>
           padding: EdgeInsets.symmetric(horizontal: isTablet ? 4 : 8),
           child: IconButton(
             icon: const Icon(Icons.settings),
-            onPressed: () => Navigator.of(context).push(
-              MaterialPageRoute(builder: (_) => const SettingsHubScreen()),
-            ),
+            onPressed: _openSettings,
             tooltip: 'الإعدادات',
           ),
         ),
@@ -331,6 +341,175 @@ class _PalletizingScreenState extends State<PalletizingScreen>
     final palletizingProvider = context.read<PalletizingProvider>();
     palletizingProvider.clearError();
     await palletizingProvider.loadBootstrap();
+  }
+
+  /// Opens the Settings hub and force-refreshes bootstrap on return.
+  /// Settings can change the device key (or test it), and operators routinely
+  /// open this when something looks stuck — a fresh bootstrap on dismiss is
+  /// the cheap recovery path so the screen never relies on cached state.
+  Future<void> _openSettings() async {
+    await Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => const SettingsHubScreen()),
+    );
+    if (!mounted) return;
+    await _refreshData();
+  }
+
+  /// Opens Device Settings directly (used by the device-key error surface),
+  /// then re-runs bootstrap so a corrected key takes effect immediately
+  /// without requiring the operator to manually tap retry.
+  Future<void> _openDeviceSettings() async {
+    await Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => const DeviceSettingsScreen()),
+    );
+    if (!mounted) return;
+    await _refreshData();
+  }
+
+  /// Device-key recovery surface. Shown when bootstrap failed with HTTP
+  /// 401 / 403 on a `/palletizing-line/*` endpoint. Distinct from the generic
+  /// error screen because the recovery action is different — the operator
+  /// must open Device Settings to inspect / test / replace the key, not just
+  /// retry the same call against the same backend.
+  Widget _buildDeviceKeyErrorScreen(PalletizingProvider provider) {
+    final message = provider.errorMessage ?? 'مفتاح الجهاز غير صحيح أو غير مفعّل';
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 24),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.key_off_rounded, size: 72, color: Colors.orange.shade700),
+            const SizedBox(height: 20),
+            Text(
+              message,
+              style: GoogleFonts.cairo(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+                color: Colors.black87,
+              ),
+              textAlign: TextAlign.center,
+              textDirection: TextDirection.rtl,
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'تعذّر التحقق من هذا الجهاز لدى الخادم. '
+              'افتح إعدادات الجهاز للتحقق من المفتاح أو تواصل مع الإدارة.',
+              style: GoogleFonts.cairo(
+                fontSize: 15,
+                color: Colors.grey.shade700,
+                height: 1.7,
+              ),
+              textAlign: TextAlign.center,
+              textDirection: TextDirection.rtl,
+            ),
+            const SizedBox(height: 28),
+            ElevatedButton.icon(
+              onPressed: _openDeviceSettings,
+              icon: const Icon(Icons.settings_input_component_rounded),
+              label: Text(
+                'إعدادات الجهاز',
+                style: GoogleFonts.cairo(fontWeight: FontWeight.bold),
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF1565C0),
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 28,
+                  vertical: 14,
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+            ),
+            const SizedBox(height: 10),
+            TextButton.icon(
+              onPressed: _refreshData,
+              icon: const Icon(Icons.refresh_rounded),
+              label: Text(
+                'إعادة المحاولة',
+                style: GoogleFonts.cairo(fontWeight: FontWeight.w600),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Empty-state surface when bootstrap succeeded but no production lines
+  /// were parsed. Distinct from the device-key error and the generic
+  /// retry-error screens because the recovery action is the same as the
+  /// shape mismatch — try again — but the *explanation* is different.
+  Widget _buildNoLinesScreen() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 24),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.inbox_outlined,
+              size: 72,
+              color: Colors.grey.shade500,
+            ),
+            const SizedBox(height: 20),
+            Text(
+              'لا توجد خطوط إنتاج متاحة',
+              style: GoogleFonts.cairo(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+                color: Colors.black87,
+              ),
+              textAlign: TextAlign.center,
+              textDirection: TextDirection.rtl,
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'تم الاتصال بالخادم لكن لم يتم استرجاع أي خط إنتاج. '
+              'تأكد من إعداد خطوط الإنتاج على الخادم ثم اضغط تحديث.',
+              style: GoogleFonts.cairo(
+                fontSize: 15,
+                color: Colors.grey.shade700,
+                height: 1.7,
+              ),
+              textAlign: TextAlign.center,
+              textDirection: TextDirection.rtl,
+            ),
+            const SizedBox(height: 28),
+            ElevatedButton.icon(
+              onPressed: _refreshData,
+              icon: const Icon(Icons.refresh_rounded),
+              label: Text(
+                'تحديث',
+                style: GoogleFonts.cairo(fontWeight: FontWeight.bold),
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF1565C0),
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 28,
+                  vertical: 14,
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+            ),
+            const SizedBox(height: 10),
+            TextButton.icon(
+              onPressed: _openDeviceSettings,
+              icon: const Icon(Icons.settings_input_component_rounded),
+              label: Text(
+                'إعدادات الجهاز',
+                style: GoogleFonts.cairo(fontWeight: FontWeight.w600),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   Widget _buildLoadingShimmer(bool isMobile) {
@@ -353,6 +532,14 @@ class _PalletizingScreenState extends State<PalletizingScreen>
       return _buildLoadingShimmer(isMobile);
     }
 
+    // Dedicated device-key recovery surface — never reused for transient
+    // errors. The CTA opens Device Settings (where the operator/admin can
+    // re-test the key) instead of a generic "retry" loop that would just
+    // re-hit the same 401 response.
+    if (provider.isDeviceKeyInvalid) {
+      return _buildDeviceKeyErrorScreen(provider);
+    }
+
     if (provider.errorMessage != null) {
       return Center(
         child: Column(
@@ -366,6 +553,8 @@ class _PalletizingScreenState extends State<PalletizingScreen>
                 fontSize: 18,
                 color: Colors.red.shade700,
               ),
+              textAlign: TextAlign.center,
+              textDirection: TextDirection.rtl,
             ),
             const SizedBox(height: 24),
             ElevatedButton(
@@ -375,6 +564,19 @@ class _PalletizingScreenState extends State<PalletizingScreen>
           ],
         ),
       );
+    }
+
+    // Defensive empty-state. Bootstrap succeeded but parsed zero lines —
+    // either the backend response shape changed (now caught by
+    // BootstrapResponseModel which accepts both `lines` and `lineStates`) or
+    // the backend genuinely returned no lines. The previous build silently
+    // rendered two "no operator" overlays here, which read on the floor as
+    // "the app is broken / no production lines available" with no actionable
+    // explanation. This surface tells the operator exactly what happened and
+    // provides a direct refresh path; raw diagnostics are in the debug log
+    // (`[Bootstrap RAW]` / `[Bootstrap PARSE]`).
+    if (provider.productionLines.isEmpty) {
+      return _buildNoLinesScreen();
     }
 
     final line1Entity = provider.productionLines

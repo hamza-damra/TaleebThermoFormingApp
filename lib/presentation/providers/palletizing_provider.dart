@@ -112,6 +112,14 @@ class PalletizingProvider extends ChangeNotifier {
   PalletizingState _state = PalletizingState.idle;
   String? _errorMessage;
 
+  /// `true` while the most recent `loadBootstrap` failed specifically because
+  /// the backend rejected the device key (HTTP 401 / 403 on a
+  /// `/palletizing-line/*` path → [ApiException.deviceKeyInvalid]). Drives the
+  /// dedicated device-key recovery screen (a button to Device Settings) so the
+  /// UI never re-uses the generic "بيانات الدخول غير صحيحة" message — which is
+  /// reserved for actual PIN / credential failures.
+  bool _deviceKeyInvalid = false;
+
   // ── Reference data ──
   List<ProductType> _productTypes = [];
   List<ProductionLine> _productionLines = [];
@@ -171,6 +179,11 @@ class PalletizingProvider extends ChangeNotifier {
   PalletizingState get state => _state;
   String? get errorMessage => _errorMessage;
   bool get isLoading => _state == PalletizingState.loading;
+
+  /// `true` when bootstrap failed because the backend rejected this device's
+  /// `X-Device-Key`. The screen renders a dedicated recovery surface (Open
+  /// Device Settings) instead of the generic error/retry block.
+  bool get isDeviceKeyInvalid => _deviceKeyInvalid;
   List<ProductType> get productTypes => _productTypes;
   List<ProductionLine> get productionLines => _productionLines;
 
@@ -356,12 +369,49 @@ class PalletizingProvider extends ChangeNotifier {
     // 1. Pending legacy handover — a dedicated flow with its own overlay. It
     //    must win even over "no operator": during a handover the line is
     //    transiently unauthorized by design.
+    //
+    //    Routing accepts two equivalent signals from the backend:
+    //      • `lineUiMode == PENDING_HANDOVER_*` — the canonical UI-mode flag.
+    //      • `blockedReason in {PENDING_HANDOVER, LINE_BLOCKED_BY_PENDING_HANDOVER}`
+    //        — what the backend stamps on `blocked=true` line-state responses
+    //        in the new V81+ workflow when the legacy UI-mode field isn't set.
+    //        Without the blockedReason fallback such a line would slide into
+    //        the generic `blocked` branch and the worker would see no
+    //        actionable explanation (or, worse, a misleading credentials
+    //        message bubbling up from a downstream API call).
     final mode = _lineUiModes[lineNumber];
+    final reason = _blockedReasons[lineNumber];
     if (mode == 'PENDING_HANDOVER_NEEDS_INCOMING') {
       return LineUiState.pendingHandoverIncoming;
     }
-    if (mode == 'PENDING_HANDOVER_REVIEW') {
+    if (mode == 'PENDING_HANDOVER_REVIEW' ||
+        reason == 'PENDING_HANDOVER' ||
+        reason == 'LINE_BLOCKED_BY_PENDING_HANDOVER') {
       return LineUiState.pendingHandoverReview;
+    }
+
+    // 1b. Backend-canonical "AUTHORIZED" signal — V81+ live shape.
+    //
+    // When the backend explicitly stamps `lineUiMode=AUTHORIZED` we trust
+    // that as the source of truth and do NOT fall through to the
+    // "missing authorization object → waiting" defensive check below.
+    // The live production response confirms `authorized=true`,
+    // `blocked=false`, `lineUiMode=AUTHORIZED` without always shipping a
+    // populated `authorization` object — under the old logic the line would
+    // route to `waitingForThermoforming` and the worker would never see the
+    // active production UI, even though the line is fully usable.
+    //
+    // The defensive `waitingForThermoforming` check just below is still
+    // exercised for any line where `lineUiMode` is absent (legacy / pre-V81+
+    // servers), so the existing no-operator regression tests keep passing.
+    if (mode == 'AUTHORIZED') {
+      final ls = _lineStates[lineNumber];
+      if (ls != null && ls.isAuthorized && !ls.blocked) {
+        if (!hasActivePalletizerSession(lineNumber)) {
+          return LineUiState.needsPalletizerAuth;
+        }
+        return LineUiState.active;
+      }
     }
 
     // 2. No active Thermoforming Operator on the line.
@@ -396,8 +446,9 @@ class PalletizingProvider extends ChangeNotifier {
 
     // 3. Backend-authoritative block for a line that DOES have an operator
     //    (equipment fault, admin block, …) — kept distinct so a real block is
-    //    never silently relabelled as "no operator".
-    if ((_blockedReasons[lineNumber] ?? '').isNotEmpty) {
+    //    never silently relabelled as "no operator". `reason` is the same
+    //    value read at the top of this function.
+    if ((reason ?? '').isNotEmpty) {
       return LineUiState.blocked;
     }
 
@@ -584,16 +635,47 @@ class PalletizingProvider extends ChangeNotifier {
 
       _state = PalletizingState.loaded;
       // A successful bootstrap is also a successful round trip — clear any
-      // earlier network-failure back-off.
+      // earlier network-failure back-off and any device-key error from a
+      // previous attempt. Without this, a screen that was just showing the
+      // device-key recovery surface would not transition back to the normal
+      // production UI after the key was re-validated.
       _lastPollFailed = false;
+      _deviceKeyInvalid = false;
+      _errorMessage = null;
+      if (kDebugMode) {
+        debugPrint(
+          '[Bootstrap OK] lines=${bootstrap.lines.length} '
+          'productTypes=${bootstrap.productTypes.length}',
+        );
+        for (final l in bootstrap.lines) {
+          debugPrint(
+            '[Bootstrap OK] line=${l.lineNumber} id=${l.lineId} '
+            'authorized=${l.isAuthorized} blocked=${l.blocked} '
+            'blockedReason=${l.blockedReason ?? "null"} '
+            'lineUiMode=${l.lineUiMode ?? "null"} '
+            'waitingForOperator=${l.waitingForOperator} '
+            'pendingHandover=${l.lineUiMode?.startsWith("PENDING_HANDOVER") ?? false}',
+          );
+        }
+      }
     } on ApiException catch (e) {
+      if (e.code == 'DEVICE_KEY_INVALID') {
+        // Distinct, recoverable state — the screen will render a "Open Device
+        // Settings" CTA instead of the generic retry button so a misconfigured
+        // device is never mistaken for a transient backend outage.
+        _deviceKeyInvalid = true;
+      } else {
+        _deviceKeyInvalid = false;
+      }
       _errorMessage = e.displayMessage;
       _state = PalletizingState.error;
       _lastPollFailed = true;
       debugPrint(
-        'PalletizingProvider bootstrap error: ${e.code} - ${e.message}',
+        'PalletizingProvider bootstrap error: ${e.code} - ${e.message} '
+        '(status=${e.statusCode ?? "n/a"})',
       );
     } catch (e, stackTrace) {
+      _deviceKeyInvalid = false;
       _errorMessage = 'فشل في تحميل البيانات: $e';
       _state = PalletizingState.error;
       _lastPollFailed = true;
@@ -696,6 +778,21 @@ class PalletizingProvider extends ChangeNotifier {
     );
     _lineBlockedFlag[lineNumber] = lineState.blocked;
     _applyTakeoverState(lineNumber, lineState.pendingTakeoverRequest);
+
+    // Clear a stale palletizer-auth error whenever the line is no longer in
+    // the PIN-entry branch. Without this, a previous "wrong PIN" message stays
+    // pinned to the session state and pops back up the moment the line cycles
+    // through a handover / blocked / waiting branch and then lands on
+    // `needsPalletizerAuth` again — exactly the wrong moment to surface a
+    // credential-style error on a workflow transition.
+    final session = _palletizerSessions[lineNumber];
+    if (session != null && session.authError != null) {
+      final newUi = getUiState(lineNumber);
+      if (newUi != LineUiState.needsPalletizerAuth) {
+        _palletizerSessions[lineNumber] =
+            session.copyWith(clearAuthError: true);
+      }
+    }
 
     // ── Temporary diagnostic (debug builds only) ──────────────────────────
     // Logs the raw backend fields that drive [getUiState] every time a line
@@ -864,7 +961,18 @@ class PalletizingProvider extends ChangeNotifier {
       );
       notifyListeners();
     } on ApiException catch (e) {
-      if (e.code == 'PALLETIZER_SESSION_REQUIRED') {
+      // Treat any of these as "the stored session token is no longer usable —
+      // drop the device to State B so the PIN screen takes over": the
+      // canonical PALLETIZER_SESSION_REQUIRED, a stale-credential rejection,
+      // or a generic UNAUTHORIZED on this single session endpoint. Without the
+      // extra codes, a backend that started rejecting an old token with
+      // AUTH_INVALID_CREDENTIALS would leave the token in place and keep
+      // re-failing every poll — and prior to the fix that error path was the
+      // observed source of a stale "بيانات الدخول غير صحيحة" message in the
+      // logs after a workflow migration.
+      if (e.code == 'PALLETIZER_SESSION_REQUIRED' ||
+          e.code == 'AUTH_INVALID_CREDENTIALS' ||
+          e.code == 'UNAUTHORIZED') {
         await _dropToStateB(lineNumber);
       } else {
         debugPrint(

@@ -67,6 +67,20 @@ class ApiException implements Exception {
     );
   }
 
+  /// Surfaced when an `X-Device-Key`-protected endpoint (any
+  /// `/palletizing-line/*` path) responds with HTTP 401 / 403. The PIN flow is
+  /// NOT the cause here — those failures use codes like `OPERATOR_PIN_INVALID`
+  /// at the application layer — so the only actionable explanation is that the
+  /// device key itself is wrong, missing, or has been disabled by the backend.
+  /// Routed to a dedicated device-key error screen with a path to settings.
+  factory ApiException.deviceKeyInvalid({int? statusCode}) {
+    return ApiException(
+      code: 'DEVICE_KEY_INVALID',
+      message: 'مفتاح الجهاز غير صحيح أو غير مفعّل',
+      statusCode: statusCode ?? 401,
+    );
+  }
+
   String get displayMessage {
     switch (code) {
       case 'OPERATOR_NOT_FOUND':
@@ -89,6 +103,8 @@ class ApiException implements Exception {
         return _formatValidationErrors();
       case 'AUTH_INVALID_CREDENTIALS':
         return 'بيانات الدخول غير صحيحة';
+      case 'DEVICE_KEY_INVALID':
+        return 'مفتاح الجهاز غير صحيح أو غير مفعّل';
       case 'EMPLOYEE_CODE_NOT_FOUND':
         return 'رمز الموظف غير صحيح';
       case 'USER_DISABLED':

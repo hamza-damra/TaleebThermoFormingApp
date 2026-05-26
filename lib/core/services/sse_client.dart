@@ -27,7 +27,7 @@ class SseClient {
   SseClient({
     required Dio dio,
     required AuthLocalStorage authStorage,
-    this.path = '/api/v1/palletizing-line/app-events',
+    this.path = '/palletizing-line/app-events',
     Duration staleTimeout = const Duration(seconds: 40),
   })  : _dio = dio,
         _authStorage = authStorage,
