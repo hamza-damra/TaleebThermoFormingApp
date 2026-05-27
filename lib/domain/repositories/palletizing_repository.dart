@@ -30,11 +30,20 @@ abstract class PalletizingRepository {
   /// only when re-sending the same request after the backend returned
   /// `PRODUCTION_PLAN_TARGET_EXCEEDED_CONFIRMATION_REQUIRED` and the operator
   /// confirmed the warning dialog.
+  ///
+  /// When [firstPalletFaletExpectedQuantity] is non-null, the backend deducts
+  /// exactly that quantity from the matching open FALET row in the same
+  /// transaction as pallet creation and surfaces a `faletConsumption` block
+  /// on the response. Optional [firstPalletFaletId] binds the consumption to
+  /// a specific FALET row; null means "the matching open FALET for this
+  /// product on this line".
   Future<PalletCreateResponse> createLinePallet({
     required int lineId,
     required int productTypeId,
     required int quantity,
     bool confirmOverproduction = false,
+    int? firstPalletFaletExpectedQuantity,
+    int? firstPalletFaletId,
   });
 
   /// POST /palletizing-line/lines/{lineId}/pallets/{palletId}/print-attempts

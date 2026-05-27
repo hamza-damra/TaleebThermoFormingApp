@@ -1,3 +1,4 @@
+import '../../domain/entities/falet_consumption.dart';
 import '../../domain/entities/pallet_create_response.dart';
 import '../../domain/entities/operator.dart';
 import '../../domain/entities/product_type.dart';
@@ -16,6 +17,7 @@ class PalletCreateResponseModel extends PalletCreateResponse {
     required super.createdAt,
     required super.createdAtDisplay,
     super.sessionProductSequence,
+    super.faletConsumption,
   });
 
   factory PalletCreateResponseModel.fromJson(Map<String, dynamic> json) {
@@ -55,6 +57,24 @@ class PalletCreateResponseModel extends PalletCreateResponse {
       createdAt: DateTime.parse(json['createdAt'] as String),
       createdAtDisplay: json['createdAtDisplay'] as String? ?? '',
       sessionProductSequence: json['sessionProductSequence'] as int?,
+      faletConsumption: _parseFaletConsumption(json['faletConsumption']),
+    );
+  }
+
+  /// Tolerant parser — the backend may omit the block entirely (any non-first-
+  /// pallet creation), send it as null, or send an incomplete payload. Treat
+  /// "missing required field" as "no consumption block" rather than crashing
+  /// the success path.
+  static FaletConsumption? _parseFaletConsumption(dynamic raw) {
+    if (raw is! Map<String, dynamic>) return null;
+    final id = raw['consumedFaletId'];
+    final qty = raw['consumedQuantity'];
+    final status = raw['faletStatusAfter'];
+    if (id is! int || qty is! int || status is! String) return null;
+    return FaletConsumption(
+      consumedFaletId: id,
+      consumedQuantity: qty,
+      faletStatusAfter: status,
     );
   }
 }

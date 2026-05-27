@@ -1069,6 +1069,8 @@ class PalletizingProvider extends ChangeNotifier {
     required int productTypeId,
     required int quantity,
     bool confirmOverproduction = false,
+    int? firstPalletFaletExpectedQuantity,
+    int? firstPalletFaletId,
   }) async {
     final lineId = getLineIdForNumber(lineNumber);
     if (lineId == null) return null;
@@ -1083,6 +1085,8 @@ class PalletizingProvider extends ChangeNotifier {
         productTypeId: productTypeId,
         quantity: quantity,
         confirmOverproduction: confirmOverproduction,
+        firstPalletFaletExpectedQuantity: firstPalletFaletExpectedQuantity,
+        firstPalletFaletId: firstPalletFaletId,
       );
 
       _lastPalletResponses[lineNumber] = response;

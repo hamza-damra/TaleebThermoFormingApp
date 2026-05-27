@@ -139,15 +139,27 @@ class PalletizingRepositoryImpl implements PalletizingRepository {
     required int productTypeId,
     required int quantity,
     bool confirmOverproduction = false,
+    int? firstPalletFaletExpectedQuantity,
+    int? firstPalletFaletId,
   }) async {
+    final body = <String, dynamic>{
+      'productTypeId': productTypeId,
+      'quantity': quantity,
+      'confirmOverproduction': confirmOverproduction,
+    };
+    // Only attach the consumption block when the caller is on the first-pallet
+    // FALET path. The backend treats absence and `null` differently: absence
+    // means "regular create", which is the safe default.
+    if (firstPalletFaletExpectedQuantity != null) {
+      body['firstPalletFaletConsumption'] = <String, dynamic>{
+        'expectedFaletQuantity': firstPalletFaletExpectedQuantity,
+        'faletId': firstPalletFaletId,
+      };
+    }
     return await _apiClient.request<PalletCreateResponse>(
       path: '/palletizing-line/lines/$lineId/pallets',
       method: 'POST',
-      data: {
-        'productTypeId': productTypeId,
-        'quantity': quantity,
-        'confirmOverproduction': confirmOverproduction,
-      },
+      data: body,
       parser: (json) => PalletCreateResponseModel.fromJson(
         json['data'] as Map<String, dynamic>,
       ),

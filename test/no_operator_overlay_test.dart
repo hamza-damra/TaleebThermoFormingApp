@@ -79,6 +79,8 @@ class _FakeRepo implements PalletizingRepository {
     required int productTypeId,
     required int quantity,
     bool confirmOverproduction = false,
+    int? firstPalletFaletExpectedQuantity,
+    int? firstPalletFaletId,
   }) => throw UnimplementedError();
 
   @override

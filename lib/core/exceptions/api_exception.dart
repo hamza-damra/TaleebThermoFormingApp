@@ -157,6 +157,10 @@ class ApiException implements Exception {
         return 'بانتظار بدء المناوبة من المشغّل';
       case 'FALET_NOT_FOUND':
         return 'الفالت غير موجود';
+      case 'FALET_ALREADY_CONSUMED':
+        return 'تم استخدام هذا الفالت مسبقاً، تم تحديث حالة الخط';
+      case 'FALET_QUANTITY_MISMATCH':
+        return 'تغيّرت كمية الفالت — أعد فتح نافذة أول طبلية للتأكيد';
       case 'FALET_ALREADY_RESOLVED':
         return 'الفالت محلول مسبقاً';
       case 'FALET_LINE_MISMATCH':

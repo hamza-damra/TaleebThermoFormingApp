@@ -421,19 +421,57 @@ class ProductionLineSection extends StatelessWidget {
       return;
     }
 
-    // Step 3 — mandatory first-pallet FALET-consumption confirmation when the
-    // backend says matching FALET is open for this product. The dialog itself
-    // IS the confirmation step — on confirm we submit a full-target-quantity
-    // pallet directly. There is no second CreatePalletDialog, and the FALET
-    // bypass is forbidden (cancel aborts).
-    if (ctx.canSuggestFirstPalletDialog) {
+    // Step 3 — FALET routing. Two terminal branches, line-agnostic:
+    //   * MATCHING_FALET_DIALOG — backend says matching FALET is open for the
+    //     current plan product AND there's a positive quantity to consume.
+    //     Show the restored first-pallet dialog; on confirm, send the
+    //     `firstPalletFaletConsumption` payload so the backend deducts the
+    //     FALET atomically with pallet creation.
+    //   * NORMAL_CREATE_DIALOG — every other case (including the non-matching
+    //     FALET case). We DO NOT interrupt the create flow with a modal for
+    //     non-matching FALET; the red FALET warning banner on the main screen
+    //     is the only surface for that state, and the backend is authoritative
+    //     if it ever needs to reject a non-matching create.
+    final hasMatchingSuggestion = ctx.canSuggestFirstPalletDialog &&
+        ctx.matchingProductFaletQuantity > 0 &&
+        (ctx.suggestedFaletQuantityForFirstPallet ?? 0) > 0;
+
+    if (hasMatchingSuggestion) {
+      debugPrint(
+        '[FirstPallet BRANCH] chosen=MATCHING_FALET_DIALOG '
+        'lineNumber=${line.number} lineId=${ctx.lineId} '
+        'matchingFalet=${ctx.matchingProductFaletQuantity} '
+        'nonMatchingFalet=${ctx.nonMatchingFaletQuantity} '
+        'canSuggestDialog=${ctx.canSuggestFirstPalletDialog} '
+        'suggestedFalet=${ctx.suggestedFaletQuantityForFirstPallet}',
+      );
+      // Always-on log of the suggestion the backend just sent us — survives
+      // tree-shaking in release builds so on-device debugging only needs
+      // `adb logcat`. Lines correlate with [FirstPallet CONFIRM] /
+      // [FirstPallet POST-CREATE] below. Never logs tokens or device keys.
+      debugPrint(
+        '[FirstPallet SUGGEST] lineId=${ctx.lineId} '
+        'planItemId=${ctx.currentPlanItemId} '
+        'productTypeId=${ctx.currentPlanItemProductTypeId} '
+        'productName=${ctx.currentPlanItemProductName} '
+        'packagesPerPallet=${ctx.currentPlanItemPackagesPerPallet} '
+        'hasOpenFalet=${ctx.hasOpenFalet} '
+        'matchingFalet=${ctx.matchingProductFaletQuantity} '
+        'nonMatchingFalet=${ctx.nonMatchingFaletQuantity} '
+        'suggestedFalet=${ctx.suggestedFaletQuantityForFirstPallet} '
+        'canSuggestDialog=${ctx.canSuggestFirstPalletDialog}',
+      );
+
       final confirmed = await showDialog<bool>(
         context: context,
         barrierDismissible: false,
         builder: (_) => FirstPalletSuggestionDialog(line: line, context: ctx),
       );
       if (!context.mounted) return;
-      if (confirmed != true) return; // cancelled / dismissed → abort
+      if (confirmed != true) {
+        debugPrint('[FirstPallet CANCEL] lineId=${ctx.lineId}');
+        return; // cancelled / dismissed → abort
+      }
 
       // Safety re-check: a plan item may have been closed between the button
       // press and the operator's confirm tap. Refresh, then validate.
@@ -453,11 +491,13 @@ class ProductionLineSection extends StatelessWidget {
         return;
       }
 
-      // Submit the FIRST pallet with the full target quantity. The backend
-      // attributes the matching FALET to this pallet automatically; the
-      // request payload is the total pallet target, NOT the FALET count.
-      // currentPlanItemPackagesPerPallet is the canonical target — fall back
-      // to the provider's plan default only if the context was missing it.
+      // Submit the FIRST pallet with the full target quantity. KNOWN BACKEND
+      // CONTRACT GAP — see docs/backend-contracts/
+      // FIRST_PALLET_FALET_CONSUMPTION_BUG.md. The create-pallet request body
+      // currently has no field referencing the FALET to consume, so the
+      // backend cannot atomically deduct/resolve the matching FALET. After
+      // success the FALET remains open and the next call to
+      // first-pallet-context returns the same suggestion, looping the dialog.
       final totalQuantity = ctx.currentPlanItemPackagesPerPallet ??
           provider.getCurrentPlanItemPackagesPerPallet(line.number) ??
           0;
@@ -466,17 +506,46 @@ class ProductionLineSection extends StatelessWidget {
         return;
       }
 
+      // Suggested FALET to consume. If zero/null the dialog should not have
+      // been shown in the first place, but guard against it anyway — pass null
+      // so the request stays a regular create and the backend doesn't reject
+      // a zero-quantity consumption block.
+      final faletExpected = ctx.suggestedFaletQuantityForFirstPallet;
+      final faletToConsume = (faletExpected != null && faletExpected > 0)
+          ? faletExpected
+          : null;
+
+      debugPrint(
+        '[FirstPallet CONFIRM] lineId=${ctx.lineId} '
+        'productTypeId=$firstPalletProductId '
+        'totalQuantity=$totalQuantity '
+        'consumeFalet=${faletToConsume ?? 0} '
+        'freshNeeded=${totalQuantity - (faletToConsume ?? 0)} '
+        '→ POST /palletizing-line/lines/${ctx.lineId}/pallets',
+      );
+
       await _submitCreatePallet(
         context,
         productTypeId: firstPalletProductId,
         quantity: totalQuantity,
+        firstPalletFaletExpectedQuantity: faletToConsume,
       );
       return;
     }
 
-    // Step 4 — normal pallet creation path (no matching FALET to consume).
-    // Refresh line state once so the production-plan defaults reflect a
-    // recently-changed plan item before opening the dialog.
+    // Normal pallet creation path. No matching FALET to consume; non-matching
+    // FALET (if any) does NOT block here — the red banner on the main screen
+    // surfaces it, and the backend is authoritative if it ever needs to
+    // reject. Refresh line state once so the production-plan defaults reflect
+    // a recently-changed plan item before opening the dialog.
+    debugPrint(
+      '[FirstPallet BRANCH] chosen=NORMAL_CREATE_DIALOG '
+      'lineNumber=${line.number} lineId=${ctx.lineId} '
+      'hasOpenFalet=${ctx.hasOpenFalet} '
+      'matchingFalet=${ctx.matchingProductFaletQuantity} '
+      'nonMatchingFalet=${ctx.nonMatchingFaletQuantity} '
+      'canSuggestDialog=${ctx.canSuggestFirstPalletDialog}',
+    );
     await provider.refreshLineState(line.number);
     if (!context.mounted) return;
 
@@ -510,7 +579,6 @@ class ProductionLineSection extends StatelessWidget {
         line: line,
         initialProductType: planProduct,
         initialQuantity: planDefault,
-        nonMatchingFaletQuantity: ctx.nonMatchingFaletQuantity,
       ),
     );
 
@@ -538,6 +606,8 @@ class ProductionLineSection extends StatelessWidget {
     required int productTypeId,
     required int quantity,
     bool confirmOverproduction = false,
+    int? firstPalletFaletExpectedQuantity,
+    int? firstPalletFaletId,
   }) async {
     final provider = context.read<PalletizingProvider>();
     try {
@@ -546,8 +616,20 @@ class ProductionLineSection extends StatelessWidget {
         productTypeId: productTypeId,
         quantity: quantity,
         confirmOverproduction: confirmOverproduction,
+        firstPalletFaletExpectedQuantity: firstPalletFaletExpectedQuantity,
+        firstPalletFaletId: firstPalletFaletId,
       );
       if (context.mounted) {
+        // FALET consumption feedback. Backend echoes the actually-consumed
+        // amount; surface it so the operator sees that the previous FALET was
+        // counted against this pallet and won't be asked about it again.
+        final fc = palletResponse?.faletConsumption;
+        if (fc != null && fc.consumedQuantity > 0) {
+          _showInfoSnack(
+            context,
+            'تم احتساب ${fc.consumedQuantity} من الفالت السابق',
+          );
+        }
         _showSuccessDialog(context, palletResponse);
       }
     } on ApiException catch (e) {
@@ -565,6 +647,20 @@ class ProductionLineSection extends StatelessWidget {
           productTypeId: productTypeId,
           quantity: quantity,
           confirmOverproduction: true,
+          firstPalletFaletExpectedQuantity: firstPalletFaletExpectedQuantity,
+          firstPalletFaletId: firstPalletFaletId,
+        );
+        return;
+      }
+      // FALET race: another transaction consumed the same FALET before this
+      // request committed. The provider already refreshed BootstrapLineState
+      // on the ApiException path; surface the Arabic message and stop. The
+      // operator's next tap will re-fetch first-pallet-context and reflect
+      // the new (consumed) state. Never fake local state here.
+      if (e.code == 'FALET_ALREADY_CONSUMED') {
+        _showInfoSnack(
+          context,
+          'تم استخدام هذا الفالت مسبقاً، تم تحديث حالة الخط',
         );
         return;
       }

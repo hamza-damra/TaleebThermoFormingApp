@@ -105,6 +105,8 @@ class _FakeRepo implements PalletizingRepository {
     required int productTypeId,
     required int quantity,
     bool confirmOverproduction = false,
+    int? firstPalletFaletExpectedQuantity,
+    int? firstPalletFaletId,
   }) async {
     final call = _CreateCall(
       lineId,

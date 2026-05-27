@@ -33,6 +33,7 @@ class AppConfig {
   // ── Defaults ──────────────────────────────────────────────────────────────
   static const String _productionHost = 'https://taleeb.me';
   static const String _stagingHost = 'https://138.68.66.215';
+  static const String _debugHost = 'http://hamzadamra.ddns.net:8080';
 
   /// API path prefix shared by ALL backend endpoints. Concrete endpoint paths
   /// (e.g. `/palletizing-line/bootstrap`) are appended by callers — this stays
@@ -92,8 +93,9 @@ class AppConfig {
       case AppEnvironment.production:
         return _productionHost;
       case AppEnvironment.staging:
-      case AppEnvironment.debug:
         return _stagingHost;
+      case AppEnvironment.debug:
+        return _debugHost;
     }
   }
 
