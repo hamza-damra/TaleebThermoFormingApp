@@ -7,6 +7,7 @@ import '../data/repositories/printer_repository_impl.dart';
 import '../domain/repositories/palletizing_repository.dart';
 import '../domain/repositories/preset_repository.dart';
 import '../domain/repositories/printer_repository.dart';
+import '../presentation/providers/manager_announcement_notifier.dart';
 import '../presentation/providers/palletizing_provider.dart';
 import '../presentation/providers/printing_provider.dart';
 import 'services/sse_client.dart';
@@ -54,6 +55,20 @@ class ServiceLocator {
 
   PrintingProvider createPrintingProvider() {
     return PrintingProvider(_printerRepository, _presetRepository);
+  }
+
+  /// Builds the announcement notifier wired to the shared (single) SSE stream
+  /// and the supplied read-only lineId snapshot. [lineIdsSupplier] is provided
+  /// by the widget tree so the notifier reads the operating lineIds from the
+  /// live [PalletizingProvider] without a dependency cycle.
+  ManagerAnnouncementNotifier createManagerAnnouncementNotifier({
+    required List<int> Function() lineIdsSupplier,
+  }) {
+    return ManagerAnnouncementNotifier(
+      _palletizingRepository,
+      lineIdsSupplier: lineIdsSupplier,
+      announcements: _sseClient.announcements,
+    );
   }
 }
 

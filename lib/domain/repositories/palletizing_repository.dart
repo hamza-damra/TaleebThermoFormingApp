@@ -2,6 +2,7 @@ import '../entities/bootstrap_response.dart';
 import '../entities/falet_exists_response.dart';
 import '../entities/falet_response.dart';
 import '../entities/first_pallet_context.dart';
+import '../entities/manager_announcement.dart';
 import '../entities/pallet_create_response.dart';
 import '../entities/palletizer_auth_result.dart';
 import '../entities/palletizer_session.dart';
@@ -83,4 +84,23 @@ abstract class PalletizingRepository {
 
   /// GET /palletizing-line/lines/{lineId}/falet/exists
   Future<FaletExistsResponse> checkFaletExists(int lineId);
+
+  // ── Sanitized urgent manager announcements ──
+
+  /// GET /palletizing-line/urgent-announcements/pending?lineId={lineId}
+  ///
+  /// Returns the sanitized generic notices that are active, not expired, and
+  /// not yet acknowledged by [lineId] (oldest first). The DTO carries no real
+  /// message body or sender. See
+  /// [docs/PALLETIZING_URGENT_ANNOUNCEMENTS_HANDOFF.md].
+  Future<List<ManagerAnnouncement>> getPendingUrgentAnnouncements(int lineId);
+
+  /// POST /palletizing-line/urgent-announcements/{announcementId}/ack?lineId={lineId}
+  ///
+  /// Acknowledges the announcement for [lineId]. Idempotent — a duplicate ack
+  /// returns success. The backend forces `GENERIC_NOTICE_ACK`, keyed per line.
+  Future<void> ackUrgentAnnouncement({
+    required int announcementId,
+    required int lineId,
+  });
 }

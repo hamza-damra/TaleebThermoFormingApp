@@ -466,6 +466,17 @@ class PalletizingProvider extends ChangeNotifier {
     return fromList?.id ?? _lineStates[lineNumber]?.lineId;
   }
 
+  /// Every distinct backend lineId this station currently operates (one or two
+  /// machines). Read-only snapshot consumed by [ManagerAnnouncementNotifier] to
+  /// fetch / ack the domain-wide urgent notice across all operating lines —
+  /// this provider neither owns nor mutates any announcement state. Empty until
+  /// bootstrap has loaded the production lines.
+  List<int> get knownOperatingLineIds => _allLineNumbers
+      .map(getLineIdForNumber)
+      .whereType<int>()
+      .toSet()
+      .toList();
+
   // ── Adaptive polling ──
 
   /// `true` when the most recent poll round failed for every line.

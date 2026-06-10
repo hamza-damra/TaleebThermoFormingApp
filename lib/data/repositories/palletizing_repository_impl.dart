@@ -4,6 +4,7 @@ import '../../domain/entities/bootstrap_response.dart';
 import '../../domain/entities/falet_exists_response.dart';
 import '../../domain/entities/falet_response.dart';
 import '../../domain/entities/first_pallet_context.dart';
+import '../../domain/entities/manager_announcement.dart';
 import '../../domain/entities/operator.dart';
 import '../../domain/entities/pallet_create_response.dart';
 import '../../domain/entities/palletizer_auth_result.dart';
@@ -18,6 +19,7 @@ import '../models/bootstrap_response_model.dart';
 import '../models/falet_exists_response_model.dart';
 import '../models/falet_response_model.dart';
 import '../models/first_pallet_context_model.dart';
+import '../models/manager_announcement_model.dart';
 import '../models/operator_model.dart';
 import '../models/pallet_create_response_model.dart';
 import '../models/palletizer_session_model.dart';
@@ -260,4 +262,35 @@ class PalletizingRepositoryImpl implements PalletizingRepository {
     );
   }
 
+  // ── Sanitized urgent manager announcements ──
+
+  @override
+  Future<List<ManagerAnnouncement>> getPendingUrgentAnnouncements(
+    int lineId,
+  ) async {
+    // `lineId` is a QUERY parameter here (unlike the line-scoped /lines/{id}/*
+    // endpoints which put it in the path). The X-Device-Key header is attached
+    // automatically by the interceptor because the path contains
+    // `/palletizing-line/`.
+    return await _apiClient.requestList<ManagerAnnouncement>(
+      path: '/palletizing-line/urgent-announcements/pending',
+      method: 'GET',
+      queryParameters: {'lineId': lineId},
+      itemParser: (json) => ManagerAnnouncementModel.fromJson(json),
+    );
+  }
+
+  @override
+  Future<void> ackUrgentAnnouncement({
+    required int announcementId,
+    required int lineId,
+  }) async {
+    // Response is `{ "success": true }` with no `data` payload — parse to void.
+    await _apiClient.request<void>(
+      path: '/palletizing-line/urgent-announcements/$announcementId/ack',
+      method: 'POST',
+      queryParameters: {'lineId': lineId},
+      parser: (_) {},
+    );
+  }
 }

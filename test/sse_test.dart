@@ -25,6 +25,8 @@ import 'package:taleeb_thermoforming/data/datasources/auth_local_storage.dart';
 class _FakeSseClient implements SseClient {
   final _stateController = StreamController<SseConnectionState>.broadcast();
   final _eventController = StreamController<PalletizingAppSseEvent>.broadcast();
+  final _announcementController =
+      StreamController<UrgentManagerAnnouncementEvent>.broadcast();
   final SseConnectionState _state = SseConnectionState.disconnected;
   int startCount = 0;
   int stopCount = 0;
@@ -33,6 +35,9 @@ class _FakeSseClient implements SseClient {
   Stream<SseConnectionState> get connectionState => _stateController.stream;
   @override
   Stream<PalletizingAppSseEvent> get events => _eventController.stream;
+  @override
+  Stream<UrgentManagerAnnouncementEvent> get announcements =>
+      _announcementController.stream;
   @override
   SseConnectionState get currentState => _state;
   @override
@@ -46,6 +51,7 @@ class _FakeSseClient implements SseClient {
   Future<void> dispose() async {
     await _stateController.close();
     await _eventController.close();
+    await _announcementController.close();
   }
 
   void emitEvent(PalletizingAppSseEvent e) => _eventController.add(e);
@@ -210,6 +216,7 @@ void main() {
     late SseClient client;
     late List<SseConnectionState> states;
     late List<PalletizingAppSseEvent> events;
+    late List<UrgentManagerAnnouncementEvent> announcements;
 
     setUp(() {
       dio = Dio();
@@ -218,8 +225,10 @@ void main() {
       client = SseClient(dio: dio, authStorage: _FakeAuthStorage());
       states = [];
       events = [];
+      announcements = [];
       client.connectionState.listen(states.add);
       client.events.listen(events.add);
+      client.announcements.listen(announcements.add);
     });
 
     tearDown(() async {
@@ -251,6 +260,24 @@ void main() {
       expect(events, hasLength(1));
       expect(events.single.eventId, 'e1');
       expect(events.single.palletizingLineId, 2);
+    });
+
+    test('emits an urgent-manager-announcement nudge on its own stream',
+        () async {
+      client.start();
+      await _pump();
+      adapter.latest.add(
+        _bytes('event: urgent-manager-announcement\n'
+            'data: {"eventType":"URGENT_MANAGER_ANNOUNCEMENT_CREATED",'
+            '"announcementId":123,"targetDomain":"THERMOFORMING",'
+            '"priority":"URGENT"}\n\n'),
+      );
+      await _pump();
+      expect(announcements, hasLength(1));
+      expect(announcements.single.announcementId, 123);
+      expect(announcements.single.targetDomain, 'THERMOFORMING');
+      // The nudge must not be mistaken for a line-changed event.
+      expect(events, isEmpty);
     });
 
     test('drops a duplicate eventId', () async {

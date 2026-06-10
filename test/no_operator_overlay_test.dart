@@ -28,6 +28,7 @@ import 'package:taleeb_thermoforming/domain/entities/palletizer_session.dart';
 import 'package:taleeb_thermoforming/domain/entities/print_attempt_result.dart';
 import 'package:taleeb_thermoforming/domain/entities/production_line.dart';
 import 'package:taleeb_thermoforming/domain/entities/session_production_detail.dart';
+import 'package:taleeb_thermoforming/domain/entities/manager_announcement.dart';
 import 'package:taleeb_thermoforming/domain/repositories/palletizing_repository.dart';
 import 'package:taleeb_thermoforming/presentation/providers/palletizing_provider.dart';
 
@@ -111,6 +112,17 @@ class _FakeRepo implements PalletizingRepository {
 
   @override
   Future<FaletExistsResponse> checkFaletExists(int lineId) =>
+      throw UnimplementedError();
+
+  @override
+  Future<List<ManagerAnnouncement>> getPendingUrgentAnnouncements(int lineId) =>
+      throw UnimplementedError();
+
+  @override
+  Future<void> ackUrgentAnnouncement({
+    required int announcementId,
+    required int lineId,
+  }) =>
       throw UnimplementedError();
 }
 
