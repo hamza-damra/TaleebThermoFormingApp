@@ -8,6 +8,7 @@ import 'core/config.dart';
 import 'core/di.dart';
 import 'core/http/staging_http_overrides.dart';
 import 'core/theme.dart';
+import 'presentation/providers/manager_announcement_notifier.dart';
 import 'presentation/providers/palletizing_provider.dart';
 import 'presentation/providers/printing_provider.dart';
 import 'presentation/screens/palletizing_screen.dart';
@@ -47,6 +48,17 @@ class MyApp extends StatelessWidget {
       providers: [
         ChangeNotifierProvider<PalletizingProvider>(
           create: (_) => serviceLocator.createPalletizingProvider(),
+        ),
+        // Registered after PalletizingProvider so its create can read the live
+        // instance for the lineId snapshot. Subscribes to the same single SSE
+        // stream — no second connection.
+        ChangeNotifierProvider<ManagerAnnouncementNotifier>(
+          create: (context) {
+            final palletizing = context.read<PalletizingProvider>();
+            return serviceLocator.createManagerAnnouncementNotifier(
+              lineIdsSupplier: () => palletizing.knownOperatingLineIds,
+            );
+          },
         ),
         ChangeNotifierProvider<PrintingProvider>(
           create: (_) => serviceLocator.createPrintingProvider()..loadData(),

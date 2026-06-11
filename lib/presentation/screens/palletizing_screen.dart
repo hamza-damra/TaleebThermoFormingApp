@@ -6,10 +6,12 @@ import 'package:provider/provider.dart';
 
 import '../../core/constants.dart';
 import '../../core/responsive.dart';
+import '../providers/manager_announcement_notifier.dart';
 import '../providers/palletizing_provider.dart';
 import '../widgets/production_line_section.dart';
 import '../widgets/reprint_by_id_dialog.dart';
 import '../widgets/takeover_dialog.dart';
+import '../widgets/urgent_announcement_overlay.dart';
 import '../widgets/shimmer/palletizing_shimmer.dart';
 import 'device_settings_screen.dart';
 import 'settings_hub_screen.dart';
@@ -54,6 +56,9 @@ class _PalletizingScreenState extends State<PalletizingScreen>
       // lifecycle signals from here on.
       palletizingProvider.startRefreshLoop();
       _maybeShowTakeoverDialog();
+      // Bootstrap has loaded the operating lineIds — fetch any pending urgent
+      // manager notice. The notifier no-ops when no lineIds are available yet.
+      context.read<ManagerAnnouncementNotifier>().refresh();
     });
   }
 
@@ -101,6 +106,9 @@ class _PalletizingScreenState extends State<PalletizingScreen>
       // restarts the SSE stream and runs one immediate refresh internally.
       provider.resumeRefreshLoop();
       _maybeShowTakeoverDialog();
+      // A notice may have arrived (or been acked elsewhere) while backgrounded;
+      // re-fetch the authoritative pending list on resume.
+      context.read<ManagerAnnouncementNotifier>().refresh();
     } else if (state == AppLifecycleState.paused ||
         state == AppLifecycleState.detached ||
         state == AppLifecycleState.hidden) {
@@ -164,7 +172,19 @@ class _PalletizingScreenState extends State<PalletizingScreen>
 
     return Scaffold(
       appBar: _buildAppBar(useTabs),
-      body: _buildBody(provider, useTabs),
+      body: Stack(
+        children: [
+          _buildBody(provider, useTabs),
+          // Global blocking notice, layered above every machine tab / sub-flow.
+          // Only mounted while a sanitized urgent announcement is pending; the
+          // Consumer scopes rebuilds to this overlay.
+          Consumer<ManagerAnnouncementNotifier>(
+            builder: (_, announcements, _) => announcements.current == null
+                ? const SizedBox.shrink()
+                : const UrgentAnnouncementOverlay(),
+          ),
+        ],
+      ),
     );
   }
 

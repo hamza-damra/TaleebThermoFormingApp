@@ -48,11 +48,14 @@ class SseClient {
 
   static const _eventConnected = 'connected';
   static const _eventLinesChanged = 'palletizing-lines-changed';
+  static const _eventUrgentAnnouncement = 'urgent-manager-announcement';
   static const _maxDedupe = 50;
   static const _maxBackoffShift = 5; // 2^5 = 32s base, capped at 30s below
 
   final _stateController = StreamController<SseConnectionState>.broadcast();
   final _eventController = StreamController<PalletizingAppSseEvent>.broadcast();
+  final _announcementController =
+      StreamController<UrgentManagerAnnouncementEvent>.broadcast();
   final _parser = SseFrameParser();
   final Queue<String> _seenEventIds = Queue<String>();
   final Set<String> _seenEventIdSet = <String>{};
@@ -72,6 +75,12 @@ class SseClient {
 
   /// Broadcasts de-duplicated `palletizing-lines-changed` events.
   Stream<PalletizingAppSseEvent> get events => _eventController.stream;
+
+  /// Broadcasts `urgent-manager-announcement` nudges. Best-effort — the
+  /// listener re-fetches the authoritative sanitized `pending` endpoint on each
+  /// event. Carries no real message content.
+  Stream<UrgentManagerAnnouncementEvent> get announcements =>
+      _announcementController.stream;
 
   SseConnectionState get currentState => _state;
 
@@ -106,6 +115,7 @@ class SseClient {
     stop();
     await _stateController.close();
     await _eventController.close();
+    await _announcementController.close();
   }
 
   Future<void> _connect() async {
@@ -200,6 +210,22 @@ class SseClient {
         _setState(SseConnectionState.connected);
         _log('event received: $parsed');
         if (!_eventController.isClosed) _eventController.add(parsed);
+        continue;
+      }
+      if (event == _eventUrgentAnnouncement) {
+        // Best-effort nudge — no dedupe. The listener re-fetches the
+        // authoritative `pending` endpoint, which is idempotent, so a repeated
+        // nudge is harmless. A null parse still proves the stream is live.
+        final parsed = UrgentManagerAnnouncementEvent.tryParse(frame.data);
+        if (parsed == null) {
+          _log('dropped malformed urgent-announcement payload');
+          continue;
+        }
+        _setState(SseConnectionState.connected);
+        _log('urgent announcement nudge received: $parsed');
+        if (!_announcementController.isClosed) {
+          _announcementController.add(parsed);
+        }
         continue;
       }
       // Unknown event name — ignore.

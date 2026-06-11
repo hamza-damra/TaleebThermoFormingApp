@@ -13,11 +13,18 @@ class CreatePalletDialog extends StatefulWidget {
   /// over `initialProductType.packageQuantity`.
   final int? initialQuantity;
 
+  /// Optional backend-provided line display name (e.g. "خط أ"). When supplied
+  /// it takes precedence over the local enum's [ProductionLine.arabicLabel]
+  /// fallback so the dialog title stays in sync with the web admin and the
+  /// other Flutter apps. Pass `productionLineEntity?.name` from the caller.
+  final String? productionLineName;
+
   const CreatePalletDialog({
     super.key,
     required this.line,
     this.initialProductType,
     this.initialQuantity,
+    this.productionLineName,
   });
 
   @override
@@ -45,6 +52,18 @@ class _CreatePalletDialogState extends State<CreatePalletDialog> {
     super.dispose();
   }
 
+  /// Backend display name when the caller supplied one (e.g. "خط أ"),
+  /// otherwise the enum's local fallback. Keeps the dialog title in sync
+  /// with the web admin and the other Flutter apps once the backend ships
+  /// the unified palletizing-line display name.
+  String _resolvedLineLabel() {
+    final String? backendName = widget.productionLineName?.trim();
+    if (backendName != null && backendName.isNotEmpty) {
+      return backendName;
+    }
+    return widget.line.arabicLabel;
+  }
+
   @override
   Widget build(BuildContext context) {
     final isMobile = ResponsiveHelper.isMobile(context);
@@ -54,7 +73,7 @@ class _CreatePalletDialogState extends State<CreatePalletDialog> {
 
     return AlertDialog(
       title: Text(
-        'إنشاء طبلية جديدة - ${widget.line.arabicLabel}',
+        'إنشاء طبلية جديدة - ${_resolvedLineLabel()}',
         style: GoogleFonts.cairo(
           fontWeight: FontWeight.bold,
           color: widget.line.color,
