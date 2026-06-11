@@ -25,9 +25,9 @@ enum ProductionLine {
   String get arabicLabel {
     switch (this) {
       case ProductionLine.line1:
-        return 'خط الإنتاج 1';
+        return 'خط أ';
       case ProductionLine.line2:
-        return 'خط الإنتاج 2';
+        return 'خط ب';
     }
   }
 

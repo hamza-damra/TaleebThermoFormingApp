@@ -579,6 +579,7 @@ class ProductionLineSection extends StatelessWidget {
         line: line,
         initialProductType: planProduct,
         initialQuantity: planDefault,
+        productionLineName: productionLineEntity?.name,
       ),
     );
 

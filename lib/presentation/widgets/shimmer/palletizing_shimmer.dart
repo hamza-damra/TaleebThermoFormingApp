@@ -294,11 +294,16 @@ class PalletizingShimmerDualPane extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Order matches the real dual-pane layout in PalletizingScreen so the
+    // skeleton placeholders align with the line they represent. With RTL
+    // text direction, the first child renders visually on the right (Line 1
+    // = "خط أ"), the second on the left (Line 2 = "خط ب"). Reversing them
+    // here would make the loader hint at a layout the live UI never adopts.
     return Row(
       children: [
-        Expanded(child: PalletizingShimmer(line: ProductionLine.line2)),
-        Container(width: 2, color: Colors.grey.shade300),
         Expanded(child: PalletizingShimmer(line: ProductionLine.line1)),
+        Container(width: 2, color: Colors.grey.shade300),
+        Expanded(child: PalletizingShimmer(line: ProductionLine.line2)),
       ],
     );
   }
