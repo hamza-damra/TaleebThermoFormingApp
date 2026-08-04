@@ -32,6 +32,8 @@ Response (oldest first; active, not expired, not-yet-acked by this line):
       "message": "أرسل المدير ملاحظة عاجلة للمشغل. يجب فتح تطبيق المشغل لقراءتها.",
       "createdAt": "2026-06-10T15:10:00Z",
       "createdAtDisplay": "2026-06-10، 06:10 مساءً",
+      "expiresAt": "2026-06-10T17:10:00Z",
+      "expiresAtDisplay": "2026-06-10، 08:10 مساءً",
       "priority": "URGENT"
     }
   ]
@@ -39,6 +41,7 @@ Response (oldest first; active, not expired, not-yet-acked by this line):
 ```
 
 - `title`/`message` are **fixed generic strings**. There is **no `messageBody` and no `senderDisplayName` field** at all.
+- **Announcements are timed.** `expiresAt` / `expiresAtDisplay` are `null` when the announcement never expires (and on a legacy row). The backend filters expired rows itself — `active AND (expiresAt IS NULL OR expiresAt > now)`, boundary exclusive — so this endpoint stays authoritative. The app additionally arms a one-shot local timer on the soonest `expiresAt` so a notice clears on the second rather than at the next natural re-fetch. `expiresAtDisplay` is parsed but **not rendered**: the overlay carries no new strings.
 - Generic blocking notice to display:
   - title: **"ملاحظة عاجلة من المدير"**
   - message: **"أرسل المدير ملاحظة عاجلة للمشغل. يجب فتح تطبيق المشغل لقراءتها."**
@@ -60,10 +63,17 @@ On the existing device SSE channel (`GET /api/v1/palletizing-line/events`), a ne
 
 ```json
 { "eventType":"URGENT_MANAGER_ANNOUNCEMENT_CREATED", "announcementId":123,
-  "targetDomain":"THERMOFORMING", "priority":"URGENT" }
+  "targetDomain":"THERMOFORMING", "priority":"URGENT", "action":"CREATED" }
 ```
 
-Sanitized nudge (no body). On receipt, call the pending endpoint and show the generic notice. Also fetch on app start / resume / SSE reconnect. The pending endpoint is authoritative; the nudge is best-effort.
+Sanitized nudge (no body). On receipt, call the pending endpoint and show the generic notice. The pending endpoint is authoritative; the nudge is best-effort.
+
+- `action` is `CREATED` / `UPDATED` / `DEACTIVATED` / `DELETED` — every lifecycle step now nudges, so an announcement that is edited, switched off, deleted or retargeted away from Thermoforming clears the station notice instead of lingering. It is absent on an older backend, which means `CREATED`.
+- **`eventType` is a frozen legacy literal**: it reads `..._CREATED` for every action so deployed builds keep matching it. Never infer the lifecycle step from it.
+- **Do not branch on `action`.** Every value — including an unknown future one — maps to the same response: re-fetch `pending`. The app parses it for contract parity and debug logging only.
+- Re-fetch triggers (all mandatory): app start, app resume, **every SSE connect and reconnect**, every nudge. The app adds one more of its own — the expiry deadline of the soonest timed notice.
+
+> App-side note: this app's SSE stream is `GET /api/v1/palletizing-line/app-events` (see `SseClient.path`), not `/events` as spelled above and in the backend handoff. The `app-events` route is the one in production use.
 
 ---
 
@@ -71,7 +81,8 @@ Sanitized nudge (no body). On receipt, call the pending endpoint and show the ge
 
 - Add a `ManagerAnnouncementNotifier` (Provider / ChangeNotifier) that:
   - exposes the current pending generic notice (if any),
-  - polls `pending` on resume + listens to the `urgent-manager-announcement` SSE event,
+  - re-fetches `pending` on app start / resume, on every SSE connect + reconnect (`SseClient.connectionState`), and on every `urgent-manager-announcement` nudge — all debounced into one fetch,
+  - arms a one-shot timer on the soonest future `expiresAt` and re-fetches when it fires; the local clock only drops a notice outright when every line is unreachable, so REST stays authoritative,
   - calls `ack` and clears the notice on dismiss.
 - Render a **global overlay above `PalletizingScreen`** (not inside a sub-flow) so the urgent notice shows regardless of the current sub-screen.
 - The overlay must **not interfere** with existing flows: `lineUiMode`, `LineAuthOverlay`, handover, FALET, or pallet creation. It is a passive, dismissible-by-ack notice layered on top — it does not block scanning/auth logic, just informs the operator to open the operator app.

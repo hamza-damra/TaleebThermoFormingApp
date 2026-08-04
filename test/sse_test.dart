@@ -270,14 +270,38 @@ void main() {
         _bytes('event: urgent-manager-announcement\n'
             'data: {"eventType":"URGENT_MANAGER_ANNOUNCEMENT_CREATED",'
             '"announcementId":123,"targetDomain":"THERMOFORMING",'
-            '"priority":"URGENT"}\n\n'),
+            '"priority":"URGENT","action":"DEACTIVATED"}\n\n'),
       );
       await _pump();
       expect(announcements, hasLength(1));
       expect(announcements.single.announcementId, 123);
       expect(announcements.single.targetDomain, 'THERMOFORMING');
+      // `action` survives the full frame-parser → client → stream path, while
+      // `eventType` stays the frozen legacy literal for every lifecycle step.
+      expect(announcements.single.action, 'DEACTIVATED');
+      expect(
+        announcements.single.eventType,
+        'URGENT_MANAGER_ANNOUNCEMENT_CREATED',
+      );
       // The nudge must not be mistaken for a line-changed event.
       expect(events, isEmpty);
+    });
+
+    test('does not dedupe repeat nudges for one announcement id', () async {
+      // A timed announcement nudges on create, edit, deactivate and delete —
+      // all carrying the same announcementId. Suppressing the later ones would
+      // strand the notice on screen.
+      client.start();
+      await _pump();
+      for (final action in ['CREATED', 'UPDATED', 'DEACTIVATED']) {
+        adapter.latest.add(
+          _bytes('event: urgent-manager-announcement\n'
+              'data: {"announcementId":123,"action":"$action"}\n\n'),
+        );
+        await _pump();
+      }
+      expect(announcements.map((a) => a.action),
+          ['CREATED', 'UPDATED', 'DEACTIVATED']);
     });
 
     test('drops a duplicate eventId', () async {

@@ -15,10 +15,13 @@ class ManagerAnnouncementModel extends ManagerAnnouncement {
     required super.createdAt,
     required super.createdAtDisplay,
     required super.priority,
+    super.expiresAt,
+    super.expiresAtDisplay,
   });
 
   factory ManagerAnnouncementModel.fromJson(Map<String, dynamic> json) {
     final createdAtRaw = json['createdAt'];
+    final expiresAtRaw = json['expiresAt'];
     return ManagerAnnouncementModel(
       id: json['id'] as int,
       targetDomain: json['targetDomain'] as String? ?? '',
@@ -29,6 +32,13 @@ class ManagerAnnouncementModel extends ManagerAnnouncement {
           : null,
       createdAtDisplay: json['createdAtDisplay'] as String? ?? '',
       priority: json['priority'] as String? ?? '',
+      // Nullable on purpose — `null` means "never expires", which is not the
+      // same as the `?? ''` fallback the non-nullable fields use. Absent on a
+      // legacy backend row.
+      expiresAt: expiresAtRaw is String && expiresAtRaw.isNotEmpty
+          ? DateTime.tryParse(expiresAtRaw)
+          : null,
+      expiresAtDisplay: json['expiresAtDisplay'] as String?,
     );
   }
 }

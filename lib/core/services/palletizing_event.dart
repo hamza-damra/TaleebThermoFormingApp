@@ -102,11 +102,19 @@ class PalletizingAppSseEvent {
 /// Like [PalletizingAppSseEvent], this is a **best-effort refresh trigger
 /// only** — it carries no real message content (the body/sender are never sent
 /// to this app). On receipt the app re-fetches the authoritative sanitized
-/// `pending` endpoint. See
+/// `pending` endpoint.
+///
+/// Announcements are timed, so one id now produces a nudge on every lifecycle
+/// step (create / edit / switch off / delete / retarget). [action] names the
+/// step; the response is identical for all of them. See
 /// [docs/PALLETIZING_URGENT_ANNOUNCEMENTS_HANDOFF.md] §SSE nudge.
 @immutable
 class UrgentManagerAnnouncementEvent {
   /// e.g. `URGENT_MANAGER_ANNOUNCEMENT_CREATED`.
+  ///
+  /// A **frozen legacy literal** — the backend still sends `..._CREATED` for
+  /// every lifecycle step so deployed builds keep matching it. Read [action]
+  /// instead when the lifecycle step matters.
   final String? eventType;
 
   /// The announcement id from the nudge. Informational only — the `pending`
@@ -119,11 +127,20 @@ class UrgentManagerAnnouncementEvent {
   /// e.g. `URGENT`.
   final String? priority;
 
+  /// What happened to the announcement: `CREATED` / `UPDATED` / `DEACTIVATED` /
+  /// `DELETED`. `null` on an older backend, which means `CREATED`.
+  ///
+  /// **Do not branch on this.** Every value — including an unknown future one —
+  /// maps to the same response: re-fetch the authoritative `pending` list. The
+  /// field exists for contract parity and debug logging only.
+  final String? action;
+
   const UrgentManagerAnnouncementEvent({
     this.eventType,
     this.announcementId,
     this.targetDomain,
     this.priority,
+    this.action,
   });
 
   /// Parses an SSE `data:` payload. Returns `null` — never throws — on
@@ -139,6 +156,7 @@ class UrgentManagerAnnouncementEvent {
         announcementId: PalletizingAppSseEvent._asInt(decoded['announcementId']),
         targetDomain: PalletizingAppSseEvent._asString(decoded['targetDomain']),
         priority: PalletizingAppSseEvent._asString(decoded['priority']),
+        action: PalletizingAppSseEvent._asString(decoded['action']),
       );
     } catch (_) {
       return null;
@@ -148,5 +166,5 @@ class UrgentManagerAnnouncementEvent {
   @override
   String toString() =>
       'UrgentManagerAnnouncementEvent(type: $eventType, id: $announcementId, '
-      'domain: $targetDomain, priority: $priority)';
+      'domain: $targetDomain, priority: $priority, action: $action)';
 }

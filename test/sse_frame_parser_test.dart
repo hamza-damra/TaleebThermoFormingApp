@@ -1,5 +1,6 @@
-// Tests for the SSE frame parser and the `palletizing-lines-changed` event
-// model. Both are pure (no IO, no timers), so these run fast and
+// Tests for the SSE frame parser and the two event models it feeds —
+// `palletizing-lines-changed` and the sanitized `urgent-manager-announcement`
+// nudge. All are pure (no IO, no timers), so these run fast and
 // deterministically.
 
 import 'package:flutter_test/flutter_test.dart';
@@ -98,6 +99,28 @@ void main() {
       expect(event.occurredAt, isNotNull);
     });
 
+    test('parses a UTC "Z" occurredAt to the same instant as the old offset', () {
+      // The backend switched occurredAt from "+03:00" to UTC "Z". Both spellings
+      // denote the same instant and must stay interchangeable, because cached
+      // and replayed frames can still carry the old form.
+      final utc = PalletizingAppSseEvent.tryParse(
+        '{"eventId":"a","occurredAt":"2026-05-17T20:09:00Z"}',
+      );
+      final offset = PalletizingAppSseEvent.tryParse(
+        '{"eventId":"b","occurredAt":"2026-05-17T23:09:00.000+03:00"}',
+      );
+      expect(utc!.occurredAt!.isAtSameMomentAs(offset!.occurredAt!), isTrue);
+    });
+
+    test('parses a frame with no thermoformingLineId', () {
+      // The key is omitted entirely unless the backend knows the value.
+      final event = PalletizingAppSseEvent.tryParse(
+        '{"eventId":"x","reason":"PALLET_CREATED"}',
+      );
+      expect(event, isNotNull);
+      expect(event!.thermoformingLineId, isNull);
+    });
+
     test('returns null on malformed JSON', () {
       expect(PalletizingAppSseEvent.tryParse('{not json'), isNull);
     });
@@ -127,6 +150,76 @@ void main() {
       );
       expect(event, isNotNull);
       expect(event!.version, isNull);
+    });
+  });
+
+  // ───────────────────────────────────────────────────────────────────────
+  // UrgentManagerAnnouncementEvent — the sanitized nudge, now with `action`.
+  //
+  // Announcements are timed, so one announcementId produces a nudge on every
+  // lifecycle step. `eventType` stays frozen at `..._CREATED` for all of them,
+  // so `action` is the only field that names the step. The app must never
+  // branch on it — these tests pin that it *parses*, not that it dispatches.
+  // ───────────────────────────────────────────────────────────────────────
+
+  group('UrgentManagerAnnouncementEvent.tryParse', () {
+    String frame(String action) => '{"eventType":'
+        '"URGENT_MANAGER_ANNOUNCEMENT_CREATED","announcementId":99,'
+        '"targetDomain":"THERMOFORMING","priority":"URGENT","action":"$action"}';
+
+    test('parses every documented action value', () {
+      for (final action in ['CREATED', 'UPDATED', 'DEACTIVATED', 'DELETED']) {
+        final event = UrgentManagerAnnouncementEvent.tryParse(frame(action));
+        expect(event, isNotNull, reason: action);
+        expect(event!.action, action);
+        // The legacy literal is frozen — it never tracks the action.
+        expect(event.eventType, 'URGENT_MANAGER_ANNOUNCEMENT_CREATED');
+        expect(event.announcementId, 99);
+        expect(event.targetDomain, 'THERMOFORMING');
+        expect(event.priority, 'URGENT');
+      }
+    });
+
+    test('parses a legacy frame with no action key (means CREATED)', () {
+      final event = UrgentManagerAnnouncementEvent.tryParse(
+        '{"eventType":"URGENT_MANAGER_ANNOUNCEMENT_CREATED",'
+        '"announcementId":99,"targetDomain":"THERMOFORMING","priority":"URGENT"}',
+      );
+      expect(event, isNotNull);
+      expect(event!.action, isNull);
+      expect(event.announcementId, 99);
+    });
+
+    test('keeps an unknown future action verbatim rather than rejecting it', () {
+      // Refetching is always the safe response, so an unrecognised value must
+      // still produce an event.
+      final event = UrgentManagerAnnouncementEvent.tryParse(frame('ARCHIVED'));
+      expect(event, isNotNull);
+      expect(event!.action, 'ARCHIVED');
+    });
+
+    test('ignores a non-string action instead of throwing', () {
+      final event = UrgentManagerAnnouncementEvent.tryParse(
+        '{"announcementId":99,"action":7}',
+      );
+      expect(event, isNotNull);
+      expect(event!.action, isNull);
+    });
+
+    test('never carries a message body or sender, even if one is sent', () {
+      // Privacy: the type has nowhere to parse these into.
+      final event = UrgentManagerAnnouncementEvent.tryParse(
+        '{"announcementId":99,"action":"CREATED",'
+        '"messageBody":"SECRET","senderDisplayName":"Real Manager"}',
+      );
+      expect(event, isNotNull);
+      expect(event.toString(), isNot(contains('SECRET')));
+      expect(event.toString(), isNot(contains('Real Manager')));
+    });
+
+    test('returns null on malformed JSON and on a non-object payload', () {
+      expect(UrgentManagerAnnouncementEvent.tryParse('{not json'), isNull);
+      expect(UrgentManagerAnnouncementEvent.tryParse('[1,2,3]'), isNull);
     });
   });
 }

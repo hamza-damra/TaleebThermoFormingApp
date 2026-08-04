@@ -32,6 +32,18 @@ class ManagerAnnouncement {
   /// Priority discriminator (e.g. `URGENT`).
   final String priority;
 
+  /// Absolute ISO-8601 UTC moment the announcement stops being relevant, or
+  /// `null` when it never expires (also `null` on a legacy backend row).
+  ///
+  /// The backend already excludes expired rows from the pending endpoint; this
+  /// exists so the notice can also disappear locally on the exact second
+  /// instead of waiting for the next re-fetch.
+  final DateTime? expiresAt;
+
+  /// Backend-formatted Arabic expiry timestamp, or `null`. Parsed for contract
+  /// parity — the overlay deliberately does not render it (no new UI strings).
+  final String? expiresAtDisplay;
+
   const ManagerAnnouncement({
     required this.id,
     required this.targetDomain,
@@ -40,5 +52,16 @@ class ManagerAnnouncement {
     required this.createdAt,
     required this.createdAtDisplay,
     required this.priority,
+    this.expiresAt,
+    this.expiresAtDisplay,
   });
+
+  /// `true` once [expiresAt] has passed. Boundary-exclusive, mirroring the
+  /// backend filter `expiresAt > now`. Always `false` when [expiresAt] is
+  /// `null` (never expires).
+  ///
+  /// [DateTime.isBefore] compares absolute instants, so a UTC `…Z` [expiresAt]
+  /// and a local [now] compare correctly without conversion.
+  bool isExpiredAt(DateTime now) =>
+      expiresAt != null && !now.isBefore(expiresAt!);
 }

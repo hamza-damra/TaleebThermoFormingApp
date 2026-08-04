@@ -61,6 +61,10 @@ class ServiceLocator {
   /// and the supplied read-only lineId snapshot. [lineIdsSupplier] is provided
   /// by the widget tree so the notifier reads the operating lineIds from the
   /// live [PalletizingProvider] without a dependency cycle.
+  ///
+  /// Both streams come from the one [SseClient] instance — the notifier adds no
+  /// second connection. The connection-state stream is what makes it re-fetch
+  /// on every (re)connect, reconciling nudges missed while the stream was down.
   ManagerAnnouncementNotifier createManagerAnnouncementNotifier({
     required List<int> Function() lineIdsSupplier,
   }) {
@@ -68,6 +72,7 @@ class ServiceLocator {
       _palletizingRepository,
       lineIdsSupplier: lineIdsSupplier,
       announcements: _sseClient.announcements,
+      connectionStates: _sseClient.connectionState,
     );
   }
 }
