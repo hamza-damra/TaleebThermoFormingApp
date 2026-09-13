@@ -28,8 +28,14 @@ class AuthProvider extends ChangeNotifier {
     try {
       final isLoggedIn = await _authRepository.isLoggedIn();
       if (isLoggedIn) {
-        _user = await _authRepository.getCurrentUser();
-        _state = AuthState.authenticated;
+        final user = await _authRepository.getCurrentUser();
+        // A null user means the stored session could not be restored under the
+        // current identity contract — it has already been cleared, so this
+        // cold start ends at the login screen.
+        _user = user;
+        _state = user == null
+            ? AuthState.unauthenticated
+            : AuthState.authenticated;
       } else {
         _state = AuthState.unauthenticated;
       }
