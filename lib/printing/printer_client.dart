@@ -3,6 +3,7 @@ import 'dart:typed_data';
 
 import '../core/exceptions/printing_exception.dart';
 import '../domain/entities/label_preset.dart';
+import '../domain/entities/pallet_label_content.dart';
 import '../domain/entities/printer_config.dart';
 import '../domain/entities/printer_language.dart';
 import 'label_renderer.dart';
@@ -15,20 +16,14 @@ class PrinterClient {
   PrinterClient(this.printer);
 
   Future<void> print({
-    required String value,
+    required PalletLabelContent content,
     required LabelPreset preset,
     int copies = 1,
-    String? topText,
-    String? bottomText,
-    String? sideText,
   }) async {
     final renderer = LabelRenderer();
     final renderResult = await renderer.render(
-      value: value,
+      content: content,
       preset: preset,
-      topText: topText,
-      bottomText: bottomText,
-      sideText: sideText,
     );
 
     final Uint8List printData;
@@ -86,9 +81,15 @@ class PrinterClient {
   Future<Uint8List> _buildTsplTestLabel(LabelPreset preset) async {
     final renderer = LabelRenderer();
     final rendered = await renderer.render(
-      value: 'TEST123',
+      content: const PalletLabelContent(
+        palletId: 0,
+        qrValue: 'TEST123',
+        productDisplayName: 'TEST',
+        actualQuantity: 1,
+        packageUnitDisplayName: null,
+        lineDisplay: 'TEST',
+      ),
       preset: preset,
-      topText: 'TEST',
     );
 
     final builder = TsplBuilder();

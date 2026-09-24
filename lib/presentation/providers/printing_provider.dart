@@ -1,10 +1,12 @@
 import 'package:flutter/foundation.dart';
 
+import '../../core/constants/grinding_recommendation_strings.dart';
 import '../../core/constants/printing_constants.dart';
 import '../../core/exceptions/printing_exception.dart';
 import '../../data/datasources/printing_local_storage.dart';
 import '../../data/models/printing_settings_model.dart';
 import '../../domain/entities/label_preset.dart';
+import '../../domain/entities/pallet_label_content.dart';
 import '../../domain/entities/print_result.dart';
 import '../../domain/entities/printer_config.dart';
 import '../../domain/repositories/preset_repository.dart';
@@ -25,10 +27,7 @@ class PrintingProvider extends ChangeNotifier {
   List<LabelPreset> _presets = [];
   PrinterConfig? _selectedPrinter;
   LabelPreset? _selectedPreset;
-  String? _lastPrintedValue;
-  String? _lastTopText;
-  String? _lastBottomText;
-  String? _lastSideText;
+  PalletLabelContent? _lastLabelContent;
   int _copies = 1;
 
   PrintingState get state => _state;
@@ -37,7 +36,7 @@ class PrintingProvider extends ChangeNotifier {
   List<LabelPreset> get presets => _presets;
   PrinterConfig? get selectedPrinter => _selectedPrinter;
   LabelPreset? get selectedPreset => _selectedPreset;
-  String? get lastPrintedValue => _lastPrintedValue;
+  String? get lastPrintedValue => _lastLabelContent?.qrValue;
   int get copies => _copies;
   bool get isLoading => _state == PrintingState.loading;
   bool get isPrinting => _state == PrintingState.printing;
@@ -113,12 +112,14 @@ class PrintingProvider extends ChangeNotifier {
   }
 
   Future<PrintResult> print({
-    required String scannedValue,
+    required PalletLabelContent labelContent,
     int copies = 1,
-    String? topText,
-    String? bottomText,
-    String? sideText,
   }) async {
+    // Grinding started or finished — the backend forbids any normal label for
+    // this pallet. The screens disable reprint too; this is the last guard.
+    if (!labelContent.labelReprintAllowed) {
+      return PrintResult.error(GrindingRecommendationStrings.reprintBlocked);
+    }
     if (_selectedPrinter == null) {
       return PrintResult.error('لم يتم اختيار طابعة');
     }
@@ -130,22 +131,12 @@ class PrintingProvider extends ChangeNotifier {
 
     _state = PrintingState.printing;
     _errorMessage = null;
-    _lastPrintedValue = scannedValue;
-    _lastTopText = topText;
-    _lastBottomText = bottomText;
-    _lastSideText = sideText;
+    _lastLabelContent = labelContent;
     notifyListeners();
 
     try {
       final client = PrinterClient(_selectedPrinter!);
-      await client.print(
-        value: scannedValue,
-        preset: preset,
-        copies: copies,
-        topText: topText,
-        bottomText: bottomText,
-        sideText: sideText,
-      );
+      await client.print(content: labelContent, preset: preset, copies: copies);
 
       _state = PrintingState.success;
       notifyListeners();
@@ -164,16 +155,10 @@ class PrintingProvider extends ChangeNotifier {
   }
 
   Future<PrintResult> retryPrint({int copies = 1}) async {
-    if (_lastPrintedValue == null) {
+    if (_lastLabelContent == null) {
       return PrintResult.error('لا توجد قيمة للطباعة');
     }
-    return print(
-      scannedValue: _lastPrintedValue!,
-      copies: copies,
-      topText: _lastTopText,
-      bottomText: _lastBottomText,
-      sideText: _lastSideText,
-    );
+    return print(labelContent: _lastLabelContent!, copies: copies);
   }
 
   Future<bool> testConnection(PrinterConfig printer) async {

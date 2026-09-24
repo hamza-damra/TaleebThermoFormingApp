@@ -1,3 +1,5 @@
+import '../constants/grinding_recommendation_strings.dart';
+
 class ApiException implements Exception {
   final String code;
   final String message;
@@ -92,11 +94,20 @@ class ApiException implements Exception {
       case 'PRODUCT_TYPE_INACTIVE':
         return 'نوع المنتج غير نشط';
       case 'PRODUCTION_LINE_NOT_FOUND':
-        return 'خط الإنتاج غير موجود';
+        return 'خط الإنتاج غير موجود. تم تحديث قائمة الخطوط.';
       case 'PRODUCTION_LINE_INACTIVE':
-        return 'خط الإنتاج غير نشط';
+        return lineInactiveMessage('الخط');
+      case 'THERMOFORMING_LINE_MAPPING_NOT_FOUND':
+        return 'لا توجد ماكينة تشكيل مفعّلة مرتبطة بهذا الخط. راجع الإدارة.';
+      case 'THERMOFORMING_LINE_PAUSED':
+        return 'الماكينة متوقفة مؤقتاً من الإدارة.';
       case 'PALLET_NOT_FOUND':
         return 'الطبلية غير موجودة';
+      case 'PALLET_LABEL_REPRINT_NOT_AVAILABLE':
+        return 'لا يمكن إعادة طباعة ملصق هذه الطبلية لأنها ملغاة.';
+      // Unified Grinding Lifecycle — grinding started or finished.
+      case 'PALLET_BLOCKED_BY_GRINDING':
+        return GrindingRecommendationStrings.reprintBlocked;
       case 'SERIAL_GENERATION_FAILED':
         return 'فشل في توليد الرقم التسلسلي';
       case 'VALIDATION_ERROR':
@@ -185,6 +196,11 @@ class ApiException implements Exception {
         return 'المنتج المحدد لا يطابق بند خطة الإنتاج الحالي لهذا الخط.';
       case 'PRODUCTION_PLAN_ITEM_CLOSED':
         return 'بند خطة الإنتاج مغلق ولا يمكن تسجيل إنتاج عليه.';
+      // ── V190 — expectedPlanItemId on every pallet ──
+      case 'PRODUCTION_PLAN_EXPECTED_ITEM_REQUIRED':
+        return 'تعذّر تحديد بند الإنتاج. حدّث الخط ثم حاول مجدداً.';
+      case 'PRODUCTION_PLAN_CURRENT_ITEM_CHANGED':
+        return 'تغيّر البند الحالي، تحقق من المنتج ثم سجّل الطبلية مرة أخرى';
       case 'PRODUCTION_PLAN_TARGET_EXCEEDED_CONFIRMATION_REQUIRED':
         return 'تم تجاوز حد الخطة. العدد الحالي تجاوز الكمية المطلوبة. '
             'هل تريد المتابعة؟';
@@ -194,6 +210,18 @@ class ApiException implements Exception {
         return message;
     }
   }
+
+  /// `PRODUCTION_LINE_INACTIVE` text with the resolved line label, for callers
+  /// that know which line the request was for.
+  static String lineInactiveMessage(String label) =>
+      '$label غير مفعّل حالياً. لا يمكن تسجيل طبليات عليه.';
+
+  /// [displayMessage] with the line label substituted where the code's text
+  /// names the line.
+  String displayMessageForLine(String label) =>
+      code == 'PRODUCTION_LINE_INACTIVE'
+      ? lineInactiveMessage(label)
+      : displayMessage;
 
   String _formatValidationErrors() {
     if (details == null || details!.isEmpty) {

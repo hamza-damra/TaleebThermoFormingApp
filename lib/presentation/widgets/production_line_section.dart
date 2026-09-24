@@ -6,25 +6,26 @@ import '../../core/constants.dart';
 import '../../core/exceptions/api_exception.dart';
 import '../../core/responsive.dart';
 import '../../domain/entities/first_pallet_context.dart';
+import '../../domain/entities/palletizing_line.dart';
 import '../../domain/entities/product_type.dart';
-import '../../domain/entities/production_line.dart' as entity;
 import '../providers/palletizing_provider.dart';
 import 'create_pallet_dialog.dart';
 import 'first_pallet_suggestion_dialog.dart';
 import 'legacy_handover_info_card.dart';
+import 'line_scoped_route.dart';
 import 'line_blocked_card.dart';
 import 'line_context_strip.dart';
 import 'overproduction_confirmation_dialog.dart';
 import 'pallet_success_dialog.dart';
 import 'palletizer_pin_screen.dart';
+import 'plan_item_close_completing_banner.dart';
 import 'falet_screen.dart';
 import 'session_table_widget.dart';
 import 'takeover_banner.dart';
 import 'thermoforming_waiting_card.dart';
 
 class ProductionLineSection extends StatelessWidget {
-  final ProductionLine line;
-  final entity.ProductionLine? productionLineEntity;
+  final PalletizingLine line;
 
   /// Callback fired when the user taps "تغيير الخط" in the blocking overlay.
   /// The parent (PalletizingScreen) wires this to the TabController.
@@ -36,7 +37,6 @@ class ProductionLineSection extends StatelessWidget {
   const ProductionLineSection({
     super.key,
     required this.line,
-    this.productionLineEntity,
     this.onSwitchLine,
     this.canSwitchLine = false,
   });
@@ -47,14 +47,14 @@ class ProductionLineSection extends StatelessWidget {
     final isMobile = ResponsiveHelper.isMobile(context);
     final horizontalPadding = isMobile ? 16.0 : 24.0;
     final bottomPadding = MediaQuery.of(context).padding.bottom;
-    final uiState = provider.getUiState(line.number);
+    final uiState = provider.getUiState(line.lineId);
 
     // Use a neutral background when the line is in a blocked / waiting state
     // so the screen never looks like an active production line.
     final isInactiveState =
         uiState == LineUiState.waitingForThermoforming ||
         uiState == LineUiState.blocked;
-    final bgColor = isInactiveState ? const Color(0xFFF5F5F5) : line.lightColor;
+    final bgColor = isInactiveState ? kInactiveLineBackground : line.lightColor;
 
     // "تغيير الخط" is only available when another line is usable AND the
     // parent wired a callback for it.
@@ -111,7 +111,18 @@ class ProductionLineSection extends StatelessWidget {
                       horizontalPadding,
                       (isMobile ? 12 : 16) + bottomPadding,
                     ),
-                    child: _buildCreateButton(context),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        // "البند بانتظار الإنهاء" — pinned next to the create
+                        // button (which stays usable) so it never scrolls
+                        // away. Renders nothing unless the palletizer chose
+                        // "pallets remain" for this line's close request.
+                        PlanItemCloseCompletingBanner(line: line),
+                        _buildCreateButton(context),
+                      ],
+                    ),
                   ),
                 ),
               ],
@@ -148,9 +159,8 @@ class ProductionLineSection extends StatelessWidget {
               // Arabic copy, render verbatim; the provider getters return
               // `null` for absent / whitespace, which makes the card fall back
               // to its hardcoded Arabic strings.
-              titleOverride: provider.getWaitingForOperatorTitle(line.number),
-              bodyOverride:
-                  provider.getWaitingForOperatorMessage(line.number),
+              titleOverride: provider.getWaitingForOperatorTitle(line.lineId),
+              bodyOverride: provider.getWaitingForOperatorMessage(line.lineId),
             ),
           ),
         // Backend-authoritative `blocked` for a line that still has an
@@ -186,7 +196,7 @@ class ProductionLineSection extends StatelessWidget {
         ],
       ),
       child: Text(
-        productionLineEntity?.name ?? line.arabicLabel,
+        line.label,
         textAlign: TextAlign.center,
         style: GoogleFonts.cairo(
           fontSize: 26,
@@ -230,15 +240,15 @@ class ProductionLineSection extends StatelessWidget {
     bool isMobile,
   ) {
     final showOpenItems =
-        provider.isLineAuthorized(line.number) &&
-        !provider.isLineBlocked(line.number);
+        provider.isLineAuthorized(line.lineId) &&
+        !provider.isLineBlocked(line.lineId);
 
     if (!showOpenItems) return const SizedBox.shrink();
 
     // Hide the FALET button entirely when no FALET is open for this line —
     // an empty outlined button reads as a dead UI element on the palletizing
     // screen, and reserves vertical space that the section above can use.
-    final hasOpenFalet = provider.hasOpenFalet(line.number);
+    final hasOpenFalet = provider.hasOpenFalet(line.lineId);
     if (!hasOpenFalet) return const SizedBox.shrink();
 
     return Padding(
@@ -247,14 +257,14 @@ class ProductionLineSection extends StatelessWidget {
         line: line,
         isMobile: isMobile,
         hasOpenFalet: hasOpenFalet,
-        openFaletCount: provider.getOpenFaletCount(line.number),
+        openFaletCount: provider.getOpenFaletCount(line.lineId),
       ),
     );
   }
 
   Widget _buildSessionTable(BuildContext context) {
     final provider = context.watch<PalletizingProvider>();
-    final sessionRows = provider.getSessionTable(line.number);
+    final sessionRows = provider.getSessionTable(line.lineId);
 
     return SessionTableWidget(line: line, rows: sessionRows);
   }
@@ -264,25 +274,25 @@ class ProductionLineSection extends StatelessWidget {
     final isMobile = ResponsiveHelper.isMobile(context);
     // isPalletCreationBlocked folds in the existing line blocks plus the
     // takeover-specific blocks (backend `blocked`, auto-released line).
-    final isBlocked = provider.isPalletCreationBlocked(line.number);
-    final isCreating = provider.isLineCreating(line.number);
+    final isBlocked = provider.isPalletCreationBlocked(line.lineId);
+    final isCreating = provider.isLineCreating(line.lineId);
 
     // V81 plan enforcement — the backend rejects pallet creation without a
     // current plan item, so the button stays disabled until one exists.
     // Either `productionPlanBlocked` is set, or the line is missing the plan
     // product id altogether (older responses / edge cases).
-    final planBlocked = provider.isProductionPlanBlocked(line.number);
+    final planBlocked = provider.isProductionPlanBlocked(line.lineId);
     final missingPlanProduct =
-        provider.getCurrentPlanItemProductTypeId(line.number) == null;
+        provider.getCurrentPlanItemProductTypeId(line.lineId) == null;
     final planMessage =
-        provider.getProductionPlanBlockedMessage(line.number) ??
-            'لا يوجد بند إنتاج نشط لهذا الخط. '
-                'يرجى مراجعة الإدارة لإضافة بند إلى خطة الإنتاج.';
+        provider.getProductionPlanBlockedMessage(line.lineId) ??
+        'لا يوجد بند إنتاج نشط لهذا الخط. '
+            'يرجى مراجعة الإدارة لإضافة بند إلى خطة الإنتاج.';
     final blockedByPlan = planBlocked || missingPlanProduct;
 
     // When the block is caused by a takeover, surface the reason — otherwise a
     // disabled button with no explanation reads as a bug.
-    final takeover = provider.getTakeover(line.number);
+    final takeover = provider.getTakeover(line.lineId);
     final blockedByTakeover = isBlocked && takeover != null;
 
     final button = ElevatedButton(
@@ -315,12 +325,19 @@ class ProductionLineSection extends StatelessWidget {
                   size: isMobile ? 22 : 26,
                 ),
                 SizedBox(width: isMobile ? 8 : 12),
-                Text(
-                  'إنشاء طبلية جديدة',
-                  style: GoogleFonts.cairo(
-                    fontSize: isMobile ? 18 : 21,
-                    fontWeight: FontWeight.bold,
-                    height: 1.0,
+                // Scales down in a narrow pane (3 lines side by side)
+                // instead of overflowing.
+                Flexible(
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Text(
+                      'إنشاء طبلية جديدة',
+                      style: GoogleFonts.cairo(
+                        fontSize: isMobile ? 18 : 21,
+                        fontWeight: FontWeight.bold,
+                        height: 1.0,
+                      ),
+                    ),
                   ),
                 ),
               ],
@@ -333,7 +350,8 @@ class ProductionLineSection extends StatelessWidget {
     if (blockedByPlan) {
       footerMessage = planMessage;
     } else if (blockedByTakeover) {
-      footerMessage = 'لا يمكن إنشاء طبليات الآن — الخط في وضع تسليم. '
+      footerMessage =
+          'لا يمكن إنشاء طبليات الآن — الخط في وضع تسليم. '
           'الرجاء الانتظار حتى يكمل المشغّل استلام الخط.';
     }
 
@@ -364,11 +382,11 @@ class ProductionLineSection extends StatelessWidget {
     // Pre-flight V81 plan gate. The button is disabled when the plan is
     // blocked or there is no plan product, but a stale frame could still
     // trigger this path — surface the backend message and stop.
-    if (provider.isProductionPlanBlocked(line.number) ||
-        provider.getCurrentPlanItemProductTypeId(line.number) == null) {
+    if (provider.isProductionPlanBlocked(line.lineId) ||
+        provider.getCurrentPlanItemProductTypeId(line.lineId) == null) {
       _showInfoSnack(
         context,
-        provider.getProductionPlanBlockedMessage(line.number) ??
+        provider.getProductionPlanBlockedMessage(line.lineId) ??
             'لا يوجد بند إنتاج نشط لهذا الخط. '
                 'يرجى مراجعة الإدارة لإضافة بند إلى خطة الإنتاج.',
       );
@@ -380,24 +398,31 @@ class ProductionLineSection extends StatelessWidget {
     // soft blocks (no current product, etc.) without throwing.
     FirstPalletContext ctx;
     try {
-      ctx = await provider.fetchFirstPalletContext(line.number);
+      ctx = await provider.fetchFirstPalletContext(line.lineId);
     } on ApiException catch (e) {
       if (!context.mounted) return;
       // 409 LINE_BLOCKED_BY_PENDING_HANDOVER → state refresh routes the UI to
       // the LegacyHandoverInfoCard overlay; no extra snackbar needed.
       if (e.code == 'LINE_BLOCKED_BY_PENDING_HANDOVER') {
-        await provider.refreshLineState(line.number);
+        await provider.refreshLineState(line.lineId);
         return;
       }
       // V81: defense-in-depth. The plan-required write-path 409 maps to the
       // same Arabic message + a line-state refresh that re-routes the UI.
       if (e.code == 'PRODUCTION_PLAN_ITEM_REQUIRED') {
-        await provider.refreshLineState(line.number);
+        await provider.refreshLineState(line.lineId);
         if (!context.mounted) return;
         _showInfoSnack(context, e.displayMessage);
         return;
       }
-      _showErrorSnack(context, e.displayMessage);
+      // Line switched off: bootstrap was re-fetched; a removed tab gets the
+      // screen-level notice instead of a snackbar.
+      if ((e.code == 'PRODUCTION_LINE_INACTIVE' ||
+              e.code == 'PRODUCTION_LINE_NOT_FOUND') &&
+          !provider.isLineRendered(line.lineId)) {
+        return;
+      }
+      _showErrorSnack(context, e.displayMessageForLine(line.label));
       return;
     } catch (_) {
       if (!context.mounted) return;
@@ -416,7 +441,7 @@ class ProductionLineSection extends StatelessWidget {
         (ctx.messageAr?.isNotEmpty ?? false)
             ? ctx.messageAr!
             : 'لا يوجد بند إنتاج نشط لهذا الخط. '
-                'يرجى مراجعة الإدارة لإضافة بند إلى خطة الإنتاج.',
+                  'يرجى مراجعة الإدارة لإضافة بند إلى خطة الإنتاج.',
       );
       return;
     }
@@ -432,14 +457,15 @@ class ProductionLineSection extends StatelessWidget {
     //     non-matching FALET; the red FALET warning banner on the main screen
     //     is the only surface for that state, and the backend is authoritative
     //     if it ever needs to reject a non-matching create.
-    final hasMatchingSuggestion = ctx.canSuggestFirstPalletDialog &&
+    final hasMatchingSuggestion =
+        ctx.canSuggestFirstPalletDialog &&
         ctx.matchingProductFaletQuantity > 0 &&
         (ctx.suggestedFaletQuantityForFirstPallet ?? 0) > 0;
 
     if (hasMatchingSuggestion) {
       debugPrint(
         '[FirstPallet BRANCH] chosen=MATCHING_FALET_DIALOG '
-        'lineNumber=${line.number} lineId=${ctx.lineId} '
+        'lineId=${line.lineId} lineNumber=${line.lineNumber} '
         'matchingFalet=${ctx.matchingProductFaletQuantity} '
         'nonMatchingFalet=${ctx.nonMatchingFaletQuantity} '
         'canSuggestDialog=${ctx.canSuggestFirstPalletDialog} '
@@ -465,7 +491,19 @@ class ProductionLineSection extends StatelessWidget {
       final confirmed = await showDialog<bool>(
         context: context,
         barrierDismissible: false,
-        builder: (_) => FirstPalletSuggestionDialog(line: line, context: ctx),
+        builder: (_) => LineScopedRoute(
+          lineId: line.lineId,
+          child: FirstPalletSuggestionDialog(
+            line: line,
+            context: ctx,
+            productName: ctx.currentPlanItemProductName == null
+                ? ''
+                : provider.productDisplayName(
+                    productTypeId: ctx.currentPlanItemProductTypeId,
+                    backendName: ctx.currentPlanItemProductName,
+                  ),
+          ),
+        ),
       );
       if (!context.mounted) return;
       if (confirmed != true) {
@@ -475,16 +513,19 @@ class ProductionLineSection extends StatelessWidget {
 
       // Safety re-check: a plan item may have been closed between the button
       // press and the operator's confirm tap. Refresh, then validate.
-      await provider.refreshLineState(line.number);
+      await provider.refreshLineState(line.lineId);
       if (!context.mounted) return;
 
-      final firstPalletProductId =
-          provider.getCurrentPlanItemProductTypeId(line.number);
+      final firstPalletProductId = provider.getCurrentPlanItemProductTypeId(
+        line.lineId,
+      );
+      final firstPalletPlanItemId = provider.getCurrentPlanItemId(line.lineId);
       if (firstPalletProductId == null ||
-          provider.isProductionPlanBlocked(line.number)) {
+          firstPalletPlanItemId == null ||
+          provider.isProductionPlanBlocked(line.lineId)) {
         _showInfoSnack(
           context,
-          provider.getProductionPlanBlockedMessage(line.number) ??
+          provider.getProductionPlanBlockedMessage(line.lineId) ??
               'لا يوجد بند إنتاج نشط لهذا الخط. '
                   'يرجى مراجعة الإدارة لإضافة بند إلى خطة الإنتاج.',
         );
@@ -498,8 +539,9 @@ class ProductionLineSection extends StatelessWidget {
       // backend cannot atomically deduct/resolve the matching FALET. After
       // success the FALET remains open and the next call to
       // first-pallet-context returns the same suggestion, looping the dialog.
-      final totalQuantity = ctx.currentPlanItemPackagesPerPallet ??
-          provider.getCurrentPlanItemPackagesPerPallet(line.number) ??
+      final totalQuantity =
+          ctx.currentPlanItemPackagesPerPallet ??
+          provider.getCurrentPlanItemPackagesPerPallet(line.lineId) ??
           0;
       if (totalQuantity <= 0) {
         _showErrorSnack(context, 'تعذّر تحديد حجم الطبلية الهدف');
@@ -527,6 +569,7 @@ class ProductionLineSection extends StatelessWidget {
       await _submitCreatePallet(
         context,
         productTypeId: firstPalletProductId,
+        expectedPlanItemId: firstPalletPlanItemId,
         quantity: totalQuantity,
         firstPalletFaletExpectedQuantity: faletToConsume,
       );
@@ -540,24 +583,27 @@ class ProductionLineSection extends StatelessWidget {
     // a recently-changed plan item before opening the dialog.
     debugPrint(
       '[FirstPallet BRANCH] chosen=NORMAL_CREATE_DIALOG '
-      'lineNumber=${line.number} lineId=${ctx.lineId} '
+      'lineId=${line.lineId} lineNumber=${line.lineNumber} '
       'hasOpenFalet=${ctx.hasOpenFalet} '
       'matchingFalet=${ctx.matchingProductFaletQuantity} '
       'nonMatchingFalet=${ctx.nonMatchingFaletQuantity} '
       'canSuggestDialog=${ctx.canSuggestFirstPalletDialog}',
     );
-    await provider.refreshLineState(line.number);
+    await provider.refreshLineState(line.lineId);
     if (!context.mounted) return;
 
     // Re-check the plan gate after the refresh — admin may have closed the
     // item between the button press and this point.
-    final planProductId =
-        provider.getCurrentPlanItemProductTypeId(line.number);
+    final planProductId = provider.getCurrentPlanItemProductTypeId(line.lineId);
+    // V190: the plan item the worker is about to confirm — sent as
+    // `expectedPlanItemId` together with its product id.
+    final planItemId = provider.getCurrentPlanItemId(line.lineId);
     if (planProductId == null ||
-        provider.isProductionPlanBlocked(line.number)) {
+        planItemId == null ||
+        provider.isProductionPlanBlocked(line.lineId)) {
       _showInfoSnack(
         context,
-        provider.getProductionPlanBlockedMessage(line.number) ??
+        provider.getProductionPlanBlockedMessage(line.lineId) ??
             'لا يوجد بند إنتاج نشط لهذا الخط. '
                 'يرجى مراجعة الإدارة لإضافة بند إلى خطة الإنتاج.',
       );
@@ -567,32 +613,40 @@ class ProductionLineSection extends StatelessWidget {
     // The product cache is derived purely from the current plan item (see
     // PalletizingProvider._resolveProductType). Use it as the read-only
     // product to display in the dialog.
-    final ProductType? planProduct =
-        provider.getCurrentPlanItemProductType(line.number);
+    final ProductType? planProduct = provider.getCurrentPlanItemProductType(
+      line.lineId,
+    );
 
-    final planDefault =
-        provider.getCurrentPlanItemPackagesPerPallet(line.number);
+    final planDefault = provider.getCurrentPlanItemPackagesPerPallet(
+      line.lineId,
+    );
 
     final result = await showDialog<Map<String, dynamic>>(
       context: context,
-      builder: (context) => CreatePalletDialog(
-        line: line,
-        initialProductType: planProduct,
-        initialQuantity: planDefault,
-        productionLineName: productionLineEntity?.name,
+      builder: (context) => LineScopedRoute(
+        lineId: line.lineId,
+        child: CreatePalletDialog(
+          line: line,
+          initialProductType: planProduct,
+          initialQuantity: planDefault,
+        ),
       ),
     );
 
     if (result == null || !context.mounted) return;
 
-    // Dialog returns only `quantity` by construction — there is no product
+    // Dialog returns only `quantity` (plus the grinding reason when the
+    // worker recommended the pallet for grinding) — there is no product
     // picker. The request product is the current plan item id.
     final quantity = result['quantity'] as int;
+    final grindingReason = result['grindingReason'] as String?;
 
     await _submitCreatePallet(
       context,
       productTypeId: planProductId,
+      expectedPlanItemId: planItemId,
       quantity: quantity,
+      grindingRecommendationReason: grindingReason,
     );
   }
 
@@ -605,20 +659,24 @@ class ProductionLineSection extends StatelessWidget {
   Future<void> _submitCreatePallet(
     BuildContext context, {
     required int productTypeId,
+    required int expectedPlanItemId,
     required int quantity,
     bool confirmOverproduction = false,
     int? firstPalletFaletExpectedQuantity,
     int? firstPalletFaletId,
+    String? grindingRecommendationReason,
   }) async {
     final provider = context.read<PalletizingProvider>();
     try {
       final palletResponse = await provider.createPallet(
-        lineNumber: line.number,
+        lineId: line.lineId,
         productTypeId: productTypeId,
+        expectedPlanItemId: expectedPlanItemId,
         quantity: quantity,
         confirmOverproduction: confirmOverproduction,
         firstPalletFaletExpectedQuantity: firstPalletFaletExpectedQuantity,
         firstPalletFaletId: firstPalletFaletId,
+        grindingRecommendationReason: grindingRecommendationReason,
       );
       if (context.mounted) {
         // FALET consumption feedback. Backend echoes the actually-consumed
@@ -639,17 +697,21 @@ class ProductionLineSection extends StatelessWidget {
           !confirmOverproduction) {
         final confirmed = await OverproductionConfirmationDialog.show(
           context,
+          lineId: line.lineId,
           message: e.displayMessage,
         );
         if (!context.mounted) return;
         if (!confirmed) return; // operator cancelled — abort
+        // The IDENTICAL payload (same expectedPlanItemId) — never a new id.
         await _submitCreatePallet(
           context,
           productTypeId: productTypeId,
+          expectedPlanItemId: expectedPlanItemId,
           quantity: quantity,
           confirmOverproduction: true,
           firstPalletFaletExpectedQuantity: firstPalletFaletExpectedQuantity,
           firstPalletFaletId: firstPalletFaletId,
+          grindingRecommendationReason: grindingRecommendationReason,
         );
         return;
       }
@@ -665,9 +727,19 @@ class ProductionLineSection extends StatelessWidget {
         );
         return;
       }
-      // PRODUCTION_PLAN_PRODUCT_MISMATCH: the provider already refreshed line
-      // state, so the screen will re-render with the new plan product. Show
-      // only the Arabic message — never the raw English backend text.
+      // Line switched off / removed: the provider re-fetched bootstrap. When
+      // the tab is gone the screen shows the "تم إيقاف الخط" notice instead.
+      if (e.code == 'PRODUCTION_LINE_INACTIVE' ||
+          e.code == 'PRODUCTION_LINE_NOT_FOUND') {
+        if (provider.isLineRendered(line.lineId)) {
+          _showErrorSnack(context, e.displayMessageForLine(line.label));
+        }
+        return;
+      }
+      // PRODUCTION_PLAN_PRODUCT_MISMATCH / PRODUCTION_PLAN_CURRENT_ITEM_CHANGED:
+      // the provider already refreshed line state, so the screen re-renders
+      // with the current plan product. Show only the Arabic message — never
+      // the raw English backend text — and never re-send automatically.
       _showErrorSnack(context, e.displayMessage);
     } catch (e) {
       if (context.mounted) {
@@ -710,7 +782,8 @@ class ProductionLineSection extends StatelessWidget {
       builder: (context) => PalletSuccessDialog(
         pallet: palletResponse,
         lineColor: line.color,
-        lineNumber: line.number,
+        lineId: line.lineId,
+        lineNumber: line.lineNumber,
       ),
     );
   }
@@ -718,7 +791,7 @@ class ProductionLineSection extends StatelessWidget {
 
 /// Animated FALET button that blinks when there are unresolved open FALET items.
 class _AnimatedFaletButton extends StatefulWidget {
-  final ProductionLine line;
+  final PalletizingLine line;
   final bool isMobile;
   final bool hasOpenFalet;
   final int openFaletCount;

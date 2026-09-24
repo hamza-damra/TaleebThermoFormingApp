@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 
 import '../../core/constants.dart';
 import '../../core/responsive.dart';
+import '../../domain/entities/palletizing_line.dart';
 import '../providers/palletizing_provider.dart';
 
 /// State B overlay: line is open (Thermoforming operator authorized) but no
@@ -13,7 +14,7 @@ import '../providers/palletizing_provider.dart';
 /// operator-PIN overlay (rounded modal, line-color accent, 4-digit obscured
 /// TextField, full-width primary CTA) so floor users do not need retraining.
 class PalletizerPinScreen extends StatefulWidget {
-  final ProductionLine line;
+  final PalletizingLine line;
 
   const PalletizerPinScreen({super.key, required this.line});
 
@@ -54,7 +55,7 @@ class _PalletizerPinScreenState extends State<PalletizerPinScreen> {
     }
 
     final provider = context.read<PalletizingProvider>();
-    provider.palletizerAuth(widget.line.number, pin).then((success) {
+    provider.palletizerAuth(widget.line.lineId, pin).then((success) {
       if (!mounted) return;
       _pinController.clear();
       if (!success) _focusNode.requestFocus();
@@ -66,9 +67,9 @@ class _PalletizerPinScreenState extends State<PalletizerPinScreen> {
     final provider = context.watch<PalletizingProvider>();
     final isMobile = ResponsiveHelper.isMobile(context);
     final isAuthenticating = provider.isPalletizerAuthenticating(
-      widget.line.number,
+      widget.line.lineId,
     );
-    final error = provider.getPalletizerAuthError(widget.line.number);
+    final error = provider.getPalletizerAuthError(widget.line.lineId);
 
     return Container(
       color: Colors.black.withValues(alpha: 0.45),
@@ -106,7 +107,28 @@ class _PalletizerPinScreenState extends State<PalletizerPinScreen> {
                         size: isMobile ? 36 : 44,
                       ),
                     ),
-                    SizedBox(height: isMobile ? 16 : 20),
+                    SizedBox(height: isMobile ? 12 : 16),
+                    // Which line this PIN logs into — essential when several
+                    // line panes are on screen side by side.
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: widget.line.color.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Text(
+                        widget.line.label,
+                        style: GoogleFonts.cairo(
+                          fontSize: isMobile ? 15 : 17,
+                          fontWeight: FontWeight.bold,
+                          color: widget.line.color,
+                        ),
+                      ),
+                    ),
+                    SizedBox(height: isMobile ? 8 : 12),
                     Text(
                       'تسجيل دخول موظف الطبليات',
                       style: GoogleFonts.cairo(
@@ -188,7 +210,7 @@ class _PalletizerPinScreenState extends State<PalletizerPinScreen> {
                           : (_) => _handleSubmit(),
                       onChanged: (_) {
                         if (error != null) {
-                          provider.clearPalletizerAuthError(widget.line.number);
+                          provider.clearPalletizerAuthError(widget.line.lineId);
                         }
                       },
                     ),

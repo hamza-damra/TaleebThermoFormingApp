@@ -111,13 +111,16 @@ void main() {
     late _FakeSseClient sse;
     late RefreshCoordinator coordinator;
     late int pollCalls;
-    late List<int?> eventRefreshes;
+    late int fullRefreshes;
+    late List<List<int?>> eventBatches;
 
     RefreshCoordinator build({Duration poll = const Duration(seconds: 30)}) {
       return RefreshCoordinator(
         sseClient: sse,
         onPoll: () async => pollCalls++,
-        onEventRefresh: (lineId) async => eventRefreshes.add(lineId),
+        onEvents: (events) async =>
+            eventBatches.add([for (final e in events) e.palletizingLineId]),
+        onFullRefresh: () async => fullRefreshes++,
         nextInterval: () => poll,
         debounce: const Duration(milliseconds: 30),
       );
@@ -126,7 +129,8 @@ void main() {
     setUp(() {
       sse = _FakeSseClient();
       pollCalls = 0;
-      eventRefreshes = [];
+      fullRefreshes = 0;
+      eventBatches = [];
     });
 
     tearDown(() async {
@@ -138,57 +142,59 @@ void main() {
       expect(sse.startCount, 1);
     });
 
-    test('an SSE event triggers one debounced refresh', () async {
+    test('an SSE event triggers one debounced batch', () async {
       coordinator = build()..start();
       sse.emitEvent(_event('a', line: 1));
-      expect(eventRefreshes, isEmpty); // still within the debounce window
+      expect(eventBatches, isEmpty); // still within the debounce window
       await _pump(60);
-      expect(eventRefreshes, [1]);
+      expect(eventBatches, [
+        [1],
+      ]);
     });
 
-    test('a burst of events collapses into a single refresh', () async {
+    test('a burst of events collapses into a single batch', () async {
       coordinator = build()..start();
       sse.emitEvent(_event('a', line: 1));
       sse.emitEvent(_event('b', line: 1));
       sse.emitEvent(_event('c', line: 1));
       await _pump(60);
-      expect(eventRefreshes, [1]);
+      expect(eventBatches, [
+        [1, 1, 1],
+      ]);
     });
 
-    test('events for two different lines escalate to a full refresh', () async {
+    test('events for different lines arrive in one batch, in order', () async {
       coordinator = build()..start();
       sse.emitEvent(_event('a', line: 1));
       sse.emitEvent(_event('b', line: 2));
+      sse.emitEvent(_event('c'));
       await _pump(60);
-      expect(eventRefreshes, [null]);
-    });
-
-    test('an event with no line id triggers a full refresh', () async {
-      coordinator = build()..start();
-      sse.emitEvent(_event('a'));
-      await _pump(60);
-      expect(eventRefreshes, [null]);
+      expect(eventBatches, [
+        [1, 2, null],
+      ]);
+      expect(fullRefreshes, 0); // the provider decides, not the coordinator
     });
 
     test('reaching connected runs one immediate full refresh', () {
       coordinator = build()..start();
       coordinator.onSseConnectionStateChanged(SseConnectionState.connected);
-      expect(eventRefreshes, [null]);
+      expect(fullRefreshes, 1);
     });
 
     test('a non-connected transition does not refresh', () {
       coordinator = build()..start();
       coordinator.onSseConnectionStateChanged(SseConnectionState.reconnecting);
-      expect(eventRefreshes, isEmpty);
+      expect(fullRefreshes, 0);
+      expect(eventBatches, isEmpty);
     });
 
-    test('resume restarts SSE and runs one immediate refresh', () {
+    test('resume restarts SSE and runs one immediate full refresh', () {
       coordinator = build()..start();
       coordinator.pause();
       expect(sse.stopCount, 1);
       coordinator.resume();
       expect(sse.startCount, 2);
-      expect(eventRefreshes, [null]);
+      expect(fullRefreshes, 1);
     });
 
     test('the poll timer fires onPoll on the configured cadence', () async {
@@ -202,7 +208,7 @@ void main() {
       coordinator.pause();
       sse.emitEvent(_event('a', line: 1));
       await _pump(60);
-      expect(eventRefreshes, isEmpty);
+      expect(eventBatches, isEmpty);
     });
   });
 
@@ -313,6 +319,114 @@ void main() {
       adapter.latest.add(_bytes(frame));
       await _pump();
       expect(events, hasLength(1));
+    });
+
+    // -- Cross-domain frames on the shared device stream --
+    //
+    // `GET /palletizing-line/*-events` is mounted on the palletizing path for
+    // security-wiring convenience, so it carries frames belonging to the roll
+    // domain. This app is not their audience and must route none of them.
+    // `production-plan-changed` is being moved to the roll app's own stream
+    // behind a backend compatibility flag; these tests pin both sides of that
+    // flip -- the frame arriving today is a non-event, and its disappearance
+    // later is a non-event too.
+    // See docs/FRONTEND_HANDOFF_PALLETIZING_APP_PLAN_CHANGED_FRAME_REMOVED.md.
+
+    test('ignores a production-plan-changed frame', () async {
+      client.start();
+      await _pump();
+      adapter.latest.add(
+        _bytes('event: production-plan-changed\n'
+            'data: {"eventId":"plan-1","productionLineId":7,'
+            '"reason":"PLAN_REORDERED"}\n\n'),
+      );
+      await _pump();
+      // No refresh trigger, no announcement nudge -- nothing downstream of
+      // this client can react to a roll-domain frame.
+      expect(events, isEmpty);
+      expect(announcements, isEmpty);
+    });
+
+    test('ignores every other roll-domain frame on the shared stream',
+        () async {
+      client.start();
+      await _pump();
+      for (final name in const [
+        'roll-manager-announcement',
+        'roll-production-settings-changed',
+        'some-future-event-name',
+      ]) {
+        adapter.latest.add(
+          _bytes('event: $name\ndata: {"eventId":"x-$name"}\n\n'),
+        );
+      }
+      await _pump();
+      expect(events, isEmpty);
+      expect(announcements, isEmpty);
+    });
+
+    test('a production-plan-changed frame does not disturb frame routing',
+        () async {
+      client.start();
+      await _pump();
+      adapter.latest.add(_bytes('event: connected\ndata: {}\n\n'));
+      adapter.latest.add(
+        _bytes('event: production-plan-changed\n'
+            'data: {"eventId":"plan-2"}\n\n'),
+      );
+      adapter.latest.add(
+        _bytes('event: palletizing-lines-changed\n'
+            'data: {"eventId":"e9","palletizingLineId":3}\n\n'),
+      );
+      adapter.latest.add(
+        _bytes('event: urgent-manager-announcement\n'
+            'data: {"announcementId":5,"targetDomain":"THERMOFORMING"}\n\n'),
+      );
+      await _pump();
+      // Acceptance criteria 2-3: the frames this app *is* the audience for
+      // still arrive, interleaved with the one it ignores.
+      expect(events.map((e) => e.eventId), ['e9']);
+      expect(announcements.map((a) => a.announcementId), [5]);
+      expect(states, contains(SseConnectionState.connected));
+      expect(adapter.fetchCount, 1); // the ignored frame killed nothing
+    });
+
+    test('an ignored frame does not consume a dedupe slot', () async {
+      // The ignored frame carries an `eventId` of its own. If it were fed to
+      // the dedupe ring, a palletizing event that later reused that id would
+      // be silently swallowed.
+      client.start();
+      await _pump();
+      adapter.latest.add(
+        _bytes('event: production-plan-changed\n'
+            'data: {"eventId":"shared"}\n\n'),
+      );
+      await _pump();
+      adapter.latest.add(
+        _bytes('event: palletizing-lines-changed\n'
+            'data: {"eventId":"shared","palletizingLineId":1}\n\n'),
+      );
+      await _pump();
+      expect(events, hasLength(1));
+      expect(events.single.eventId, 'shared');
+    });
+
+    test('after the compat flag flips, the stream behaves identically',
+        () async {
+      // Post-flip the frame simply never arrives. Acceptance criterion 5: no
+      // palletizing screen changes, and criteria 2-4 still hold.
+      client.start();
+      await _pump();
+      adapter.latest.add(_bytes('event: connected\ndata: {}\n\n'));
+      adapter.latest.add(_bytes(':ping\n'));
+      adapter.latest.add(
+        _bytes('event: palletizing-lines-changed\n'
+            'data: {"eventId":"post-flip","palletizingLineId":4}\n\n'),
+      );
+      await _pump();
+      expect(states, contains(SseConnectionState.connected));
+      expect(events.map((e) => e.eventId), ['post-flip']);
+      expect(announcements, isEmpty);
     });
 
     test('ignores :ping keepalive comments', () async {

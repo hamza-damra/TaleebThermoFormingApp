@@ -16,13 +16,14 @@ import 'takeover_countdown.dart';
 /// showDialog(
 ///   context: context,
 ///   barrierDismissible: false,
-///   builder: (_) => TakeoverDialog(lineNumber: n),
+///   builder: (_) => TakeoverDialog(lineId: lineId),
 /// );
 /// ```
 class TakeoverDialog extends StatefulWidget {
-  final int lineNumber;
+  /// Backend `lineId` of the rendered line the takeover belongs to.
+  final int lineId;
 
-  const TakeoverDialog({super.key, required this.lineNumber});
+  const TakeoverDialog({super.key, required this.lineId});
 
   @override
   State<TakeoverDialog> createState() => _TakeoverDialogState();
@@ -44,7 +45,7 @@ class _TakeoverDialogState extends State<TakeoverDialog> {
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<PalletizingProvider>();
-    final takeover = provider.getTakeover(widget.lineNumber);
+    final takeover = provider.getTakeover(widget.lineId);
     final status = takeover?.status ?? TakeoverStatus.unknown;
 
     // The takeover ended (rejected / completed / cancelled / cleared) while the
@@ -93,7 +94,7 @@ class _TakeoverDialogState extends State<TakeoverDialog> {
               ),
               const SizedBox(height: 4),
               Text(
-                'ماكنة ${widget.lineNumber}',
+                provider.lineLabel(widget.lineId),
                 textAlign: TextAlign.center,
                 style: GoogleFonts.cairo(
                   fontSize: 15,
@@ -131,7 +132,7 @@ class _TakeoverDialogState extends State<TakeoverDialog> {
               ),
               const SizedBox(height: 16),
               TakeoverCountdown(
-                lineNumber: widget.lineNumber,
+                lineId: widget.lineId,
                 color: _amberDark,
                 handover: isAccepted,
               ),
@@ -144,7 +145,7 @@ class _TakeoverDialogState extends State<TakeoverDialog> {
               child: ElevatedButton(
                 onPressed: () {
                   context.read<PalletizingProvider>().acknowledgeTakeover(
-                    widget.lineNumber,
+                    widget.lineId,
                   );
                   _close();
                 },

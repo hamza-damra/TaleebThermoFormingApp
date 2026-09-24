@@ -14,7 +14,7 @@ import '../providers/palletizing_provider.dart';
 /// zero the widget triggers a single line-state refetch so the backend — not
 /// the app — decides the timeout outcome.
 class TakeoverCountdown extends StatefulWidget {
-  final int lineNumber;
+  final int lineId;
 
   /// `false` → the 10-min PENDING window; `true` → the 5-min post-ACCEPT
   /// handover window.
@@ -24,7 +24,7 @@ class TakeoverCountdown extends StatefulWidget {
 
   const TakeoverCountdown({
     super.key,
-    required this.lineNumber,
+    required this.lineId,
     required this.color,
     this.handover = false,
   });
@@ -54,7 +54,7 @@ class _TakeoverCountdownState extends State<TakeoverCountdown> {
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<PalletizingProvider>();
-    final takeover = provider.getTakeover(widget.lineNumber);
+    final takeover = provider.getTakeover(widget.lineId);
 
     final remaining = takeover == null
         ? null
@@ -75,9 +75,7 @@ class _TakeoverCountdownState extends State<TakeoverCountdown> {
         _ticker?.cancel();
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (mounted) {
-            context.read<PalletizingProvider>().refreshLineState(
-              widget.lineNumber,
-            );
+            context.read<PalletizingProvider>().refreshLineState(widget.lineId);
           }
         });
       }

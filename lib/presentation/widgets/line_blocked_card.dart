@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 
 import '../../core/constants.dart';
 import '../../core/responsive.dart';
+import '../../domain/entities/palletizing_line.dart';
 import '../providers/palletizing_provider.dart';
 
 /// Overlay for [LineUiState.blocked] — a line with an active operator that the
@@ -21,7 +22,7 @@ import '../providers/palletizing_provider.dart';
 /// "الخط محظور حالياً" surface that maps known `blockedReason` values to
 /// localized Arabic copy and exposes a manual refresh.
 class LineBlockedCard extends StatefulWidget {
-  final ProductionLine line;
+  final PalletizingLine line;
 
   const LineBlockedCard({super.key, required this.line});
 
@@ -36,7 +37,7 @@ class _LineBlockedCardState extends State<LineBlockedCard> {
     if (_isRefreshing) return;
     setState(() => _isRefreshing = true);
     await context.read<PalletizingProvider>().refreshLineState(
-      widget.line.number,
+      widget.line.lineId,
     );
     if (mounted) setState(() => _isRefreshing = false);
   }
@@ -67,7 +68,7 @@ class _LineBlockedCardState extends State<LineBlockedCard> {
   Widget build(BuildContext context) {
     final isMobile = ResponsiveHelper.isMobile(context);
     final provider = context.watch<PalletizingProvider>();
-    final reason = provider.getBlockedReason(widget.line.number);
+    final reason = provider.getBlockedReason(widget.line.lineId);
     final body = _localizedReason(reason);
 
     return PopScope(
@@ -145,7 +146,7 @@ class _LineBlockedCardState extends State<LineBlockedCard> {
             ),
             const SizedBox(height: 4),
             Text(
-              'ماكنة ${widget.line.number}',
+              widget.line.label,
               textAlign: TextAlign.center,
               style: GoogleFonts.cairo(
                 fontSize: isMobile ? 15 : 17,
@@ -190,9 +191,7 @@ class _LineBlockedCardState extends State<LineBlockedCard> {
                 style: OutlinedButton.styleFrom(
                   foregroundColor: widget.line.color,
                   side: BorderSide(color: widget.line.color, width: 1.5),
-                  padding: EdgeInsets.symmetric(
-                    vertical: isMobile ? 14 : 18,
-                  ),
+                  padding: EdgeInsets.symmetric(vertical: isMobile ? 14 : 18),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(14),
                   ),
@@ -206,10 +205,7 @@ class _LineBlockedCardState extends State<LineBlockedCard> {
                           strokeWidth: 2.5,
                         ),
                       )
-                    : Icon(
-                        Icons.refresh_rounded,
-                        size: isMobile ? 20 : 24,
-                      ),
+                    : Icon(Icons.refresh_rounded, size: isMobile ? 20 : 24),
                 label: Text(
                   'تحديث',
                   style: GoogleFonts.cairo(

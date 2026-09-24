@@ -25,10 +25,11 @@ import 'package:taleeb_thermoforming/domain/entities/operator.dart';
 import 'package:taleeb_thermoforming/domain/entities/pallet_create_response.dart';
 import 'package:taleeb_thermoforming/domain/entities/palletizer_auth_result.dart';
 import 'package:taleeb_thermoforming/domain/entities/palletizer_session.dart';
+import 'package:taleeb_thermoforming/domain/entities/plan_item_close_request.dart';
 import 'package:taleeb_thermoforming/domain/entities/print_attempt_result.dart';
-import 'package:taleeb_thermoforming/domain/entities/production_line.dart';
 import 'package:taleeb_thermoforming/domain/entities/session_production_detail.dart';
 import 'package:taleeb_thermoforming/domain/entities/manager_announcement.dart';
+import 'package:taleeb_thermoforming/domain/entities/pallet_label.dart';
 import 'package:taleeb_thermoforming/domain/repositories/palletizing_repository.dart';
 import 'package:taleeb_thermoforming/presentation/providers/palletizing_provider.dart';
 
@@ -79,9 +80,11 @@ class _FakeRepo implements PalletizingRepository {
     required int lineId,
     required int productTypeId,
     required int quantity,
+    required int expectedPlanItemId,
     bool confirmOverproduction = false,
     int? firstPalletFaletExpectedQuantity,
     int? firstPalletFaletId,
+    String? grindingRecommendationReason,
   }) => throw UnimplementedError();
 
   @override
@@ -124,6 +127,30 @@ class _FakeRepo implements PalletizingRepository {
     required int lineId,
   }) =>
       throw UnimplementedError();
+
+  @override
+  Future<PalletLabel> fetchPalletLabel(String scannedValue) =>
+      throw UnimplementedError();
+
+  @override
+  Future<PlanItemCloseRequest?> getActivePlanItemCloseRequest({
+    required int lineId,
+    required String sessionToken,
+  }) async => null;
+
+  @override
+  Future<PlanItemCloseRequest> reportMorePalletsRemain({
+    required int lineId,
+    required int closeRequestId,
+    required String sessionToken,
+  }) => throw UnimplementedError();
+
+  @override
+  Future<PlanItemCloseRequest> confirmAllPalletsRegistered({
+    required int lineId,
+    required int closeRequestId,
+    required String sessionToken,
+  }) => throw UnimplementedError();
 }
 
 class _FakeAuthStorage extends AuthLocalStorage {
@@ -160,11 +187,6 @@ class _FakeNotifications extends TakeoverNotificationService {
 
 const _lineIdFor = {1: 101, 2: 102};
 
-final _productionLines = [
-  const ProductionLine(id: 101, name: 'L1', code: 'L1', lineNumber: 1),
-  const ProductionLine(id: 102, name: 'L2', code: 'L2', lineNumber: 2),
-];
-
 /// Builds a line state. [withOperator] controls whether an `authorization`
 /// object exists — i.e. exactly what makes LineContextStrip show the operator
 /// name vs. "غير متوفر". The `waitingForOperator*` params drive the V81+
@@ -199,11 +221,8 @@ BootstrapLineState _line(
   );
 }
 
-BootstrapResponse _bootstrap(List<BootstrapLineState> lines) => BootstrapResponse(
-  productTypes: const [],
-  productionLines: _productionLines,
-  lines: lines,
-);
+BootstrapResponse _bootstrap(List<BootstrapLineState> lines) =>
+    BootstrapResponse(productTypes: const [], lines: lines);
 
 PalletizerSession _activeSession(int lineId) => PalletizerSession(
   sessionId: lineId,
@@ -256,12 +275,12 @@ void main() {
 
         // Before the fix this was LineUiState.blocked → no overlay.
         expect(
-          t.provider.getUiState(1),
+          t.provider.getUiState(101),
           LineUiState.waitingForThermoforming,
           reason: 'no operator must win over blockedReason',
         );
         // Pallet creation stays blocked while there is no operator.
-        expect(t.provider.isPalletCreationBlocked(1), isTrue);
+        expect(t.provider.isPalletCreationBlocked(101), isTrue);
       },
     );
 
@@ -275,7 +294,7 @@ void main() {
 
       await t.provider.loadBootstrap();
 
-      expect(t.provider.getUiState(1), LineUiState.waitingForThermoforming);
+      expect(t.provider.getUiState(101), LineUiState.waitingForThermoforming);
     });
 
     test(
@@ -291,7 +310,7 @@ void main() {
 
         await t.provider.loadBootstrap();
 
-        expect(t.provider.getUiState(1), LineUiState.waitingForThermoforming);
+        expect(t.provider.getUiState(101), LineUiState.waitingForThermoforming);
       },
     );
 
@@ -308,7 +327,7 @@ void main() {
 
         await t.provider.loadBootstrap();
 
-        expect(t.provider.getUiState(1), LineUiState.blocked);
+        expect(t.provider.getUiState(101), LineUiState.blocked);
       },
     );
 
@@ -330,7 +349,7 @@ void main() {
         await t.provider.loadBootstrap();
 
         expect(
-          t.provider.getUiState(1),
+          t.provider.getUiState(101),
           LineUiState.pendingHandoverIncoming,
         );
       },
@@ -344,7 +363,7 @@ void main() {
 
       await t.provider.loadBootstrap();
 
-      expect(t.provider.getUiState(1), LineUiState.active);
+      expect(t.provider.getUiState(101), LineUiState.active);
     });
   });
 
@@ -375,14 +394,14 @@ void main() {
       t.repo.bootstrapFn = () => _bootstrap([_line(1), _line(2)]);
       t.repo.sessionFn = (lineId) => _activeSession(lineId);
       await t.provider.loadBootstrap();
-      expect(t.provider.getUiState(1), LineUiState.active);
+      expect(t.provider.getUiState(101), LineUiState.active);
 
       // The next poll round fails outright (network down).
       t.repo.lineStateFn = (_) => throw ApiException.network();
       await t.provider.pollLineMonitoring();
 
       // The last good state is preserved — the overlay must not appear.
-      expect(t.provider.getUiState(1), LineUiState.active);
+      expect(t.provider.getUiState(101), LineUiState.active);
     });
   });
 
@@ -401,14 +420,14 @@ void main() {
       ]);
       t.repo.sessionFn = (lineId) => _activeSession(lineId);
       await t.provider.loadBootstrap();
-      expect(t.provider.getUiState(1), LineUiState.waitingForThermoforming);
+      expect(t.provider.getUiState(101), LineUiState.waitingForThermoforming);
 
       // The Thermoforming Operator claims the line; a refresh picks it up.
       t.repo.lineStateFn = (lineId) => _line(lineId == 101 ? 1 : 2);
-      await t.provider.refreshLineState(1);
+      await t.provider.refreshLineState(101);
 
-      expect(t.provider.getUiState(1), LineUiState.active);
-      expect(t.provider.isPalletCreationBlocked(1), isFalse);
+      expect(t.provider.getUiState(101), LineUiState.active);
+      expect(t.provider.isPalletCreationBlocked(101), isFalse);
     });
   });
 
@@ -446,13 +465,13 @@ void main() {
 
         await t.provider.loadBootstrap();
 
-        expect(t.provider.isWaitingForOperator(1), isTrue);
+        expect(t.provider.isWaitingForOperator(101), isTrue);
         expect(
-          t.provider.getUiState(1),
+          t.provider.getUiState(101),
           LineUiState.waitingForThermoforming,
           reason: 'backend waitingForOperator flag must drive the overlay',
         );
-        expect(t.provider.isPalletCreationBlocked(1), isTrue);
+        expect(t.provider.isPalletCreationBlocked(101), isTrue);
       },
     );
 
@@ -478,11 +497,11 @@ void main() {
         await t.provider.loadBootstrap();
 
         expect(
-          t.provider.getWaitingForOperatorTitle(1),
+          t.provider.getWaitingForOperatorTitle(101),
           'بانتظار استلام الخط',
         );
         expect(
-          t.provider.getWaitingForOperatorMessage(1),
+          t.provider.getWaitingForOperatorMessage(101),
           startsWith('تم إنهاء مناوبة'),
         );
       },
@@ -510,13 +529,13 @@ void main() {
 
         await t.provider.loadBootstrap();
 
-        expect(t.provider.getWaitingForOperatorTitle(1), isNull);
-        expect(t.provider.getWaitingForOperatorMessage(1), isNull);
-        expect(t.provider.getWaitingForOperatorTitle(2), isNull);
-        expect(t.provider.getWaitingForOperatorMessage(2), isNull);
+        expect(t.provider.getWaitingForOperatorTitle(101), isNull);
+        expect(t.provider.getWaitingForOperatorMessage(101), isNull);
+        expect(t.provider.getWaitingForOperatorTitle(102), isNull);
+        expect(t.provider.getWaitingForOperatorMessage(102), isNull);
         // The existing derived clauses still route both lines to the overlay.
-        expect(t.provider.getUiState(1), LineUiState.waitingForThermoforming);
-        expect(t.provider.getUiState(2), LineUiState.waitingForThermoforming);
+        expect(t.provider.getUiState(101), LineUiState.waitingForThermoforming);
+        expect(t.provider.getUiState(102), LineUiState.waitingForThermoforming);
       },
     );
 
@@ -530,7 +549,7 @@ void main() {
 
         await t.provider.loadBootstrap();
 
-        expect(t.provider.isWaitingForOperator(1), isFalse);
+        expect(t.provider.isWaitingForOperator(101), isFalse);
       },
     );
   });

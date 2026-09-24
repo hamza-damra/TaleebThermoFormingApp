@@ -5,21 +5,27 @@ import 'package:provider/provider.dart';
 import '../../core/constants.dart';
 import '../../core/responsive.dart';
 import '../../domain/entities/falet_item.dart';
-import '../../domain/entities/product_type.dart';
+import '../../domain/entities/palletizing_line.dart';
 import '../providers/palletizing_provider.dart';
+import 'line_scoped_route.dart';
 
 class FaletScreen extends StatefulWidget {
-  final ProductionLine line;
+  final PalletizingLine line;
 
   const FaletScreen({super.key, required this.line});
 
   static Future<void> show({
     required BuildContext context,
-    required ProductionLine line,
+    required PalletizingLine line,
   }) {
-    return Navigator.of(
-      context,
-    ).push(MaterialPageRoute(builder: (_) => FaletScreen(line: line)));
+    return Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => LineScopedRoute(
+          lineId: line.lineId,
+          child: FaletScreen(line: line),
+        ),
+      ),
+    );
   }
 
   @override
@@ -31,7 +37,7 @@ class _FaletScreenState extends State<FaletScreen> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<PalletizingProvider>().fetchFaletItems(widget.line.number);
+      context.read<PalletizingProvider>().fetchFaletItems(widget.line.lineId);
     });
   }
 
@@ -39,8 +45,8 @@ class _FaletScreenState extends State<FaletScreen> {
   Widget build(BuildContext context) {
     final provider = context.watch<PalletizingProvider>();
     final isMobile = ResponsiveHelper.isMobile(context);
-    final isLoading = provider.isFaletItemsLoading(widget.line.number);
-    final faletResponse = provider.getFaletItems(widget.line.number);
+    final isLoading = provider.isFaletItemsLoading(widget.line.lineId);
+    final faletResponse = provider.getFaletItems(widget.line.lineId);
 
     return Scaffold(
       appBar: AppBar(
@@ -60,7 +66,7 @@ class _FaletScreenState extends State<FaletScreen> {
       body: isLoading && faletResponse == null
           ? const Center(child: CircularProgressIndicator())
           : RefreshIndicator(
-              onRefresh: () => provider.fetchFaletItems(widget.line.number),
+              onRefresh: () => provider.fetchFaletItems(widget.line.lineId),
               child: _buildBody(context, faletResponse, isMobile),
             ),
     );
@@ -258,6 +264,12 @@ class _FaletScreenState extends State<FaletScreen> {
     );
   }
 
+  String _productName(BuildContext context, FaletItem item) =>
+      context.watch<PalletizingProvider>().productDisplayName(
+        productTypeId: item.productTypeId,
+        backendName: item.productTypeName,
+      );
+
   Widget _buildFaletCard(BuildContext context, FaletItem item, bool isMobile) {
     if (item.managerResolved) {
       return _buildManagerResolvedCard(context, item, isMobile);
@@ -355,7 +367,7 @@ class _FaletScreenState extends State<FaletScreen> {
 
                 // Product name
                 Text(
-                  ProductType.formatCompactName(item.productTypeName),
+                  _productName(context, item),
                   style: GoogleFonts.cairo(
                     fontSize: isMobile ? 16 : 18,
                     fontWeight: FontWeight.bold,
@@ -410,7 +422,6 @@ class _FaletScreenState extends State<FaletScreen> {
                     isMobile: isMobile,
                   ),
                 ],
-
               ],
             ),
           ),
@@ -443,7 +454,7 @@ class _FaletScreenState extends State<FaletScreen> {
           children: [
             // Product name
             Text(
-              ProductType.formatCompactName(item.productTypeName),
+              _productName(context, item),
               style: GoogleFonts.cairo(
                 fontSize: isMobile ? 16 : 18,
                 fontWeight: FontWeight.bold,
@@ -630,5 +641,4 @@ class _FaletScreenState extends State<FaletScreen> {
       ),
     );
   }
-
 }

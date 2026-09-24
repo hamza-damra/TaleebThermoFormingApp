@@ -1,25 +1,27 @@
 import 'operator.dart';
 import 'product_type.dart';
-import 'production_line.dart';
 import 'session_table_row.dart';
 import 'takeover_request.dart';
 
 class BootstrapResponse {
   final List<ProductType> productTypes;
-  final List<ProductionLine> productionLines;
+
+  /// Every **active** palletizing line, in server order (`line_number`
+  /// ascending). The list itself is the active signal — there is no separate
+  /// line catalog and no `active` flag.
   final List<BootstrapLineState> lines;
 
-  const BootstrapResponse({
-    required this.productTypes,
-    required this.productionLines,
-    required this.lines,
-  });
+  const BootstrapResponse({required this.productTypes, required this.lines});
 }
 
 class BootstrapLineState {
   final int lineId;
   final int lineNumber;
   final String lineName;
+
+  /// Label source #1 (`LineStateResponse.lineDisplayName`); `null` when the
+  /// backend omits it. See `PalletizingLine.resolveLabel`.
+  final String? lineDisplayName;
   final bool isAuthorized;
   final Operator? authorizedOperator;
   final DateTime? authorizedAt;
@@ -99,6 +101,7 @@ class BootstrapLineState {
     required this.lineId,
     required this.lineNumber,
     required this.lineName,
+    this.lineDisplayName,
     this.isAuthorized = false,
     this.authorizedOperator,
     this.authorizedAt,

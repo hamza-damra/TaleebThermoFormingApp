@@ -1,4 +1,5 @@
 import '../entities/bootstrap_response.dart';
+import '../entities/pallet_label.dart';
 import '../entities/falet_exists_response.dart';
 import '../entities/falet_response.dart';
 import '../entities/first_pallet_context.dart';
@@ -6,6 +7,7 @@ import '../entities/manager_announcement.dart';
 import '../entities/pallet_create_response.dart';
 import '../entities/palletizer_auth_result.dart';
 import '../entities/palletizer_session.dart';
+import '../entities/plan_item_close_request.dart';
 import '../entities/print_attempt_result.dart';
 import '../entities/session_production_detail.dart';
 
@@ -32,19 +34,30 @@ abstract class PalletizingRepository {
   /// `PRODUCTION_PLAN_TARGET_EXCEEDED_CONFIRMATION_REQUIRED` and the operator
   /// confirmed the warning dialog.
   ///
+  /// [expectedPlanItemId] (V190, mandatory) is the line's `currentPlanItemId`
+  /// the worker saw. A mismatch returns `PRODUCTION_PLAN_CURRENT_ITEM_CHANGED`
+  /// with nothing created — callers must never auto-retry with a new id.
+  ///
   /// When [firstPalletFaletExpectedQuantity] is non-null, the backend deducts
   /// exactly that quantity from the matching open FALET row in the same
   /// transaction as pallet creation and surfaces a `faletConsumption` block
   /// on the response. Optional [firstPalletFaletId] binds the consumption to
   /// a specific FALET row; null means "the matching open FALET for this
   /// product on this line".
+  ///
+  /// When [grindingRecommendationReason] is non-null the request carries
+  /// `grindingRecommendation: {reason}`: the backend creates the pallet and,
+  /// in the same transaction, a grinding order awaiting the plant manager's
+  /// approval (response `grindingOrder`). Null = a normal pallet.
   Future<PalletCreateResponse> createLinePallet({
     required int lineId,
     required int productTypeId,
     required int quantity,
+    required int expectedPlanItemId,
     bool confirmOverproduction = false,
     int? firstPalletFaletExpectedQuantity,
     int? firstPalletFaletId,
+    String? grindingRecommendationReason,
   });
 
   /// POST /palletizing-line/lines/{lineId}/pallets/{palletId}/print-attempts
@@ -85,6 +98,42 @@ abstract class PalletizingRepository {
   /// GET /palletizing-line/lines/{lineId}/falet/exists
   Future<FaletExistsResponse> checkFaletExists(int lineId);
 
+  // ── Plan-item close handshake (V190) ──
+  // All three calls send the palletizer's PIN-issued session token in the
+  // `X-Palletizer-Session-Token` header; the backend takes the confirming
+  // palletizer's identity from that session only. 401/403
+  // `PALLETIZER_SESSION_REQUIRED` means the token is missing, ended, or
+  // belongs to another line.
+
+  /// GET /palletizing-line/lines/{lineId}/plan-item-close-request
+  ///
+  /// The authoritative "is an item close waiting on this line?" read. Returns
+  /// `null` when there is no active request.
+  Future<PlanItemCloseRequest?> getActivePlanItemCloseRequest({
+    required int lineId,
+    required String sessionToken,
+  });
+
+  /// POST /palletizing-line/lines/{lineId}/plan-item-close-requests/{closeRequestId}/more-pallets-remain
+  ///
+  /// "لا، بقيت طبليات للتسجيل". No body. Idempotent — a retry returns
+  /// `alreadyProcessed: true`.
+  Future<PlanItemCloseRequest> reportMorePalletsRemain({
+    required int lineId,
+    required int closeRequestId,
+    required String sessionToken,
+  });
+
+  /// POST /palletizing-line/lines/{lineId}/plan-item-close-requests/{closeRequestId}/confirm-all-pallets-registered
+  ///
+  /// "نعم، تم تسجيل جميع الطبليات". No body. Closes the item exactly once; a
+  /// retry by the same session returns `alreadyProcessed: true`.
+  Future<PlanItemCloseRequest> confirmAllPalletsRegistered({
+    required int lineId,
+    required int closeRequestId,
+    required String sessionToken,
+  });
+
   // ── Sanitized urgent manager announcements ──
 
   /// GET /palletizing-line/urgent-announcements/pending?lineId={lineId}
@@ -103,4 +152,15 @@ abstract class PalletizingRepository {
     required int announcementId,
     required int lineId,
   });
+
+  // ── Pallet label reprint (unscoped — any shift / any line) ──
+
+  /// GET /palletizing-line/pallets/{scannedValue}/label
+  ///
+  /// Resolves any pallet by its printed 12-digit number and returns the label
+  /// payload for reprinting. Not scoped to a line, session, or shift.
+  /// Throws ApiException with code `PALLET_LABEL_REPRINT_NOT_AVAILABLE` (409)
+  /// when the pallet is cancelled, and `PALLET_BLOCKED_BY_GRINDING` (409) when
+  /// its grinding started or finished.
+  Future<PalletLabel> fetchPalletLabel(String scannedValue);
 }

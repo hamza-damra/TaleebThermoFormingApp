@@ -1,53 +1,63 @@
+import 'dart:typed_data';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:taleeb_thermoforming/domain/entities/label_preset.dart';
+import 'package:taleeb_thermoforming/domain/entities/pallet_label_content.dart';
 import 'package:taleeb_thermoforming/printing/label_renderer.dart';
+import 'package:taleeb_thermoforming/printing/tspl_builder.dart';
+import 'package:taleeb_thermoforming/printing/zpl_builder.dart';
 
 void main() {
   // ── Label content mapping ──
 
-  group('Label content — productName / description / sequence / sides', () {
-    test('topText includes sequence when present', () {
-      const productName = 'TL-7 B250 Black';
-      const int seq = 3;
-      final topText = '$productName ($seq)';
-      expect(topText, 'TL-7 B250 Black (3)');
+  group('Typed pallet label content', () {
+    test('product text includes sequence when present', () {
+      const content = PalletLabelContent(
+        palletId: 15,
+        qrValue: '037000000015',
+        productDisplayName: 'TL-7 B250 Black',
+        actualQuantity: 200,
+        packageUnitDisplayName: 'كيس',
+        lineDisplay: 'A',
+        sessionProductSequence: 3,
+      );
+      expect(content.productText, 'TL-7 B250 Black (3)');
     });
 
-    test('topText omits parentheses when sequence is null', () {
-      const productName = 'TL-7 B250 Black';
-      const int? seq = null;
-      final topText = seq != null ? '$productName ($seq)' : productName;
-      expect(topText, productName);
+    test('product text omits sequence parentheses when sequence is null', () {
+      const content = PalletLabelContent(
+        palletId: 15,
+        qrValue: '037000000015',
+        productDisplayName: 'TL-7 B250 Black',
+        actualQuantity: 200,
+        packageUnitDisplayName: 'كيس',
+        lineDisplay: 'A',
+      );
+      expect(content.productText, 'TL-7 B250 Black');
     });
 
-    test('bottomText uses description when present', () {
-      const description = 'Plate 250 Black';
-      const name = 'TL-7 B250 Black / أسود / 500 كرتونة';
-      final bottomText = (description.isNotEmpty) ? description : name;
-      expect(bottomText, description);
+    test('bottom text explicitly identifies actual quantity and unit', () {
+      const content = PalletLabelContent(
+        palletId: 15,
+        qrValue: '037000000015',
+        productDisplayName: 'TL-7 B250 Black',
+        actualQuantity: 200,
+        packageUnitDisplayName: 'كيس',
+        lineDisplay: 'A',
+      );
+      expect(content.actualQuantityText, 'عدد العبوات: 200 كيس');
     });
 
-    test('bottomText falls back to name when description is empty', () {
-      const description = '';
-      const name = 'TL-7 B250 Black / أسود / 500 كرتونة';
-      final bottomText = (description.isNotEmpty) ? description : name;
-      expect(bottomText, name);
-    });
-
-    test('sideText is scannedValue + lineLetter', () {
-      const scannedValue = '037000000015';
-      const lineNumber = 1;
-      final lineLetter = lineNumber == 1 ? 'A' : 'B';
-      final sideText = '$scannedValue ($lineLetter)';
-      expect(sideText, '037000000015 (A)');
-    });
-
-    test('sideText for line 2 uses B', () {
-      const scannedValue = '037000000015';
-      const lineNumber = 2;
-      final lineLetter = lineNumber == 1 ? 'A' : 'B';
-      final sideText = '$scannedValue ($lineLetter)';
-      expect(sideText, '037000000015 (B)');
+    test('side text retains pallet QR value and line display', () {
+      const content = PalletLabelContent(
+        palletId: 15,
+        qrValue: '037000000015',
+        productDisplayName: 'TL-7 B250 Black',
+        actualQuantity: 200,
+        packageUnitDisplayName: 'كيس',
+        lineDisplay: 'B',
+      );
+      expect(content.sideText, '037000000015 (B)');
     });
   });
 
@@ -56,7 +66,11 @@ void main() {
   group('LabelLayout — 4-side text zone calculations', () {
     test('hasText=false produces no text fields and full QR area', () {
       const preset = LabelPreset(
-        id: 'test', name: 'test', widthMm: 50, heightMm: 30, marginMm: 2,
+        id: 'test',
+        name: 'test',
+        widthMm: 50,
+        heightMm: 30,
+        marginMm: 2,
       );
       final layout = LabelLayout.fromPreset(preset, hasText: false);
 
@@ -69,7 +83,11 @@ void main() {
 
     test('hasText=true produces 4-side layout fields', () {
       const preset = LabelPreset(
-        id: 'test', name: 'test', widthMm: 50, heightMm: 30, marginMm: 2,
+        id: 'test',
+        name: 'test',
+        widthMm: 50,
+        heightMm: 30,
+        marginMm: 2,
       );
       final layout = LabelLayout.fromPreset(preset, hasText: true);
 
@@ -84,13 +102,18 @@ void main() {
 
     test('QR size shrinks when text is present', () {
       const preset = LabelPreset(
-        id: 'test', name: 'test', widthMm: 50, heightMm: 30, marginMm: 2,
+        id: 'test',
+        name: 'test',
+        widthMm: 50,
+        heightMm: 30,
+        marginMm: 2,
       );
       final noText = LabelLayout.fromPreset(preset, hasText: false);
       final withText = LabelLayout.fromPreset(preset, hasText: true);
 
       expect(
-        withText.qrSize, lessThan(noText.qrSize),
+        withText.qrSize,
+        lessThan(noText.qrSize),
         reason: 'QR must shrink to make room for 4-side text bands',
       );
     });
@@ -102,11 +125,13 @@ void main() {
         final qrBottom = layout.qrY + layout.qrSize;
 
         expect(
-          layout.qrY, greaterThanOrEqualTo(topTextBottom),
+          layout.qrY,
+          greaterThanOrEqualTo(topTextBottom),
           reason: 'QR top must be below top text for ${preset.name}',
         );
         expect(
-          layout.bottomTextY, greaterThanOrEqualTo(qrBottom),
+          layout.bottomTextY,
+          greaterThanOrEqualTo(qrBottom),
           reason: 'Bottom text must be below QR for ${preset.name}',
         );
       }
@@ -117,38 +142,56 @@ void main() {
         final layout = LabelLayout.fromPreset(preset, hasText: true);
 
         expect(
-          layout.qrX, greaterThanOrEqualTo(layout.marginDots + layout.sideBandWidth),
+          layout.qrX,
+          greaterThanOrEqualTo(layout.marginDots + layout.sideBandWidth),
           reason: 'QR left must be past left side band for ${preset.name}',
         );
         final qrRight = layout.qrX + layout.qrSize;
-        final rightBandStart = layout.widthDots - layout.marginDots - layout.sideBandWidth;
+        final rightBandStart =
+            layout.widthDots - layout.marginDots - layout.sideBandWidth;
         expect(
-          qrRight, lessThanOrEqualTo(rightBandStart),
-          reason: 'QR right must not overlap right side band for ${preset.name}',
+          qrRight,
+          lessThanOrEqualTo(rightBandStart),
+          reason:
+              'QR right must not overlap right side band for ${preset.name}',
         );
       }
     });
 
     test('no center text — QR center area is reserved only for QR', () {
       const preset = LabelPreset(
-        id: 'test', name: 'test', widthMm: 50, heightMm: 30, marginMm: 2,
+        id: 'test',
+        name: 'test',
+        widthMm: 50,
+        heightMm: 30,
+        marginMm: 2,
       );
       final layout = LabelLayout.fromPreset(preset, hasText: true);
 
       // Text bands are strictly outside the QR zone
-      expect(layout.topTextY + layout.mainFontHeight, lessThanOrEqualTo(layout.sideBandTop));
+      expect(
+        layout.topTextY + layout.mainFontHeight,
+        lessThanOrEqualTo(layout.sideBandTop),
+      );
       expect(layout.bottomTextY, greaterThanOrEqualTo(layout.sideBandBottom));
     });
 
-    test('pallet number is rendered larger (uses larger font than arial14)', () {
-      const preset = LabelPreset(
-        id: 'test', name: 'test', widthMm: 50, heightMm: 30, marginMm: 2,
-      );
-      final layout = LabelLayout.fromPreset(preset, hasText: true);
+    test(
+      'pallet number is rendered larger (uses larger font than arial14)',
+      () {
+        const preset = LabelPreset(
+          id: 'test',
+          name: 'test',
+          widthMm: 50,
+          heightMm: 30,
+          marginMm: 2,
+        );
+        final layout = LabelLayout.fromPreset(preset, hasText: true);
 
-      // mainFontHeight (arial24 or arial48) should be larger than arial14
-      expect(layout.mainFontHeight, greaterThan(14));
-    });
+        // mainFontHeight (arial24 or arial48) should be larger than arial14
+        expect(layout.mainFontHeight, greaterThan(14));
+      },
+    );
 
     test('text positions are within image bounds for all presets', () {
       for (final preset in DefaultPresets.all) {
@@ -167,15 +210,18 @@ void main() {
         expect(
           layout.qrSize,
           greaterThanOrEqualTo(minQrDots),
-          reason:
-              'QR must be at least $minQrDots dots for ${preset.name}',
+          reason: 'QR must be at least $minQrDots dots for ${preset.name}',
         );
       }
     });
 
     test('pallet number appears on all 4 sides (side bands allocated)', () {
       const preset = LabelPreset(
-        id: 'test', name: 'test', widthMm: 50, heightMm: 30, marginMm: 2,
+        id: 'test',
+        name: 'test',
+        widthMm: 50,
+        heightMm: 30,
+        marginMm: 2,
       );
       final layout = LabelLayout.fromPreset(preset, hasText: true);
 
@@ -192,35 +238,58 @@ void main() {
   // ── Bitmap rendering ──
 
   group('LabelRenderer — 4-side bitmap rendering', () {
-    test('render with topText/bottomText/sideText produces valid bitmap', () async {
+    test(
+      'render with topText/bottomText/sideText produces valid bitmap',
+      () async {
+        const preset = LabelPreset(
+          id: 'test',
+          name: 'test',
+          widthMm: 50,
+          heightMm: 30,
+          marginMm: 2,
+        );
+        final renderer = LabelRenderer();
+        final result = await renderer.render(
+          content: const PalletLabelContent(
+            palletId: 15,
+            qrValue: '037000000015',
+            productDisplayName: 'TL-7 B250 Black',
+            actualQuantity: 200,
+            packageUnitDisplayName: 'كيس',
+            lineDisplay: 'A',
+            sessionProductSequence: 3,
+          ),
+          preset: preset,
+        );
+
+        expect(result.monochromeBytes.isNotEmpty, true);
+        expect(result.widthBytes, greaterThan(0));
+        expect(result.height, greaterThan(0));
+        expect(
+          result.monochromeBytes.length,
+          equals(result.widthBytes * result.height),
+        );
+      },
+    );
+
+    test('render always includes typed pallet business content', () async {
       const preset = LabelPreset(
-        id: 'test', name: 'test', widthMm: 50, heightMm: 30, marginMm: 2,
+        id: 'test',
+        name: 'test',
+        widthMm: 50,
+        heightMm: 30,
+        marginMm: 2,
       );
       final renderer = LabelRenderer();
       final result = await renderer.render(
-        value: '0370000005',
-        preset: preset,
-        topText: 'TL-7 B250 Black (3)',
-        bottomText: 'Plate 250 Black',
-        sideText: '037000000015 (A)',
-      );
-
-      expect(result.monochromeBytes.isNotEmpty, true);
-      expect(result.widthBytes, greaterThan(0));
-      expect(result.height, greaterThan(0));
-      expect(
-        result.monochromeBytes.length,
-        equals(result.widthBytes * result.height),
-      );
-    });
-
-    test('render without text still works (QR only)', () async {
-      const preset = LabelPreset(
-        id: 'test', name: 'test', widthMm: 50, heightMm: 30, marginMm: 2,
-      );
-      final renderer = LabelRenderer();
-      final result = await renderer.render(
-        value: '0370000005',
+        content: const PalletLabelContent(
+          palletId: 5,
+          qrValue: '037000000005',
+          productDisplayName: 'Product',
+          actualQuantity: 1,
+          packageUnitDisplayName: null,
+          lineDisplay: 'A',
+        ),
         preset: preset,
       );
 
@@ -229,18 +298,32 @@ void main() {
 
     test('bitmap has black pixels in top text area', () async {
       const preset = LabelPreset(
-        id: 'test', name: 'test', widthMm: 50, heightMm: 30, marginMm: 2,
+        id: 'test',
+        name: 'test',
+        widthMm: 50,
+        heightMm: 30,
+        marginMm: 2,
       );
       final layout = LabelLayout.fromPreset(preset, hasText: true);
       final renderer = LabelRenderer();
       final result = await renderer.render(
-        value: '0370000005',
+        content: const PalletLabelContent(
+          palletId: 5,
+          qrValue: '037000000005',
+          productDisplayName: 'Product Name',
+          actualQuantity: 20,
+          packageUnitDisplayName: 'كيس',
+          lineDisplay: 'A',
+        ),
         preset: preset,
-        topText: 'Product Name',
       );
 
       bool found = false;
-      for (int row = layout.topTextY; row < layout.topTextY + layout.mainFontHeight && row < result.height; row++) {
+      for (
+        int row = layout.topTextY;
+        row < layout.topTextY + layout.mainFontHeight && row < result.height;
+        row++
+      ) {
         for (int x = 0; x < result.widthBytes; x++) {
           if (result.monochromeBytes[row * result.widthBytes + x] != 0xFF) {
             found = true;
@@ -254,18 +337,32 @@ void main() {
 
     test('bitmap has black pixels in bottom text area', () async {
       const preset = LabelPreset(
-        id: 'test', name: 'test', widthMm: 50, heightMm: 30, marginMm: 2,
+        id: 'test',
+        name: 'test',
+        widthMm: 50,
+        heightMm: 30,
+        marginMm: 2,
       );
       final layout = LabelLayout.fromPreset(preset, hasText: true);
       final renderer = LabelRenderer();
       final result = await renderer.render(
-        value: '0370000005',
+        content: const PalletLabelContent(
+          palletId: 5,
+          qrValue: '037000000005',
+          productDisplayName: 'Product',
+          actualQuantity: 200,
+          packageUnitDisplayName: 'كيس',
+          lineDisplay: 'A',
+        ),
         preset: preset,
-        bottomText: 'Product Description',
       );
 
       bool found = false;
-      for (int row = layout.bottomTextY; row < layout.bottomTextY + layout.mainFontHeight && row < result.height; row++) {
+      for (
+        int row = layout.bottomTextY;
+        row < layout.bottomTextY + layout.mainFontHeight && row < result.height;
+        row++
+      ) {
         for (int x = 0; x < result.widthBytes; x++) {
           if (result.monochromeBytes[row * result.widthBytes + x] != 0xFF) {
             found = true;
@@ -280,7 +377,11 @@ void main() {
     test('no black pixels in QR center area that are not QR', () async {
       // Render without text to get baseline QR area
       const preset = LabelPreset(
-        id: 'test', name: 'test', widthMm: 50, heightMm: 30, marginMm: 2,
+        id: 'test',
+        name: 'test',
+        widthMm: 50,
+        heightMm: 30,
+        marginMm: 2,
       );
       final layout = LabelLayout.fromPreset(preset, hasText: true);
 
@@ -294,39 +395,184 @@ void main() {
       final renderer = LabelRenderer();
       for (final preset in DefaultPresets.all) {
         final result = await renderer.render(
-          value: '0370000005',
+          content: const PalletLabelContent(
+            palletId: 15,
+            qrValue: '037000000015',
+            productDisplayName: 'TL-7 B250 Black',
+            actualQuantity: 1000,
+            packageUnitDisplayName: 'عبوة',
+            lineDisplay: 'A',
+            sessionProductSequence: 3,
+          ),
           preset: preset,
-          topText: 'TL-7 B250 Black (3)',
-          bottomText: 'Plate 250 Black',
-          sideText: '037000000015 (A)',
         );
-        expect(result.monochromeBytes.isNotEmpty, true,
-            reason: '${preset.name} should render');
+        expect(
+          result.monochromeBytes.isNotEmpty,
+          true,
+          reason: '${preset.name} should render',
+        );
       }
     });
+  });
+
+  // ── Printer command embedding (no business logic below the renderer) ──
+
+  group('TSPL / ZPL carry the rendered bitmap verbatim', () {
+    const preset = LabelPreset(
+      id: 'test',
+      name: 'test',
+      widthMm: 50,
+      heightMm: 30,
+      marginMm: 2,
+    );
+    const content = PalletLabelContent(
+      palletId: 15,
+      qrValue: '037000000015',
+      productDisplayName: 'TL-7 B250 Black',
+      actualQuantity: 200,
+      packageUnitDisplayName: 'كيس',
+      lineDisplay: 'A',
+    );
+
+    test('TSPL embeds the complete bitmap between its commands', () async {
+      final rendered = await LabelRenderer().render(
+        content: content,
+        preset: preset,
+      );
+      final data = TsplBuilder().createLabelPrint(
+        widthMm: preset.widthMm,
+        heightMm: preset.heightMm,
+        bitmapWidthBytes: rendered.widthBytes,
+        bitmapHeight: rendered.height,
+        bitmapData: rendered.monochromeBytes,
+        copies: 2,
+      );
+
+      final header = String.fromCharCodes(data);
+      final marker = 'BITMAP 0,0,${rendered.widthBytes},${rendered.height},0,';
+      expect(header, contains(marker));
+      expect(header.trimRight(), endsWith('PRINT 1,2'));
+
+      // The bitmap payload starts immediately after the BITMAP command and
+      // must reach the wire byte-for-byte as rendered.
+      final bitmapStart = header.indexOf(marker) + marker.length;
+      expect(
+        data.sublist(
+          bitmapStart,
+          bitmapStart + rendered.monochromeBytes.length,
+        ),
+        equals(rendered.monochromeBytes),
+        reason: 'TSPL must forward every rendered byte untouched',
+      );
+      expect(
+        data.length,
+        equals(
+          bitmapStart +
+              rendered.monochromeBytes.length +
+              'PRINT 1,2'.length +
+              2, // CR LF
+        ),
+        reason: 'nothing may be appended between the bitmap and PRINT',
+      );
+    });
+
+    test('ZPL embeds the complete bitmap as inverted hex', () async {
+      final rendered = await LabelRenderer().render(
+        content: content,
+        preset: preset,
+      );
+      final data = ZplBuilder().createLabelPrint(
+        widthMm: preset.widthMm,
+        heightMm: preset.heightMm,
+        bitmapWidthBytes: rendered.widthBytes,
+        bitmapHeight: rendered.height,
+        bitmapData: rendered.monochromeBytes,
+        copies: 3,
+      );
+
+      final text = String.fromCharCodes(data);
+      final total = rendered.widthBytes * rendered.height;
+      expect(text, startsWith('^XA'));
+      expect(text, contains('^GFA,$total,$total,${rendered.widthBytes},'));
+      expect(text, contains('^PQ3'));
+      expect(text, contains('^XZ'));
+
+      final expectedHex = rendered.monochromeBytes
+          .map(
+            (b) => (~b & 0xFF).toRadixString(16).toUpperCase().padLeft(2, '0'),
+          )
+          .join();
+      expect(
+        text,
+        contains(expectedHex),
+        reason: 'ZPL must carry the full rendered bitmap, polarity-inverted',
+      );
+    });
+
+    test(
+      'printer builders re-encode the label, they do not rebuild it',
+      () async {
+        // Two pallets differing only in actual quantity must reach the wire as
+        // different bytes — proof the command layer is a pure transport of the
+        // renderer output and holds no label business logic of its own.
+        final renderer = LabelRenderer();
+        PalletLabelContent forQuantity(int q) => PalletLabelContent(
+          palletId: 15,
+          qrValue: '037000000015',
+          productDisplayName: 'TL-7 B250 Black',
+          actualQuantity: q,
+          packageUnitDisplayName: 'كيس',
+          lineDisplay: 'A',
+        );
+
+        final a = await renderer.render(
+          content: forQuantity(200),
+          preset: preset,
+        );
+        final b = await renderer.render(
+          content: forQuantity(1000),
+          preset: preset,
+        );
+
+        Uint8List tspl(LabelRenderResult r) => TsplBuilder().createLabelPrint(
+          widthMm: preset.widthMm,
+          heightMm: preset.heightMm,
+          bitmapWidthBytes: r.widthBytes,
+          bitmapHeight: r.height,
+          bitmapData: r.monochromeBytes,
+        );
+        Uint8List zpl(LabelRenderResult r) => ZplBuilder().createLabelPrint(
+          widthMm: preset.widthMm,
+          heightMm: preset.heightMm,
+          bitmapWidthBytes: r.widthBytes,
+          bitmapHeight: r.height,
+          bitmapData: r.monochromeBytes,
+        );
+
+        expect(tspl(a), isNot(equals(tspl(b))));
+        expect(zpl(a), isNot(equals(zpl(b))));
+      },
+    );
   });
 
   // ── Auto-print behavior verification (unit-level) ──
 
   group('Auto-print flow contract', () {
-    test('print retry reuses stored topText/bottomText/sideText', () {
-      // Verify the contract: retryPrint reuses all stored label fields
-      const scannedValue = '037000000015';
-      const topText = 'TL-7 B250 Black (3)';
-      const bottomText = 'Plate 250 Black';
-      const sideText = '037000000015 (A)';
+    test('typed content retains all retry-critical fields', () {
+      const content = PalletLabelContent(
+        palletId: 15,
+        qrValue: '037000000015',
+        productDisplayName: 'TL-7 B250 Black',
+        actualQuantity: 200,
+        packageUnitDisplayName: 'كيس',
+        lineDisplay: 'A',
+        sessionProductSequence: 3,
+      );
 
-      // Simulate: first print stores values, retry reuses them
-      String? storedValue = scannedValue;
-      String? storedTop = topText;
-      String? storedBottom = bottomText;
-      String? storedSide = sideText;
-
-      // Retry uses stored values — no new pallet creation
-      expect(storedValue, scannedValue);
-      expect(storedTop, topText);
-      expect(storedBottom, bottomText);
-      expect(storedSide, sideText);
+      const storedContent = content;
+      expect(storedContent, content);
+      expect(storedContent.actualQuantity, 200);
+      expect(storedContent.actualQuantityText, 'عدد العبوات: 200 كيس');
     });
   });
 }

@@ -1,24 +1,19 @@
 import 'package:flutter/foundation.dart';
 
 import '../../domain/entities/bootstrap_response.dart';
-import '../../domain/entities/production_line.dart';
 import 'operator_model.dart';
 import 'product_type_model.dart';
-import 'production_line_model.dart';
 import 'session_table_row_model.dart';
 import 'takeover_request_model.dart';
 
 class BootstrapResponseModel extends BootstrapResponse {
   const BootstrapResponseModel({
     required super.productTypes,
-    required super.productionLines,
     required super.lines,
   });
 
   factory BootstrapResponseModel.fromJson(Map<String, dynamic> json) {
     final productTypesJson = json['productTypes'] as List<dynamic>? ?? const [];
-    final productionLinesJson =
-        json['productionLines'] as List<dynamic>? ?? const [];
     // Accept `lines` (current contract) OR `lineStates` (alternate name some
     // backend revisions ship under). Whichever is present and non-empty wins;
     // both falling through to `[]` produces an empty-state diagnostic upstream
@@ -29,6 +24,9 @@ class BootstrapResponseModel extends BootstrapResponse {
       if (alt != null && alt.isNotEmpty) linesJson = alt;
     }
 
+    // Server order is authoritative (line_number ascending, no tie-breaker) —
+    // never re-sort. The rendered line list is built directly from these
+    // entries; there is no `productionLines` catalog on this endpoint.
     final parsedLines = <BootstrapLineStateModel>[];
     for (final item in linesJson) {
       if (item is! Map<String, dynamic>) continue;
@@ -37,7 +35,7 @@ class BootstrapResponseModel extends BootstrapResponse {
       } catch (e) {
         // A single malformed line must not zero out the whole list — log it
         // (always-on so release-mode logcat catches it) and keep going so the
-        // other line still renders.
+        // other lines still render.
         debugPrint(
           '[Bootstrap PARSE ERROR] failed to parse line entry: $e :: '
           'keys=${item.keys.toList()}',
@@ -45,45 +43,31 @@ class BootstrapResponseModel extends BootstrapResponse {
       }
     }
 
-    final parsedProductionLines = productionLinesJson
-        .whereType<Map<String, dynamic>>()
-        .map(ProductionLineModel.fromJson)
-        .toList();
-
-    // Backfill `productionLines` from the parsed line states when the backend
-    // omits the dedicated catalog. `getLineIdForNumber` and the line-tab
-    // colors only need {id, name, lineNumber} — they were the silent
-    // dependency that caused "no lines available" to appear even when
-    // bootstrap actually contained line-state objects.
-    final List<ProductionLine> productionLines = parsedProductionLines.isNotEmpty
-        ? parsedProductionLines
-        : parsedLines
-            .map(
-              (l) => ProductionLine(
-                id: l.lineId,
-                name: l.lineName.isNotEmpty ? l.lineName : 'خط ${l.lineNumber}',
-                code: 'L${l.lineNumber}',
-                lineNumber: l.lineNumber,
-              ),
-            )
-            .toList();
-
     // Always-on summary + per-line breakdown — release tablets need this in
     // logcat to diagnose "no lines" / wrong-routing reports without rebuilding
     // a debug APK. Never logs the device key or operator names.
     debugPrint(
       '[Bootstrap PARSE] rawLines=${linesJson.length} '
       'parsedLines=${parsedLines.length} '
-      'productionLines=${productionLines.length} '
       'productTypes=${productTypesJson.length}',
     );
+    final seenNumbers = <int>{};
     for (final l in parsedLines) {
       debugPrint(
         '[Bootstrap PARSE] line id=${l.lineId} number=${l.lineNumber} '
-        'name="${l.lineName}" authorized=${l.isAuthorized} '
+        'name="${l.lineName}" displayName="${l.lineDisplayName ?? ""}" '
+        'authorized=${l.isAuthorized} '
         'blocked=${l.blocked} reason=${l.blockedReason ?? "null"} '
         'uiMode=${l.lineUiMode ?? "null"}',
       );
+      // line_number is not unique in the database. Keys stay correct (lineId),
+      // but the ordinal label fallback and print letter could collide.
+      if (!seenNumbers.add(l.lineNumber)) {
+        debugPrint(
+          '[Bootstrap PARSE WARNING] duplicate lineNumber=${l.lineNumber} '
+          '(lineId=${l.lineId}) — print letter / ordinal label may collide',
+        );
+      }
     }
 
     return BootstrapResponseModel(
@@ -91,7 +75,6 @@ class BootstrapResponseModel extends BootstrapResponse {
           .whereType<Map<String, dynamic>>()
           .map(ProductTypeModel.fromJson)
           .toList(),
-      productionLines: productionLines,
       lines: parsedLines,
     );
   }
@@ -102,6 +85,7 @@ class BootstrapLineStateModel extends BootstrapLineState {
     required super.lineId,
     required super.lineNumber,
     required super.lineName,
+    super.lineDisplayName,
     super.isAuthorized,
     super.authorizedOperator,
     super.authorizedAt,
@@ -166,6 +150,7 @@ class BootstrapLineStateModel extends BootstrapLineState {
       lineId: json['lineId'] as int,
       lineNumber: json['lineNumber'] as int,
       lineName: json['lineName'] as String? ?? '',
+      lineDisplayName: json['lineDisplayName'] as String?,
       isAuthorized: isAuthorized,
       authorizedOperator: authorizedOperator,
       authorizedAt: authorizedAt,
@@ -184,14 +169,12 @@ class BootstrapLineStateModel extends BootstrapLineState {
       currentPlanItemId: json['currentPlanItemId'] as int?,
       currentPlanItemProductTypeId:
           json['currentPlanItemProductTypeId'] as int?,
-      currentPlanItemProductName:
-          json['currentPlanItemProductName'] as String?,
+      currentPlanItemProductName: json['currentPlanItemProductName'] as String?,
       currentPlanItemPackagesPerPallet:
           json['currentPlanItemPackagesPerPallet'] as int?,
       defaultPackageQuantitySource:
           json['defaultPackageQuantitySource'] as String?,
-      productionPlanBlocked:
-          json['productionPlanBlocked'] as bool? ?? false,
+      productionPlanBlocked: json['productionPlanBlocked'] as bool? ?? false,
       productionPlanBlockedReason:
           json['productionPlanBlockedReason'] as String?,
       productionPlanBlockedMessage:
@@ -202,8 +185,7 @@ class BootstrapLineStateModel extends BootstrapLineState {
       waitingForOperatorReason: json['waitingForOperatorReason'] as String?,
       waitingForOperatorMessageTitle:
           json['waitingForOperatorMessageTitle'] as String?,
-      waitingForOperatorMessage:
-          json['waitingForOperatorMessage'] as String?,
+      waitingForOperatorMessage: json['waitingForOperatorMessage'] as String?,
       takeoverRequestStatus: json['takeoverRequestStatus'] as String?,
       pendingTakeoverRequest: pendingTakeoverJson != null
           ? TakeoverRequestModel.fromJson(pendingTakeoverJson)

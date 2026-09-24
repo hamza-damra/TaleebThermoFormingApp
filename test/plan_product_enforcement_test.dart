@@ -34,11 +34,13 @@ import 'package:taleeb_thermoforming/domain/entities/operator.dart';
 import 'package:taleeb_thermoforming/domain/entities/pallet_create_response.dart';
 import 'package:taleeb_thermoforming/domain/entities/palletizer_auth_result.dart';
 import 'package:taleeb_thermoforming/domain/entities/palletizer_session.dart';
+import 'package:taleeb_thermoforming/domain/entities/plan_item_close_request.dart';
 import 'package:taleeb_thermoforming/domain/entities/print_attempt_result.dart';
 import 'package:taleeb_thermoforming/domain/entities/product_type.dart';
 import 'package:taleeb_thermoforming/domain/entities/production_line.dart';
 import 'package:taleeb_thermoforming/domain/entities/session_production_detail.dart';
 import 'package:taleeb_thermoforming/domain/entities/manager_announcement.dart';
+import 'package:taleeb_thermoforming/domain/entities/pallet_label.dart';
 import 'package:taleeb_thermoforming/domain/repositories/palletizing_repository.dart';
 import 'package:taleeb_thermoforming/presentation/providers/palletizing_provider.dart';
 
@@ -51,11 +53,13 @@ class _CreateCall {
   final int productTypeId;
   final int quantity;
   final bool confirmOverproduction;
+  final int expectedPlanItemId;
   _CreateCall(
     this.lineId,
     this.productTypeId,
     this.quantity,
     this.confirmOverproduction,
+    this.expectedPlanItemId,
   );
 }
 
@@ -105,15 +109,18 @@ class _FakeRepo implements PalletizingRepository {
     required int lineId,
     required int productTypeId,
     required int quantity,
+    required int expectedPlanItemId,
     bool confirmOverproduction = false,
     int? firstPalletFaletExpectedQuantity,
     int? firstPalletFaletId,
+    String? grindingRecommendationReason,
   }) async {
     final call = _CreateCall(
       lineId,
       productTypeId,
       quantity,
       confirmOverproduction,
+      expectedPlanItemId,
     );
     createCalls.add(call);
     if (createResults.isEmpty) {
@@ -178,6 +185,30 @@ class _FakeRepo implements PalletizingRepository {
     required int lineId,
   }) =>
       throw UnimplementedError();
+
+  @override
+  Future<PalletLabel> fetchPalletLabel(String scannedValue) =>
+      throw UnimplementedError();
+
+  @override
+  Future<PlanItemCloseRequest?> getActivePlanItemCloseRequest({
+    required int lineId,
+    required String sessionToken,
+  }) async => null;
+
+  @override
+  Future<PlanItemCloseRequest> reportMorePalletsRemain({
+    required int lineId,
+    required int closeRequestId,
+    required String sessionToken,
+  }) => throw UnimplementedError();
+
+  @override
+  Future<PlanItemCloseRequest> confirmAllPalletsRegistered({
+    required int lineId,
+    required int closeRequestId,
+    required String sessionToken,
+  }) => throw UnimplementedError();
 }
 
 class _FakeAuthStorage extends AuthLocalStorage {
@@ -213,11 +244,6 @@ class _FakeNotifications extends TakeoverNotificationService {
 // ─────────────────────────────────────────────────────────────────────────
 
 const _lineIdFor = {1: 101, 2: 102};
-
-final _productionLines = [
-  const ProductionLine(id: 101, name: 'L1', code: 'L1', lineNumber: 1),
-  const ProductionLine(id: 102, name: 'L2', code: 'L2', lineNumber: 2),
-];
 
 ProductType _product({
   required int id,
@@ -275,11 +301,7 @@ BootstrapResponse _bootstrap(
   List<BootstrapLineState> lines, {
   List<ProductType> productTypes = const [],
 }) =>
-    BootstrapResponse(
-      productTypes: productTypes,
-      productionLines: _productionLines,
-      lines: lines,
-    );
+    BootstrapResponse(productTypes: productTypes, lines: lines);
 
 PalletizerSession _activeSession(int lineId) => PalletizerSession(
       sessionId: lineId,
@@ -406,13 +428,13 @@ void main() {
 
         await t.provider.loadBootstrap();
 
-        expect(t.provider.getCurrentPlanItemProductType(1)?.id, 25);
-        expect(t.provider.getCurrentPlanItemProductTypeId(1), 25);
+        expect(t.provider.getCurrentPlanItemProductType(101)?.id, 25);
+        expect(t.provider.getCurrentPlanItemProductTypeId(101), 25);
         expect(
-          t.provider.getCurrentPlanItemProductName(1),
+          t.provider.getCurrentPlanItemProductName(101),
           'Plan Product 25',
         );
-        expect(t.provider.getCurrentPlanItemPackagesPerPallet(1), 24);
+        expect(t.provider.getCurrentPlanItemPackagesPerPallet(101), 24);
       },
     );
 
@@ -434,9 +456,9 @@ void main() {
 
         await t.provider.loadBootstrap();
 
-        expect(t.provider.getCurrentPlanItemProductType(1), isNull);
-        expect(t.provider.getCurrentPlanItemProductTypeId(1), isNull);
-        expect(t.provider.getCurrentPlanItemProductName(1), isNull);
+        expect(t.provider.getCurrentPlanItemProductType(101), isNull);
+        expect(t.provider.getCurrentPlanItemProductTypeId(101), isNull);
+        expect(t.provider.getCurrentPlanItemProductName(101), isNull);
       },
     );
 
@@ -461,7 +483,7 @@ void main() {
 
         await t.provider.loadBootstrap();
 
-        final p = t.provider.getCurrentPlanItemProductType(1);
+        final p = t.provider.getCurrentPlanItemProductType(101);
         expect(p, isNotNull);
         expect(p!.id, 99);
         expect(p.productName, 'New Product 99');
@@ -487,9 +509,9 @@ void main() {
 
         await t.provider.loadBootstrap();
 
-        expect(t.provider.isProductionPlanBlocked(1), isTrue);
+        expect(t.provider.isProductionPlanBlocked(101), isTrue);
         expect(
-          t.provider.getProductionPlanBlockedMessage(1),
+          t.provider.getProductionPlanBlockedMessage(101),
           contains('بند إنتاج'),
         );
       },
@@ -507,9 +529,9 @@ void main() {
 
         await t.provider.loadBootstrap();
 
-        expect(t.provider.isProductionPlanBlocked(1), isTrue);
+        expect(t.provider.isProductionPlanBlocked(101), isTrue);
         expect(
-          t.provider.getProductionPlanBlockedMessage(1),
+          t.provider.getProductionPlanBlockedMessage(101),
           contains('بند إنتاج'),
         );
       },
@@ -549,8 +571,9 @@ void main() {
             );
 
         await t.provider.createPallet(
-          lineNumber: 1,
+          lineId: 101,
           productTypeId: 25,
+          expectedPlanItemId: 51,
           quantity: 24,
         );
 
@@ -560,6 +583,7 @@ void main() {
         expect(c.productTypeId, 25);
         expect(c.quantity, 24);
         expect(c.confirmOverproduction, isFalse);
+        expect(c.expectedPlanItemId, 51);
       },
     );
 
@@ -588,8 +612,9 @@ void main() {
             );
 
         await t.provider.createPallet(
-          lineNumber: 1,
+          lineId: 101,
           productTypeId: 25,
+          expectedPlanItemId: 51,
           quantity: 24,
           confirmOverproduction: true,
         );
@@ -622,7 +647,7 @@ void main() {
               planPackagesPerPallet: 30,
             );
         await t.provider.loadBootstrap();
-        expect(t.provider.getCurrentPlanItemProductTypeId(1), 25);
+        expect(t.provider.getCurrentPlanItemProductTypeId(101), 25);
 
         t.repo.createResults.add(ApiException(
           code: 'PRODUCTION_PLAN_PRODUCT_MISMATCH',
@@ -631,8 +656,9 @@ void main() {
 
         await expectLater(
           () => t.provider.createPallet(
-            lineNumber: 1,
+            lineId: 101,
             productTypeId: 25,
+            expectedPlanItemId: 51,
             quantity: 24,
           ),
           throwsA(isA<ApiException>()
@@ -649,8 +675,8 @@ void main() {
         );
 
         // Provider refreshed line state — the next attempt would now send 99.
-        expect(t.provider.getCurrentPlanItemProductTypeId(1), 99);
-        expect(t.provider.getCurrentPlanItemProductName(1), 'Plan 99');
+        expect(t.provider.getCurrentPlanItemProductTypeId(101), 99);
+        expect(t.provider.getCurrentPlanItemProductName(101), 'Plan 99');
       },
     );
 
@@ -685,8 +711,9 @@ void main() {
 
         await expectLater(
           () => t.provider.createPallet(
-            lineNumber: 1,
+            lineId: 101,
             productTypeId: 25,
+            expectedPlanItemId: 51,
             quantity: 24,
           ),
           throwsA(isA<ApiException>()),

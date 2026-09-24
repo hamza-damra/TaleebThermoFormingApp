@@ -9,17 +9,27 @@ class SessionPalletDetailModel extends SessionPalletDetail {
     required super.sourceType,
     required super.createdAt,
     required super.createdAtDisplay,
+    super.grindingRecommended,
+    super.grindingLabelText,
+    super.labelReprintAllowed,
+    super.grindingStatus,
+    super.grindingStatusLabel,
   });
 
   factory SessionPalletDetailModel.fromJson(Map<String, dynamic> json) {
     return SessionPalletDetailModel(
       palletId: json['palletId'] as int,
-      scannedValue: json['scannedValue'] as String,
-      serialNumber: json['serialNumber'] as String,
+      scannedValue: json['scannedValue'] as String? ?? '',
+      serialNumber: json['serialNumber'] as String? ?? '',
       quantity: json['quantity'] as int,
       sourceType: json['sourceType'] as String? ?? 'UNKNOWN',
       createdAt: DateTime.parse(json['createdAt'] as String),
       createdAtDisplay: json['createdAtDisplay'] as String? ?? '',
+      grindingRecommended: json['grindingRecommended'] as bool?,
+      grindingLabelText: json['grindingLabelText'] as String?,
+      labelReprintAllowed: json['labelReprintAllowed'] as bool?,
+      grindingStatus: json['grindingStatus'] as String?,
+      grindingStatusLabel: json['grindingStatusLabel'] as String?,
     );
   }
 }

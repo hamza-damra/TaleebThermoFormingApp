@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 
-import '../../core/constants.dart';
+import '../../domain/entities/palletizing_line.dart';
 import '../../domain/entities/takeover_status.dart';
 import '../providers/palletizing_provider.dart';
 import 'takeover_countdown.dart';
@@ -14,7 +14,7 @@ import 'takeover_countdown.dart';
 ///
 /// Renders nothing when there is no takeover or it has cleared.
 class TakeoverBanner extends StatelessWidget {
-  final ProductionLine line;
+  final PalletizingLine line;
 
   const TakeoverBanner({super.key, required this.line});
 
@@ -29,7 +29,7 @@ class TakeoverBanner extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<PalletizingProvider>();
-    final takeover = provider.getTakeover(line.number);
+    final takeover = provider.getTakeover(line.lineId);
 
     if (takeover == null) return const SizedBox.shrink();
     final status = takeover.status;
@@ -109,7 +109,7 @@ class TakeoverBanner extends StatelessWidget {
                     if (!autoReleased) ...[
                       const SizedBox(height: 8),
                       TakeoverCountdown(
-                        lineNumber: line.number,
+                        lineId: line.lineId,
                         color: accent,
                         handover: accepted,
                       ),

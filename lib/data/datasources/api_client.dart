@@ -40,8 +40,8 @@ class ApiClient {
   }
 
   /// Path heuristic — `/palletizing-line/*` endpoints are authenticated by the
-  /// `X-Device-Key` header. A 401 / 403 on any of them is a device-key issue,
-  /// not a credentials / PIN issue.
+  /// `X-Device-Key` header. A 401 / 403 on any of them without a business
+  /// `error.code` is a device-key issue, not a credentials / PIN issue.
   static bool _isDeviceKeyEndpoint(String path) =>
       path.contains('/palletizing-line/');
 
@@ -93,7 +93,10 @@ class ApiClient {
     handler.next(options);
   }
 
-  void _onResponse(Response<dynamic> response, ResponseInterceptorHandler handler) {
+  void _onResponse(
+    Response<dynamic> response,
+    ResponseInterceptorHandler handler,
+  ) {
     final reqPath = response.requestOptions.path;
     if (reqPath == _bootstrapPath) {
       final body = response.data;
@@ -163,11 +166,14 @@ class ApiClient {
     handler.next(error);
   }
 
+  /// [headers] are per-call extras (e.g. `X-Palletizer-Session-Token`). They
+  /// are never logged — the interceptor logs only the method and path.
   Future<T> request<T>({
     required String path,
     required String method,
     Map<String, dynamic>? data,
     Map<String, dynamic>? queryParameters,
+    Map<String, dynamic>? headers,
     required T Function(Map<String, dynamic>) parser,
   }) async {
     try {
@@ -175,7 +181,7 @@ class ApiClient {
         path,
         data: data,
         queryParameters: queryParameters,
-        options: Options(method: method),
+        options: Options(method: method, headers: headers),
       );
 
       final responseData = response.data as Map<String, dynamic>;
@@ -235,14 +241,26 @@ class ApiClient {
       case DioExceptionType.badResponse:
         final statusCode = e.response?.statusCode;
         final path = e.requestOptions.path;
-        // Device-key endpoints: a 401 / 403 here can ONLY mean the X-Device-Key
-        // was rejected — the palletizing-line backend never gates these on a
-        // user credential. Surface a dedicated, actionable code so the UI
-        // routes to the device-settings recovery flow instead of showing a
-        // misleading "بيانات الدخول غير صحيحة" credentials message.
+        // Device-key endpoints: the chain also returns *business* 401 / 403
+        // codes (OPERATOR_PIN_INVALID, PALLETIZER_NOT_ALLOWED,
+        // LINE_NOT_AUTHORIZED, PALLETIZER_SESSION_REQUIRED), so read
+        // `error.code` first. Only the security layer's
+        // AUTH_INVALID_CREDENTIALS (401) / FORBIDDEN (403) — or a body with no
+        // code at all — mean the X-Device-Key was rejected; those route to
+        // the device-settings recovery flow.
         if ((statusCode == 401 || statusCode == 403) &&
             _isDeviceKeyEndpoint(path)) {
-          return ApiException.deviceKeyInvalid(statusCode: statusCode);
+          final body = e.response?.data;
+          final code = _errorCodeOf(body);
+          if (code == null ||
+              code == 'AUTH_INVALID_CREDENTIALS' ||
+              code == 'FORBIDDEN') {
+            return ApiException.deviceKeyInvalid(statusCode: statusCode);
+          }
+          return ApiException.fromJson(
+            body as Map<String, dynamic>,
+            statusCode: statusCode,
+          );
         }
         if (statusCode == 401) {
           // Non-device-key 401 — try to parse the response body for a specific
@@ -270,5 +288,15 @@ class ApiClient {
       default:
         return ApiException.network();
     }
+  }
+
+  /// `error.code` from a standard `{success:false, error:{code}}` envelope,
+  /// or `null` when the body has no parsable code.
+  static String? _errorCodeOf(Object? body) {
+    if (body is! Map<String, dynamic>) return null;
+    final error = body['error'];
+    if (error is! Map<String, dynamic>) return null;
+    final code = error['code'];
+    return code is String && code.isNotEmpty ? code : null;
   }
 }

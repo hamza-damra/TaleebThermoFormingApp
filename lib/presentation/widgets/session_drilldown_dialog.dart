@@ -1,28 +1,36 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/constants.dart';
+import '../../core/constants/grinding_recommendation_strings.dart';
 import '../../core/exceptions/api_exception.dart';
 import '../../core/responsive.dart';
-import '../../domain/entities/product_type.dart';
+import '../../domain/entities/pallet_label_content.dart';
+import '../../domain/entities/palletizing_line.dart';
 import '../../domain/entities/session_production_detail.dart';
 import '../providers/palletizing_provider.dart';
+import 'grinding_chip.dart';
+import 'line_scoped_route.dart';
 import '../providers/printing_provider.dart';
 import 'printer_selector_dialog.dart';
 
 class SessionDrilldownDialog extends StatefulWidget {
-  final ProductionLine line;
+  final PalletizingLine line;
 
   const SessionDrilldownDialog({super.key, required this.line});
 
   static Future<void> show({
     required BuildContext context,
-    required ProductionLine line,
+    required PalletizingLine line,
   }) {
     return showDialog(
       context: context,
-      builder: (_) => SessionDrilldownDialog(line: line),
+      builder: (_) => LineScopedRoute(
+        lineId: line.lineId,
+        child: SessionDrilldownDialog(line: line),
+      ),
     );
   }
 
@@ -32,48 +40,88 @@ class SessionDrilldownDialog extends StatefulWidget {
 
 class _SessionDrilldownDialogState extends State<SessionDrilldownDialog> {
   SessionProductionDetail? _detail;
+
+  /// Mirrors [_detail] for the reprint dialog, which sits on its own route and
+  /// must print what the latest read says (grinding marker, reprint block).
+  final ValueNotifier<SessionProductionDetail?> _latestDetail = ValueNotifier(
+    null,
+  );
   bool _isLoading = true;
   String? _errorMessage;
   bool _isLineNotAuthorized = false;
 
+  late final PalletizingProvider _provider;
+  late int _sessionRevision;
+
+  /// Bumped per request; only the latest request's response is applied, so a
+  /// slow read started before a newer one can never overwrite it.
+  int _loadSeq = 0;
+
   @override
   void initState() {
     super.initState();
+    _provider = context.read<PalletizingProvider>();
+    _sessionRevision = _provider.sessionDataRevision(widget.line.lineId);
+    _provider.addListener(_onProviderChanged);
     _loadData();
   }
 
-  Future<void> _loadData() async {
-    setState(() {
-      _isLoading = true;
-      _errorMessage = null;
-      _isLineNotAuthorized = false;
-    });
+  @override
+  void dispose() {
+    _provider.removeListener(_onProviderChanged);
+    _latestDetail.dispose();
+    super.dispose();
+  }
+
+  /// The shift summary behind this dialog changed (a pallet was created,
+  /// cancelled or edited while it is open) — re-read the detail in place so
+  /// both views keep showing the same backend state.
+  void _onProviderChanged() {
+    final revision = _provider.sessionDataRevision(widget.line.lineId);
+    if (revision == _sessionRevision) return;
+    _sessionRevision = revision;
+    if (_isLineNotAuthorized) return;
+    _loadData(silent: _detail != null);
+  }
+
+  /// [silent] keeps the current list on screen while re-reading, and keeps it
+  /// if the re-read fails.
+  Future<void> _loadData({bool silent = false}) async {
+    final seq = ++_loadSeq;
+    if (!silent) {
+      setState(() {
+        _isLoading = true;
+        _errorMessage = null;
+        _isLineNotAuthorized = false;
+      });
+    }
 
     try {
-      final provider = context.read<PalletizingProvider>();
-      final detail = await provider.fetchSessionProductionDetail(
-        widget.line.number,
+      final detail = await _provider.fetchSessionProductionDetail(
+        widget.line.lineId,
       );
-      if (!mounted) return;
+      if (!mounted || seq != _loadSeq) return;
       setState(() {
         _detail = detail;
         _isLoading = false;
+        _errorMessage = null;
       });
+      _latestDetail.value = detail;
     } on ApiException catch (e) {
-      if (!mounted) return;
+      if (!mounted || seq != _loadSeq) return;
       if (e.code == 'LINE_NOT_AUTHORIZED') {
         setState(() {
           _isLoading = false;
           _isLineNotAuthorized = true;
         });
-      } else {
+      } else if (!silent) {
         setState(() {
           _isLoading = false;
           _errorMessage = e.displayMessage;
         });
       }
     } catch (e) {
-      if (!mounted) return;
+      if (!mounted || seq != _loadSeq || silent) return;
       setState(() {
         _isLoading = false;
         _errorMessage = 'فشل في تحميل البيانات';
@@ -87,8 +135,12 @@ class _SessionDrilldownDialogState extends State<SessionDrilldownDialog> {
   ) {
     showDialog(
       context: context,
-      builder: (_) =>
-          _ReprintDialog(pallet: pallet, group: group, line: widget.line),
+      builder: (_) => _ReprintDialog(
+        pallet: pallet,
+        group: group,
+        line: widget.line,
+        latestDetail: _latestDetail,
+      ),
     );
   }
 
@@ -343,51 +395,62 @@ class _SessionDrilldownDialogState extends State<SessionDrilldownDialog> {
           ),
         ],
       ),
-      child: Theme(
-        data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
-        child: ExpansionTile(
-          initiallyExpanded: initiallyExpanded,
-          tilePadding: EdgeInsets.symmetric(
-            horizontal: isMobile ? 14 : 18,
-            vertical: isMobile ? 4 : 6,
+      // The tile paints its ink on the nearest Material; without this one it
+      // would be the dialog's, hidden under this container's white fill.
+      child: Material(
+        type: MaterialType.transparency,
+        child: Theme(
+          data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+          child: ExpansionTile(
+            initiallyExpanded: initiallyExpanded,
+            tilePadding: EdgeInsets.symmetric(
+              horizontal: isMobile ? 14 : 18,
+              vertical: isMobile ? 4 : 6,
+            ),
+            childrenPadding: EdgeInsets.zero,
+            leading: Container(
+              padding: EdgeInsets.all(isMobile ? 8 : 10),
+              decoration: BoxDecoration(
+                color: widget.line.color.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(
+                Icons.inventory_2_outlined,
+                color: widget.line.color,
+                size: isMobile ? 20 : 24,
+              ),
+            ),
+            title: Text(
+              context.watch<PalletizingProvider>().productDisplayName(
+                productTypeId: group.productTypeId,
+                backendName: group.productTypeName,
+              ),
+              style: GoogleFonts.cairo(
+                fontSize: isMobile ? 14 : 16,
+                fontWeight: FontWeight.bold,
+                color: Colors.black87,
+              ),
+            ),
+            subtitle: Text(
+              '${group.completedPalletCount} طبلية',
+              style: GoogleFonts.cairo(
+                fontSize: isMobile ? 12 : 14,
+                color: widget.line.color,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            iconColor: widget.line.color,
+            collapsedIconColor: widget.line.color,
+            children: [
+              Divider(
+                height: 1,
+                color: widget.line.color.withValues(alpha: 0.1),
+              ),
+              ...group.pallets.map(
+                (pallet) => _buildPalletRow(pallet, group, isMobile),
+              ),
+            ],
           ),
-          childrenPadding: EdgeInsets.zero,
-          leading: Container(
-            padding: EdgeInsets.all(isMobile ? 8 : 10),
-            decoration: BoxDecoration(
-              color: widget.line.color.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: Icon(
-              Icons.inventory_2_outlined,
-              color: widget.line.color,
-              size: isMobile ? 20 : 24,
-            ),
-          ),
-          title: Text(
-            ProductType.formatCompactName(group.productTypeName),
-            style: GoogleFonts.cairo(
-              fontSize: isMobile ? 14 : 16,
-              fontWeight: FontWeight.bold,
-              color: Colors.black87,
-            ),
-          ),
-          subtitle: Text(
-            '${group.completedPalletCount} طبلية',
-            style: GoogleFonts.cairo(
-              fontSize: isMobile ? 12 : 14,
-              color: widget.line.color,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          iconColor: widget.line.color,
-          collapsedIconColor: widget.line.color,
-          children: [
-            Divider(height: 1, color: widget.line.color.withValues(alpha: 0.1)),
-            ...group.pallets.map(
-              (pallet) => _buildPalletRow(pallet, group, isMobile),
-            ),
-          ],
         ),
       ),
     );
@@ -410,14 +473,14 @@ class _SessionDrilldownDialogState extends State<SessionDrilldownDialog> {
       ),
       child: Row(
         children: [
-          // Serial number
+          // Pallet number
           Expanded(
             flex: 2,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  pallet.serialNumber,
+                  pallet.palletNumber,
                   style: GoogleFonts.cairo(
                     fontSize: isMobile ? 14 : 16,
                     fontWeight: FontWeight.bold,
@@ -433,6 +496,15 @@ class _SessionDrilldownDialogState extends State<SessionDrilldownDialog> {
                     color: Colors.grey.shade600,
                   ),
                 ),
+                if (_nonBlank(pallet.grindingStatusLabel) case final status?)
+                  Padding(
+                    padding: EdgeInsets.only(top: isMobile ? 2 : 4),
+                    child: GrindingChip(
+                      key: Key('grindingStatusChip-${pallet.palletId}'),
+                      text: status,
+                      fontSize: isMobile ? 10 : 11,
+                    ),
+                  ),
               ],
             ),
           ),
@@ -448,19 +520,27 @@ class _SessionDrilldownDialogState extends State<SessionDrilldownDialog> {
               textAlign: TextAlign.center,
             ),
           ),
-          // Reprint button
+          // Reprint button — greyed once grinding started or finished; the
+          // dialog it opens explains why and keeps printing disabled.
           SizedBox(
             width: isMobile ? 44 : 52,
             child: IconButton(
+              key: Key('reprintPallet-${pallet.palletId}'),
               onPressed: () => _showReprintDialog(pallet, group),
               icon: Icon(
-                Icons.print_rounded,
-                color: widget.line.color,
+                pallet.isLabelReprintAllowed
+                    ? Icons.print_rounded
+                    : Icons.print_disabled_rounded,
+                color: pallet.isLabelReprintAllowed
+                    ? widget.line.color
+                    : Colors.grey.shade400,
                 size: isMobile ? 20 : 24,
               ),
               padding: EdgeInsets.zero,
               constraints: const BoxConstraints(),
-              tooltip: 'إعادة طباعة',
+              tooltip: pallet.isLabelReprintAllowed
+                  ? 'إعادة طباعة'
+                  : GrindingRecommendationStrings.reprintBlocked,
             ),
           ),
         ],
@@ -469,17 +549,28 @@ class _SessionDrilldownDialogState extends State<SessionDrilldownDialog> {
   }
 }
 
+String? _nonBlank(String? value) {
+  final trimmed = value?.trim();
+  return trimmed == null || trimmed.isEmpty ? null : trimmed;
+}
+
 // ── Reprint Status Dialog ──
 
 class _ReprintDialog extends StatefulWidget {
   final SessionPalletDetail pallet;
   final SessionProductTypeGroup group;
-  final ProductionLine line;
+  final PalletizingLine line;
+
+  /// The drill-down's latest read. The pallet is re-resolved from it, so a
+  /// grinding change while this dialog is open (recommended, approved,
+  /// rejected, started) reaches the printed label.
+  final ValueListenable<SessionProductionDetail?> latestDetail;
 
   const _ReprintDialog({
     required this.pallet,
     required this.group,
     required this.line,
+    required this.latestDetail,
   });
 
   @override
@@ -491,7 +582,37 @@ class _ReprintDialogState extends State<_ReprintDialog> {
   bool _printSuccess = false;
   String? _printError;
 
+  late SessionPalletDetail _pallet = widget.pallet;
+
+  @override
+  void initState() {
+    super.initState();
+    widget.latestDetail.addListener(_onLatestDetail);
+  }
+
+  @override
+  void dispose() {
+    widget.latestDetail.removeListener(_onLatestDetail);
+    super.dispose();
+  }
+
+  void _onLatestDetail() {
+    final groups = widget.latestDetail.value?.groups ?? const [];
+    for (final group in groups) {
+      for (final pallet in group.pallets) {
+        if (pallet.palletId == _pallet.palletId) {
+          if (mounted) setState(() => _pallet = pallet);
+          return;
+        }
+      }
+    }
+    // Gone from the read (e.g. voided) — keep the last known copy.
+  }
+
+  bool get _reprintBlocked => !_pallet.isLabelReprintAllowed;
+
   Future<void> _handlePrint() async {
+    if (_reprintBlocked) return;
     final printingProvider = context.read<PrintingProvider>();
 
     if (!printingProvider.hasPrinters) {
@@ -516,38 +637,27 @@ class _ReprintDialogState extends State<_ReprintDialog> {
 
     // Look up full product type from bootstrap data for label content
     final palletizingProvider = context.read<PalletizingProvider>();
-    final productType = palletizingProvider.productTypes
-        .where((p) => p.id == widget.group.productTypeId)
-        .firstOrNull;
+    final productType = palletizingProvider.productTypeById(
+      widget.group.productTypeId,
+    );
 
-    // Top: productName (no sequence available for reprints)
-    final topText =
-        productType?.productName ??
-        ProductType.formatCompactName(widget.group.productTypeName);
-
-    // Bottom: description with fallback
-    final description = productType?.description;
-    final bottomText = (description != null && description.isNotEmpty)
-        ? description
-        : productType?.name ?? widget.group.productTypeName;
-
-    // Sides: scannedValue (lineLetter)
-    final lineLetter = widget.line.number == 1 ? 'A' : 'B';
-    final sideText = '${widget.pallet.scannedValue} ($lineLetter)';
+    final labelContent = PalletLabelContentMapper.fromSessionPallet(
+      pallet: _pallet,
+      group: widget.group,
+      productType: productType,
+      lineNumber: widget.line.lineNumber,
+    );
 
     final result = await printingProvider.print(
-      scannedValue: widget.pallet.scannedValue,
+      labelContent: labelContent,
       copies: printingProvider.copies,
-      topText: topText,
-      bottomText: bottomText,
-      sideText: sideText,
     );
 
     if (!mounted) return;
 
     await palletizingProvider.logPrintAttempt(
-      lineNumber: widget.line.number,
-      palletId: widget.pallet.palletId,
+      lineId: widget.line.lineId,
+      palletId: _pallet.palletId,
       printerIdentifier: printingProvider.selectedPrinter?.name ?? 'UNKNOWN',
       success: result.isSuccess,
       failureReason: result.errorMessage,
@@ -603,9 +713,16 @@ class _ReprintDialogState extends State<_ReprintDialog> {
                   ),
                   SizedBox(height: isMobile ? 16 : 20),
                   _buildPalletInfo(isMobile),
-                  if (_printError != null) ...[
+                  if (_reprintBlocked && !_printSuccess) ...[
                     SizedBox(height: isMobile ? 12 : 16),
-                    _buildErrorBanner(isMobile),
+                    _buildErrorBanner(
+                      isMobile,
+                      GrindingRecommendationStrings.reprintBlocked,
+                      key: const Key('reprintBlockedByGrindingBanner'),
+                    ),
+                  ] else if (_printError != null) ...[
+                    SizedBox(height: isMobile ? 12 : 16),
+                    _buildErrorBanner(isMobile, _printError!),
                   ],
                   SizedBox(height: isMobile ? 12 : 16),
                   _buildPrinterInfo(isMobile),
@@ -647,6 +764,9 @@ class _ReprintDialogState extends State<_ReprintDialog> {
     if (_printSuccess) {
       return Icon(Icons.print, color: Colors.green, size: size);
     }
+    if (_reprintBlocked) {
+      return Icon(Icons.print_disabled, color: Colors.grey, size: size);
+    }
     if (_printError != null) {
       return Icon(Icons.print_disabled, color: Colors.red, size: size);
     }
@@ -666,15 +786,28 @@ class _ReprintDialogState extends State<_ReprintDialog> {
         children: [
           _buildInfoLine(
             'المنتج',
-            ProductType.formatCompactName(widget.group.productTypeName),
+            context.watch<PalletizingProvider>().productDisplayName(
+              productTypeId: widget.group.productTypeId,
+              backendName: widget.group.productTypeName,
+            ),
             isMobile,
           ),
           Divider(height: 16, color: widget.line.color.withValues(alpha: 0.1)),
-          _buildInfoLine('رقم الطبلية', widget.pallet.serialNumber, isMobile),
+          _buildInfoLine('رقم الطبلية', _pallet.palletNumber, isMobile),
           Divider(height: 16, color: widget.line.color.withValues(alpha: 0.1)),
-          _buildInfoLine('الكمية', '${widget.pallet.quantity} عبوة', isMobile),
+          _buildInfoLine('الكمية', '${_pallet.quantity} عبوة', isMobile),
           Divider(height: 16, color: widget.line.color.withValues(alpha: 0.1)),
-          _buildInfoLine('التاريخ', widget.pallet.createdAtDisplay, isMobile),
+          _buildInfoLine('التاريخ', _pallet.createdAtDisplay, isMobile),
+          if (_nonBlank(_pallet.grindingStatusLabel) case final status?) ...[
+            Divider(
+              height: 16,
+              color: widget.line.color.withValues(alpha: 0.1),
+            ),
+            Align(
+              alignment: AlignmentDirectional.centerStart,
+              child: GrindingChip(text: status),
+            ),
+          ],
         ],
       ),
     );
@@ -708,8 +841,9 @@ class _ReprintDialogState extends State<_ReprintDialog> {
     );
   }
 
-  Widget _buildErrorBanner(bool isMobile) {
+  Widget _buildErrorBanner(bool isMobile, String message, {Key? key}) {
     return Container(
+      key: key,
       padding: EdgeInsets.all(isMobile ? 10 : 12),
       decoration: BoxDecoration(
         color: Colors.red.withValues(alpha: 0.1),
@@ -726,7 +860,7 @@ class _ReprintDialogState extends State<_ReprintDialog> {
           SizedBox(width: isMobile ? 8 : 10),
           Expanded(
             child: Text(
-              _printError!,
+              message,
               style: GoogleFonts.cairo(
                 color: Colors.red.shade700,
                 fontSize: isMobile ? 12 : 13,
@@ -803,7 +937,8 @@ class _ReprintDialogState extends State<_ReprintDialog> {
     return SizedBox(
       width: double.infinity,
       child: ElevatedButton.icon(
-        onPressed: _isPrinting ? null : _handlePrint,
+        key: const Key('sessionReprintPrintButton'),
+        onPressed: _isPrinting || _reprintBlocked ? null : _handlePrint,
         style: ElevatedButton.styleFrom(
           backgroundColor: widget.line.color,
           foregroundColor: Colors.white,

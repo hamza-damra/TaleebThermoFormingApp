@@ -4,6 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../core/constants.dart';
 import '../../core/responsive.dart';
 import '../../domain/entities/first_pallet_context.dart';
+import '../../domain/entities/palletizing_line.dart';
 
 /// First-pallet FALET-consumption confirmation.
 ///
@@ -16,13 +17,19 @@ import '../../domain/entities/first_pallet_context.dart';
 ///   * `true`  → operator confirmed; consume matching FALET as the first pallet
 ///   * `null`  → operator cancelled / dismissed
 class FirstPalletSuggestionDialog extends StatelessWidget {
-  final ProductionLine line;
+  final PalletizingLine line;
   final FirstPalletContext context;
+
+  /// Label of the current plan-item product, resolved by the caller
+  /// (`PalletizingProvider.productDisplayName`) — never the raw composite
+  /// `currentPlanItemProductName`. Empty when there is no product.
+  final String productName;
 
   const FirstPalletSuggestionDialog({
     super.key,
     required this.line,
     required this.context,
+    required this.productName,
   });
 
   // Effective values pulled from the backend-provided context. The suggested
@@ -35,7 +42,7 @@ class FirstPalletSuggestionDialog extends StatelessWidget {
   int get _palletTarget => context.currentPlanItemPackagesPerPallet ?? 0;
   int get _freshNeeded =>
       (_palletTarget > _faletQty) ? _palletTarget - _faletQty : 0;
-  String get _productName => context.currentPlanItemProductName ?? '';
+  String get _productName => productName.trim();
   bool get _faletAlreadyComplete =>
       _palletTarget > 0 && _faletQty >= _palletTarget;
   int get _totalQuantity =>

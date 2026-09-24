@@ -3,8 +3,8 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
-import '../../core/constants.dart';
 import '../../core/responsive.dart';
+import '../../domain/entities/palletizing_line.dart';
 
 /// Blocking modal shown when the selected line has no active Thermoforming
 /// Operator ([LineUiState.waitingForThermoforming]).
@@ -31,7 +31,7 @@ import '../../core/responsive.dart';
 /// Uses warning/amber styling — never success green — to signal inactivity,
 /// and shares the visual language of the takeover dialog.
 class ThermoformingWaitingCard extends StatelessWidget {
-  final ProductionLine line;
+  final PalletizingLine line;
 
   /// When true the "تغيير الخط" secondary action is shown.
   final bool canSwitchLine;
@@ -164,7 +164,7 @@ class ThermoformingWaitingCard extends StatelessWidget {
 
             // ── Machine name ──
             Text(
-              'ماكنة ${line.number}',
+              line.label,
               textAlign: TextAlign.center,
               style: GoogleFonts.cairo(
                 fontSize: isMobile ? 15 : 17,
@@ -238,9 +238,7 @@ class ThermoformingWaitingCard extends StatelessWidget {
                   style: OutlinedButton.styleFrom(
                     foregroundColor: Colors.grey.shade700,
                     side: BorderSide(color: Colors.grey.shade400, width: 1.5),
-                    padding: EdgeInsets.symmetric(
-                      vertical: isMobile ? 14 : 16,
-                    ),
+                    padding: EdgeInsets.symmetric(vertical: isMobile ? 14 : 16),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(14),
                     ),

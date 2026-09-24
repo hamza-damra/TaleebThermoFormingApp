@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 
 import '../../core/constants.dart';
 import '../../core/responsive.dart';
+import '../../domain/entities/palletizing_line.dart';
 import '../providers/palletizing_provider.dart';
 
 /// State C top context strip for a single line. Three read-only identity rows
@@ -12,7 +13,7 @@ import '../providers/palletizing_provider.dart';
 /// (المنتج الحالي — read-only, sourced from the Thermoforming Production
 /// Plan item).
 class LineContextStrip extends StatelessWidget {
-  final ProductionLine line;
+  final PalletizingLine line;
 
   const LineContextStrip({super.key, required this.line});
 
@@ -20,15 +21,15 @@ class LineContextStrip extends StatelessWidget {
   Widget build(BuildContext context) {
     final provider = context.watch<PalletizingProvider>();
     final isMobile = ResponsiveHelper.isMobile(context);
-    final operator = provider.getAuthorizedOperator(line.number);
-    final palletizerName = provider.getPalletizerName(line.number);
+    final operator = provider.getAuthorizedOperator(line.lineId);
+    final palletizerName = provider.getPalletizerName(line.lineId);
 
     // Source of truth is the current Thermoforming Production Plan item. When
     // there is no plan item the row renders an explicit no-plan state.
-    final planProductName =
-        provider.getCurrentPlanItemProductName(line.number);
-    final planBlockedMessage =
-        provider.getProductionPlanBlockedMessage(line.number);
+    final planProductName = provider.getCurrentPlanItemProductName(line.lineId);
+    final planBlockedMessage = provider.getProductionPlanBlockedMessage(
+      line.lineId,
+    );
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -223,7 +224,8 @@ class LineContextStrip extends StatelessWidget {
     final hasProduct = productName != null && productName.isNotEmpty;
     // No active plan item — show the backend-localized message (or a safe
     // Arabic fallback) instead of a product label.
-    final emptyText = planBlockedMessage ??
+    final emptyText =
+        planBlockedMessage ??
         'لا يوجد بند إنتاج نشط لهذا الخط. '
             'يرجى مراجعة الإدارة لإضافة بند إلى خطة الإنتاج.';
 
@@ -300,7 +302,6 @@ class LineContextStrip extends StatelessWidget {
       ],
     );
   }
-
 }
 
 /// Red, clearly-destructive "leave the line now" action shown in the
@@ -312,7 +313,7 @@ class LineContextStrip extends StatelessWidget {
 /// against double taps: once the release is in flight `_isLeaving` disables
 /// the button and shows a spinner until it completes.
 class _LeaveLineButton extends StatefulWidget {
-  final ProductionLine line;
+  final PalletizingLine line;
 
   const _LeaveLineButton({required this.line});
 
@@ -339,7 +340,7 @@ class _LeaveLineButtonState extends State<_LeaveLineButton> {
     final messenger = ScaffoldMessenger.of(context);
     try {
       await context.read<PalletizingProvider>().palletizerLogout(
-        widget.line.number,
+        widget.line.lineId,
       );
     } catch (e) {
       messenger.showSnackBar(
@@ -415,9 +416,7 @@ class _LeaveLineButtonState extends State<_LeaveLineButton> {
           horizontal: isMobile ? 10 : 12,
           vertical: isMobile ? 6 : 8,
         ),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(10),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
       ),
       icon: _isLeaving
           ? SizedBox(

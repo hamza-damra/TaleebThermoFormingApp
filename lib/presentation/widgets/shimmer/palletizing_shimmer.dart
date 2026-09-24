@@ -7,9 +7,9 @@ import '../../../core/responsive.dart';
 /// Shimmer loading skeleton for the main palletizing screen.
 /// Mirrors the exact structure of ProductionLineSection for a seamless loading experience.
 class PalletizingShimmer extends StatelessWidget {
-  final ProductionLine line;
+  final LineAccent accent;
 
-  const PalletizingShimmer({super.key, required this.line});
+  const PalletizingShimmer({super.key, required this.accent});
 
   @override
   Widget build(BuildContext context) {
@@ -24,7 +24,7 @@ class PalletizingShimmer extends StatelessWidget {
         duration: const Duration(milliseconds: 1500),
       ),
       child: Container(
-        color: line.lightColor,
+        color: accent.lightColor,
         child: SafeArea(
           top: false,
           child: Column(
@@ -87,7 +87,7 @@ class PalletizingShimmer extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 28),
       decoration: BoxDecoration(
-        color: line.color.withValues(alpha: 0.3),
+        color: accent.color.withValues(alpha: 0.3),
         borderRadius: BorderRadius.circular(16),
       ),
       child: const Bone.text(words: 2, style: TextStyle(fontSize: 26)),
@@ -103,7 +103,7 @@ class PalletizingShimmer extends StatelessWidget {
         borderRadius: BorderRadius.circular(isMobile ? 16 : 20),
         boxShadow: [
           BoxShadow(
-            color: line.color.withValues(alpha: 0.1),
+            color: accent.color.withValues(alpha: 0.1),
             blurRadius: 20,
             offset: const Offset(0, 8),
           ),
@@ -182,7 +182,7 @@ class PalletizingShimmer extends StatelessWidget {
         borderRadius: BorderRadius.circular(isMobile ? 16 : 20),
         boxShadow: [
           BoxShadow(
-            color: line.color.withValues(alpha: 0.1),
+            color: accent.color.withValues(alpha: 0.1),
             blurRadius: 20,
             offset: const Offset(0, 8),
           ),
@@ -203,7 +203,7 @@ class PalletizingShimmer extends StatelessWidget {
               vertical: isMobile ? 14 : 18,
             ),
             decoration: BoxDecoration(
-              color: line.color.withValues(alpha: 0.3),
+              color: accent.color.withValues(alpha: 0.3),
               borderRadius: BorderRadius.only(
                 topLeft: Radius.circular(isMobile ? 16 : 20),
                 topRight: Radius.circular(isMobile ? 16 : 20),
@@ -248,9 +248,12 @@ class PalletizingShimmer extends StatelessWidget {
     return Container(
       padding: EdgeInsets.all(isMobile ? 16 : 20),
       decoration: BoxDecoration(
-        color: line.color.withValues(alpha: 0.06),
+        color: accent.color.withValues(alpha: 0.06),
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: line.color.withValues(alpha: 0.12), width: 1),
+        border: Border.all(
+          color: accent.color.withValues(alpha: 0.12),
+          width: 1,
+        ),
       ),
       child: Column(
         children: [
@@ -273,7 +276,7 @@ class PalletizingShimmer extends StatelessWidget {
     return Container(
       height: isMobile ? 60 : 68,
       decoration: BoxDecoration(
-        color: line.color.withValues(alpha: 0.3),
+        color: accent.color.withValues(alpha: 0.3),
         borderRadius: BorderRadius.circular(14),
       ),
       child: Row(
@@ -288,38 +291,27 @@ class PalletizingShimmer extends StatelessWidget {
   }
 }
 
-/// Shimmer loading skeleton for the tablet/desktop layout with two production lines.
-class PalletizingShimmerDualPane extends StatelessWidget {
-  const PalletizingShimmerDualPane({super.key});
+/// Shimmer loading skeleton for the side-by-side panes layout — one skeleton
+/// per line (the last known rendered count).
+class PalletizingShimmerPanes extends StatelessWidget {
+  final List<LineAccent> accents;
+
+  const PalletizingShimmerPanes({super.key, required this.accents});
 
   @override
   Widget build(BuildContext context) {
-    // Order matches the real dual-pane layout in PalletizingScreen so the
+    // Order matches the real panes layout in PalletizingScreen so the
     // skeleton placeholders align with the line they represent. With RTL
-    // text direction, the first child renders visually on the right (Line 1
-    // = "خط أ"), the second on the left (Line 2 = "خط ب"). Reversing them
-    // here would make the loader hint at a layout the live UI never adopts.
+    // text direction, the first child renders visually on the right ("خط أ").
+    // Reversing them here would make the loader hint at a layout the live UI
+    // never adopts.
     return Row(
       children: [
-        Expanded(child: PalletizingShimmer(line: ProductionLine.line1)),
-        Container(width: 2, color: Colors.grey.shade300),
-        Expanded(child: PalletizingShimmer(line: ProductionLine.line2)),
+        for (var i = 0; i < accents.length; i++) ...[
+          if (i > 0) Container(width: 2, color: Colors.grey.shade300),
+          Expanded(child: PalletizingShimmer(accent: accents[i])),
+        ],
       ],
-    );
-  }
-}
-
-/// Shimmer for the mobile tab layout (single line at a time).
-class PalletizingShimmerMobile extends StatelessWidget {
-  final ProductionLine line;
-
-  const PalletizingShimmerMobile({super.key, required this.line});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      color: line.lightColor,
-      child: PalletizingShimmer(line: line),
     );
   }
 }

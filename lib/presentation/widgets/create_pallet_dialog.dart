@@ -2,29 +2,24 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../../core/constants.dart';
+import '../../core/constants/grinding_recommendation_strings.dart';
 import '../../core/responsive.dart';
+import '../../domain/entities/palletizing_line.dart';
 import '../../domain/entities/product_type.dart';
 
 class CreatePalletDialog extends StatefulWidget {
-  final ProductionLine line;
+  final PalletizingLine line;
   final ProductType? initialProductType;
 
   /// Optional override for the default quantity. When set, takes precedence
   /// over `initialProductType.packageQuantity`.
   final int? initialQuantity;
 
-  /// Optional backend-provided line display name (e.g. "خط أ"). When supplied
-  /// it takes precedence over the local enum's [ProductionLine.arabicLabel]
-  /// fallback so the dialog title stays in sync with the web admin and the
-  /// other Flutter apps. Pass `productionLineEntity?.name` from the caller.
-  final String? productionLineName;
-
   const CreatePalletDialog({
     super.key,
     required this.line,
     this.initialProductType,
     this.initialQuantity,
-    this.productionLineName,
   });
 
   @override
@@ -36,33 +31,31 @@ class _CreatePalletDialogState extends State<CreatePalletDialog> {
   late int _quantity;
   late TextEditingController _quantityController;
 
+  // Grinding recommendation — lives only as long as the dialog, so closing
+  // it discards the reason.
+  bool _recommendGrinding = false;
+  final TextEditingController _grindingReasonController =
+      TextEditingController();
+  String? _grindingReasonError;
+
   @override
   void initState() {
     super.initState();
     _plannedProductType = widget.initialProductType;
-    _quantity = widget.initialQuantity ??
-        _plannedProductType?.packageQuantity ??
-        20;
+    _quantity =
+        widget.initialQuantity ?? _plannedProductType?.packageQuantity ?? 20;
     _quantityController = TextEditingController(text: '$_quantity');
   }
 
   @override
   void dispose() {
     _quantityController.dispose();
+    _grindingReasonController.dispose();
     super.dispose();
   }
 
-  /// Backend display name when the caller supplied one (e.g. "خط أ"),
-  /// otherwise the enum's local fallback. Keeps the dialog title in sync
-  /// with the web admin and the other Flutter apps once the backend ships
-  /// the unified palletizing-line display name.
-  String _resolvedLineLabel() {
-    final String? backendName = widget.productionLineName?.trim();
-    if (backendName != null && backendName.isNotEmpty) {
-      return backendName;
-    }
-    return widget.line.arabicLabel;
-  }
+  /// Resolved server label (lineDisplayName → lineName → abjad ordinal).
+  String _resolvedLineLabel() => widget.line.label;
 
   @override
   Widget build(BuildContext context) {
@@ -83,14 +76,18 @@ class _CreatePalletDialogState extends State<CreatePalletDialog> {
       contentPadding: EdgeInsets.all(isMobile ? 16 : 24),
       content: SizedBox(
         width: dialogWidth,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            _buildPlannedProductDisplay(context),
-            SizedBox(height: spacing),
-            _buildQuantityStepper(context),
-          ],
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              _buildPlannedProductDisplay(context),
+              SizedBox(height: spacing),
+              _buildQuantityStepper(context),
+              SizedBox(height: spacing),
+              _buildGrindingRecommendation(context),
+            ],
+          ),
         ),
       ),
       actions: [
@@ -278,14 +275,108 @@ class _CreatePalletDialogState extends State<CreatePalletDialog> {
     );
   }
 
+  // «توصية بالجرش» switch (default off); when on, a required reason.
+  Widget _buildGrindingRecommendation(BuildContext context) {
+    final isMobile = ResponsiveHelper.isMobile(context);
+    final fontSize = isMobile ? 14.0 : 16.0;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Container(
+          decoration: BoxDecoration(
+            border: Border.all(
+              color: _recommendGrinding
+                  ? Colors.orange.shade400
+                  : Colors.grey.shade300,
+            ),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: SwitchListTile(
+            key: const Key('grindingRecommendationSwitch'),
+            value: _recommendGrinding,
+            onChanged: (value) {
+              setState(() {
+                _recommendGrinding = value;
+                _grindingReasonError = null;
+              });
+            },
+            activeThumbColor: Colors.orange.shade700,
+            secondary: Icon(
+              Icons.recycling_rounded,
+              color: _recommendGrinding
+                  ? Colors.orange.shade700
+                  : Colors.grey.shade500,
+            ),
+            title: Text(
+              GrindingRecommendationStrings.switchLabel,
+              style: GoogleFonts.cairo(
+                fontSize: fontSize,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            contentPadding: EdgeInsets.symmetric(horizontal: isMobile ? 8 : 12),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+          ),
+        ),
+        if (_recommendGrinding) ...[
+          SizedBox(height: isMobile ? 10 : 12),
+          TextField(
+            key: const Key('grindingReasonField'),
+            controller: _grindingReasonController,
+            minLines: 2,
+            maxLines: 4,
+            maxLength: GrindingRecommendationStrings.reasonMaxLength,
+            textInputAction: TextInputAction.newline,
+            style: GoogleFonts.cairo(fontSize: fontSize),
+            decoration: InputDecoration(
+              labelText: GrindingRecommendationStrings.reasonLabel,
+              labelStyle: GoogleFonts.cairo(fontSize: fontSize - 1),
+              errorText: _grindingReasonError,
+              errorStyle: GoogleFonts.cairo(),
+              errorMaxLines: 2,
+              alignLabelWithHint: true,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+            onChanged: (_) {
+              if (_grindingReasonError != null) {
+                setState(() => _grindingReasonError = null);
+              }
+            },
+          ),
+        ],
+      ],
+    );
+  }
+
   bool _canConfirm() {
     return _plannedProductType != null && _quantity > 0;
   }
 
   void _handleConfirm() {
-    // Return only the quantity. The product is forced by the caller from the
-    // current plan item — the dialog has no picker and must not surface a
-    // product id to downstream code.
-    Navigator.of(context).pop({'quantity': _quantity});
+    String? grindingReason;
+    if (_recommendGrinding) {
+      final error = GrindingRecommendationStrings.validateReason(
+        _grindingReasonController.text,
+      );
+      if (error != null) {
+        // Nothing is sent until the reason is valid.
+        setState(() => _grindingReasonError = error);
+        return;
+      }
+      grindingReason = _grindingReasonController.text.trim();
+    }
+
+    // Return the quantity (and the grinding reason when recommended). The
+    // product is forced by the caller from the current plan item — the
+    // dialog has no picker and must not surface a product id to downstream
+    // code.
+    Navigator.of(
+      context,
+    ).pop({'quantity': _quantity, 'grindingReason': ?grindingReason});
   }
 }

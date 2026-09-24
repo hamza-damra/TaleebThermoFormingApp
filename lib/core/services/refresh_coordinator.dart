@@ -14,8 +14,11 @@ import 'sse_client.dart';
 ///
 /// Responsibilities:
 ///   * one self-rescheduling poll timer (interval from [nextInterval]),
-///   * debounce SSE event bursts (250ms) into a single targeted refresh,
-///   * an immediate refresh on (re)connect and on app resume.
+///   * debounce SSE event bursts (250ms) into a single batch handed to
+///     [onEvents] — the provider decides between a bootstrap re-fetch and a
+///     per-line `/state` refresh, because only it knows the rendered lines,
+///   * an immediate full refresh ([onFullRefresh], a silent bootstrap) on
+///     (re)connect and on app resume — frames may have been missed.
 ///
 /// The provider owns the SSE connection-state subscription and forwards
 /// transitions via [onSseConnectionStateChanged] — this guarantees the
@@ -24,18 +27,22 @@ class RefreshCoordinator {
   RefreshCoordinator({
     required SseClient sseClient,
     required Future<void> Function() onPoll,
-    required Future<void> Function(int? palletizingLineId) onEventRefresh,
+    required Future<void> Function(List<PalletizingAppSseEvent> events)
+    onEvents,
+    required Future<void> Function() onFullRefresh,
     required Duration Function() nextInterval,
     Duration debounce = const Duration(milliseconds: 250),
-  })  : _sse = sseClient,
-        _onPoll = onPoll,
-        _onEventRefresh = onEventRefresh,
-        _nextInterval = nextInterval,
-        _debounce = debounce;
+  }) : _sse = sseClient,
+       _onPoll = onPoll,
+       _onEvents = onEvents,
+       _onFullRefresh = onFullRefresh,
+       _nextInterval = nextInterval,
+       _debounce = debounce;
 
   final SseClient _sse;
   final Future<void> Function() _onPoll;
-  final Future<void> Function(int? palletizingLineId) _onEventRefresh;
+  final Future<void> Function(List<PalletizingAppSseEvent> events) _onEvents;
+  final Future<void> Function() _onFullRefresh;
   final Duration Function() _nextInterval;
 
   /// SSE-event debounce window — bursts within it collapse into one refresh.
@@ -48,10 +55,8 @@ class RefreshCoordinator {
   bool _running = false;
   bool _polling = false;
 
-  // Debounce accumulator: a single distinct line collapses to a targeted
-  // refresh; a `null` line id or two different lines escalate to a full poll.
-  int? _pendingLineId;
-  bool _pendingFullRefresh = false;
+  // Debounce accumulator — every frame received inside one window, in order.
+  final List<PalletizingAppSseEvent> _pendingEvents = [];
 
   /// `true` while the loop is active (started and not paused/stopped).
   bool get isRunning => _running;
@@ -75,6 +80,7 @@ class RefreshCoordinator {
     _pollTimer = null;
     _debounceTimer?.cancel();
     _debounceTimer = null;
+    _pendingEvents.clear();
     _sse.stop();
   }
 
@@ -86,7 +92,7 @@ class RefreshCoordinator {
     _running = true;
     _sse.start();
     _scheduleNextPoll();
-    _onEventRefresh(null);
+    _onFullRefresh();
   }
 
   /// Permanently stops the loop. Call from the provider's `dispose`.
@@ -96,6 +102,7 @@ class RefreshCoordinator {
     _pollTimer = null;
     _debounceTimer?.cancel();
     _debounceTimer = null;
+    _pendingEvents.clear();
     _eventSub?.cancel();
     _eventSub = null;
     _sse.stop();
@@ -108,13 +115,14 @@ class RefreshCoordinator {
   }
 
   /// Forwarded by the provider on every SSE connection-state transition. On
-  /// reaching [SseConnectionState.connected] it runs one immediate refresh to
-  /// reconcile any gap; on every transition it reschedules the poll timer so
+  /// reaching [SseConnectionState.connected] it runs one immediate full
+  /// refresh to reconcile any gap (the broker is in-memory, so frames sent
+  /// while disconnected are lost); on every transition it reschedules the poll timer so
   /// the cadence (which depends on connection state) takes effect at once.
   void onSseConnectionStateChanged(SseConnectionState state) {
     if (!_running) return;
     if (state == SseConnectionState.connected) {
-      _onEventRefresh(null);
+      _onFullRefresh();
     }
     _scheduleNextPoll();
   }
@@ -122,35 +130,22 @@ class RefreshCoordinator {
   /// Runs an immediate one-shot refresh — used for manual pull-to-refresh.
   void triggerImmediateRefresh() {
     if (!_running) return;
-    _onEventRefresh(null);
+    _onFullRefresh();
   }
 
   void _onEvent(PalletizingAppSseEvent event) {
     if (!_running) return;
-    final lineId = event.palletizingLineId;
-    if (lineId == null) {
-      _pendingFullRefresh = true;
-      _pendingLineId = null;
-    } else if (!_pendingFullRefresh) {
-      if (_pendingLineId == null || _pendingLineId == lineId) {
-        _pendingLineId = lineId;
-      } else {
-        // Two different lines in one window — refresh everything.
-        _pendingFullRefresh = true;
-        _pendingLineId = null;
-      }
-    }
+    _pendingEvents.add(event);
     _debounceTimer?.cancel();
     _debounceTimer = Timer(_debounce, _flushDebounced);
   }
 
   void _flushDebounced() {
     _debounceTimer = null;
-    final lineId = _pendingFullRefresh ? null : _pendingLineId;
-    _pendingLineId = null;
-    _pendingFullRefresh = false;
-    if (!_running) return;
-    _onEventRefresh(lineId);
+    final batch = List<PalletizingAppSseEvent>.unmodifiable(_pendingEvents);
+    _pendingEvents.clear();
+    if (!_running || batch.isEmpty) return;
+    _onEvents(batch);
   }
 
   void _scheduleNextPoll() {

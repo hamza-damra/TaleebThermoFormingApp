@@ -3,32 +3,22 @@ import 'package:google_fonts/google_fonts.dart';
 
 import '../../core/constants.dart';
 import '../../core/responsive.dart';
+import '../../domain/entities/palletizing_line.dart';
 
 class SummaryCard extends StatelessWidget {
-  final ProductionLine line;
+  final PalletizingLine line;
   final int palletCount;
   final int packageCount;
-
-  /// Optional backend-provided line display name (e.g. "خط أ"). When supplied
-  /// it takes precedence over the local enum's [ProductionLine.arabicLabel]
-  /// fallback so this card stays in sync with the rest of the dashboard.
-  final String? productionLineName;
 
   const SummaryCard({
     super.key,
     required this.line,
     required this.palletCount,
     this.packageCount = 0,
-    this.productionLineName,
   });
 
-  String get _resolvedLineLabel {
-    final String? backendName = productionLineName?.trim();
-    if (backendName != null && backendName.isNotEmpty) {
-      return backendName;
-    }
-    return line.arabicLabel;
-  }
+  /// Resolved server label (lineDisplayName → lineName → abjad ordinal).
+  String get _resolvedLineLabel => line.label;
 
   @override
   Widget build(BuildContext context) {

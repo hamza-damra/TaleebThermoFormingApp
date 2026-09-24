@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import 'line_scoped_route.dart';
+
 /// Warning dialog shown when the backend rejects a pallet creation with
 /// `PRODUCTION_PLAN_TARGET_EXCEEDED_CONFIRMATION_REQUIRED` (V81 plan
 /// enforcement). The same create-pallet request is then re-sent with
@@ -16,11 +18,19 @@ class OverproductionConfirmationDialog extends StatelessWidget {
   const OverproductionConfirmationDialog({super.key, this.message});
 
   /// Convenience: shows the dialog and returns whether the operator confirmed.
-  static Future<bool> show(BuildContext context, {String? message}) async {
+  /// The dialog closes (→ `false`) if line [lineId] is switched off meanwhile.
+  static Future<bool> show(
+    BuildContext context, {
+    required int lineId,
+    String? message,
+  }) async {
     final result = await showDialog<bool>(
       context: context,
       barrierDismissible: false,
-      builder: (_) => OverproductionConfirmationDialog(message: message),
+      builder: (_) => LineScopedRoute(
+        lineId: lineId,
+        child: OverproductionConfirmationDialog(message: message),
+      ),
     );
     return result == true;
   }
@@ -33,8 +43,11 @@ class OverproductionConfirmationDialog extends StatelessWidget {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: Row(
           children: [
-            const Icon(Icons.warning_amber_rounded,
-                color: Color(0xFFD97706), size: 28),
+            const Icon(
+              Icons.warning_amber_rounded,
+              color: Color(0xFFD97706),
+              size: 28,
+            ),
             const SizedBox(width: 10),
             Expanded(
               child: Text(

@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 
+import '../../core/constants/grinding_recommendation_strings.dart';
 import '../../domain/entities/pallet_create_response.dart';
+import '../../domain/entities/pallet_label_content.dart';
 import '../providers/palletizing_provider.dart';
 import '../providers/printing_provider.dart';
 import 'printer_selector_dialog.dart';
@@ -11,12 +13,18 @@ import 'product_type_image.dart';
 class PalletSuccessDialog extends StatefulWidget {
   final PalletCreateResponse pallet;
   final Color lineColor;
+
+  /// Backend `lineId` — used for the print-attempt log path.
+  final int lineId;
+
+  /// `lineNumber` of the line — drives the printed side-band letter.
   final int lineNumber;
 
   const PalletSuccessDialog({
     super.key,
     required this.pallet,
     required this.lineColor,
+    required this.lineId,
     required this.lineNumber,
   });
 
@@ -82,6 +90,10 @@ class _PalletSuccessDialogState extends State<PalletSuccessDialog> {
                     ),
                     textAlign: TextAlign.center,
                   ),
+                  if (widget.pallet.grindingOrder != null) ...[
+                    const SizedBox(height: 16),
+                    _buildGrindingRecommendationNotice(isMobile),
+                  ],
                   const SizedBox(height: 24),
                   _buildProductTypeImage(isMobile),
                   const SizedBox(height: 16),
@@ -120,7 +132,7 @@ class _PalletSuccessDialogState extends State<PalletSuccessDialog> {
                   const SizedBox(height: 24),
                   _buildInfoRow(
                     'المنتج',
-                    widget.pallet.productType.compactLabel,
+                    widget.pallet.productType.displayName,
                   ),
                   _buildInfoRow(
                     'الكمية',
@@ -164,6 +176,38 @@ class _PalletSuccessDialogState extends State<PalletSuccessDialog> {
       return const Icon(Icons.print_disabled, color: Colors.red, size: 64);
     }
     return const Icon(Icons.check_circle, color: Colors.green, size: 64);
+  }
+
+  /// Shown only when the backend confirmed the recommendation by returning
+  /// the new grinding order — an older backend ignores the request field and
+  /// returns none.
+  Widget _buildGrindingRecommendationNotice(bool isMobile) {
+    return Container(
+      key: const Key('grindingRecommendationSentNotice'),
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.orange.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.orange.withValues(alpha: 0.4)),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.recycling_rounded, color: Colors.orange.shade800),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              GrindingRecommendationStrings.sentNotice,
+              style: GoogleFonts.cairo(
+                fontSize: isMobile ? 13 : 15,
+                fontWeight: FontWeight.bold,
+                color: Colors.orange.shade900,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   Widget _buildProductTypeImage(bool isMobile) {
@@ -366,39 +410,14 @@ class _PalletSuccessDialogState extends State<PalletSuccessDialog> {
       _printError = null;
     });
 
-    // Top: productName (sessionProductSequence) or just productName
-    final seq = widget.pallet.sessionProductSequence;
-    final topText = seq != null
-        ? '${widget.pallet.productType.productName} ($seq)'
-        : widget.pallet.productType.productName;
-
-    // Bottom: description with fallback to full name
-    final description = widget.pallet.productType.description;
-    debugPrint('[LABEL DEBUG] productType.description = "$description"');
-    debugPrint(
-      '[LABEL DEBUG] productType.name = "${widget.pallet.productType.name}"',
+    final labelContent = PalletLabelContentMapper.fromCreatedPallet(
+      widget.pallet,
+      lineNumber: widget.lineNumber,
     );
-    debugPrint(
-      '[LABEL DEBUG] productType.productName = "${widget.pallet.productType.productName}"',
-    );
-    debugPrint('[LABEL DEBUG] sessionProductSequence = $seq');
-    final bottomText = (description != null && description.isNotEmpty)
-        ? description
-        : widget.pallet.productType.name;
-    debugPrint('[LABEL DEBUG] resolved bottomText = "$bottomText"');
-    debugPrint('[LABEL DEBUG] resolved topText = "$topText"');
-
-    // Sides: scannedValue (lineLetter)
-    final lineLetter = widget.lineNumber == 1 ? 'A' : 'B';
-    final sideText = '${widget.pallet.scannedValue} ($lineLetter)';
-    debugPrint('[LABEL DEBUG] resolved sideText = "$sideText"');
 
     final result = await printingProvider.print(
-      scannedValue: widget.pallet.scannedValue,
+      labelContent: labelContent,
       copies: printingProvider.copies,
-      topText: topText,
-      bottomText: bottomText,
-      sideText: sideText,
     );
 
     if (!mounted) return;
@@ -406,7 +425,7 @@ class _PalletSuccessDialogState extends State<PalletSuccessDialog> {
 
     final palletizingProvider = context.read<PalletizingProvider>();
     await palletizingProvider.logPrintAttempt(
-      lineNumber: widget.lineNumber,
+      lineId: widget.lineId,
       palletId: widget.pallet.palletId,
       printerIdentifier: printingProvider.selectedPrinter?.name ?? 'UNKNOWN',
       success: result.isSuccess,

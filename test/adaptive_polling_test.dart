@@ -21,12 +21,13 @@ import 'package:taleeb_thermoforming/domain/entities/operator.dart';
 import 'package:taleeb_thermoforming/domain/entities/pallet_create_response.dart';
 import 'package:taleeb_thermoforming/domain/entities/palletizer_auth_result.dart';
 import 'package:taleeb_thermoforming/domain/entities/palletizer_session.dart';
+import 'package:taleeb_thermoforming/domain/entities/plan_item_close_request.dart';
 import 'package:taleeb_thermoforming/domain/entities/print_attempt_result.dart';
-import 'package:taleeb_thermoforming/domain/entities/production_line.dart';
 import 'package:taleeb_thermoforming/domain/entities/session_production_detail.dart';
 import 'package:taleeb_thermoforming/domain/entities/takeover_request.dart';
 import 'package:taleeb_thermoforming/domain/entities/takeover_status.dart';
 import 'package:taleeb_thermoforming/domain/entities/manager_announcement.dart';
+import 'package:taleeb_thermoforming/domain/entities/pallet_label.dart';
 import 'package:taleeb_thermoforming/domain/repositories/palletizing_repository.dart';
 import 'package:taleeb_thermoforming/presentation/providers/palletizing_provider.dart';
 
@@ -111,9 +112,11 @@ class _FakeRepo implements PalletizingRepository {
     required int lineId,
     required int productTypeId,
     required int quantity,
+    required int expectedPlanItemId,
     bool confirmOverproduction = false,
     int? firstPalletFaletExpectedQuantity,
     int? firstPalletFaletId,
+    String? grindingRecommendationReason,
   }) async {
     createCalls++;
     final err = createPalletError;
@@ -162,6 +165,30 @@ class _FakeRepo implements PalletizingRepository {
     required int lineId,
   }) =>
       throw UnimplementedError();
+
+  @override
+  Future<PalletLabel> fetchPalletLabel(String scannedValue) =>
+      throw UnimplementedError();
+
+  @override
+  Future<PlanItemCloseRequest?> getActivePlanItemCloseRequest({
+    required int lineId,
+    required String sessionToken,
+  }) async => null;
+
+  @override
+  Future<PlanItemCloseRequest> reportMorePalletsRemain({
+    required int lineId,
+    required int closeRequestId,
+    required String sessionToken,
+  }) => throw UnimplementedError();
+
+  @override
+  Future<PlanItemCloseRequest> confirmAllPalletsRegistered({
+    required int lineId,
+    required int closeRequestId,
+    required String sessionToken,
+  }) => throw UnimplementedError();
 }
 
 /// In-memory [AuthLocalStorage] — never touches `flutter_secure_storage`.
@@ -206,11 +233,6 @@ class _FakeNotifications extends TakeoverNotificationService {
 
 const _lineIdFor = {1: 101, 2: 102};
 
-final _productionLines = [
-  const ProductionLine(id: 101, name: 'L1', code: 'L1', lineNumber: 1),
-  const ProductionLine(id: 102, name: 'L2', code: 'L2', lineNumber: 2),
-];
-
 BootstrapLineState _line(
   int lineNumber, {
   bool authorized = true,
@@ -237,11 +259,7 @@ BootstrapLineState _line(
 }
 
 BootstrapResponse _bootstrap(List<BootstrapLineState> lines) {
-  return BootstrapResponse(
-    productTypes: const [],
-    productionLines: _productionLines,
-    lines: lines,
-  );
+  return BootstrapResponse(productTypes: const [], lines: lines);
 }
 
 PalletizerSession _activeSession(int lineId) => PalletizerSession(
@@ -286,8 +304,8 @@ void main() {
 
       // The spam fix: zero session-endpoint calls when no session exists.
       expect(t.repo.sessionCalls, 0);
-      expect(t.provider.getUiState(1), LineUiState.needsPalletizerAuth);
-      expect(t.provider.getUiState(2), LineUiState.needsPalletizerAuth);
+      expect(t.provider.getUiState(101), LineUiState.needsPalletizerAuth);
+      expect(t.provider.getUiState(102), LineUiState.needsPalletizerAuth);
     });
 
     test('a 404 closes the gate so the endpoint is not retried in a loop',
@@ -300,10 +318,10 @@ void main() {
       await t.provider.loadBootstrap();
       // One validating call for the stale token, then PALLETIZER_SESSION_REQUIRED.
       expect(t.repo.sessionCalls, 1);
-      expect(t.provider.getUiState(1), LineUiState.needsPalletizerAuth);
+      expect(t.provider.getUiState(101), LineUiState.needsPalletizerAuth);
 
       // Subsequent refreshes must not hit the endpoint again.
-      await t.provider.refreshPalletizerSession(1);
+      await t.provider.refreshPalletizerSession(101);
       await t.provider.pollLineMonitoring();
       expect(t.repo.sessionCalls, 1);
     });
@@ -317,7 +335,7 @@ void main() {
       await t.provider.loadBootstrap();
 
       expect(t.repo.sessionCalls, 2);
-      expect(t.provider.getUiState(1), LineUiState.active);
+      expect(t.provider.getUiState(101), LineUiState.active);
     });
 
     test('a successful palletizerAuth re-opens the gate', () async {
@@ -332,12 +350,12 @@ void main() {
             session: _activeSession(lineId),
             sessionToken: 'fresh-token',
           );
-      final ok = await t.provider.palletizerAuth(1, '1234');
+      final ok = await t.provider.palletizerAuth(101, '1234');
       expect(ok, isTrue);
 
       // The gate is open again — a refresh now reaches the endpoint.
       final before = t.repo.sessionCalls;
-      await t.provider.refreshPalletizerSession(1);
+      await t.provider.refreshPalletizerSession(101);
       expect(t.repo.sessionCalls, before + 1);
     });
 
@@ -346,12 +364,12 @@ void main() {
       t.repo.bootstrapFn = () => _bootstrap([_line(1), _line(2)]);
       t.repo.sessionFn = (lineId) => _activeSession(lineId);
       await t.provider.loadBootstrap();
-      expect(t.provider.getUiState(1), LineUiState.active);
+      expect(t.provider.getUiState(101), LineUiState.active);
 
-      await t.provider.palletizerLogout(1);
+      await t.provider.palletizerLogout(101);
 
       final before = t.repo.sessionCalls;
-      await t.provider.refreshPalletizerSession(1);
+      await t.provider.refreshPalletizerSession(101);
       await t.provider.pollLineMonitoring();
       expect(t.repo.sessionCalls, before);
     });
@@ -401,8 +419,8 @@ void main() {
       t.repo.sessionFn = (_) => null;
       await t.provider.loadBootstrap();
 
-      expect(t.provider.getUiState(1), LineUiState.waitingForThermoforming);
-      expect(t.provider.hasUrgentLineState(1), isTrue);
+      expect(t.provider.getUiState(101), LineUiState.waitingForThermoforming);
+      expect(t.provider.hasUrgentLineState(101), isTrue);
       expect(t.provider.pollCadence, PollCadence.urgent);
       expect(t.provider.nextPollInterval, const Duration(seconds: 6));
     });
@@ -418,7 +436,7 @@ void main() {
 
       t.provider.onSseConnectionStateChanged(SseConnectionState.connected);
 
-      expect(t.provider.hasUrgentLineState(1), isTrue);
+      expect(t.provider.hasUrgentLineState(101), isTrue);
       expect(t.provider.pollCadence, PollCadence.urgent);
     });
 
@@ -431,7 +449,7 @@ void main() {
       t.repo.sessionFn = (_) => null;
       await t.provider.loadBootstrap();
 
-      expect(t.provider.hasUrgentLineState(1), isTrue);
+      expect(t.provider.hasUrgentLineState(101), isTrue);
       expect(t.provider.pollCadence, PollCadence.urgent);
     });
 
@@ -449,7 +467,7 @@ void main() {
       t.repo.sessionFn = (_) => null;
       await t.provider.loadBootstrap();
 
-      expect(t.provider.hasUrgentLineState(1), isTrue);
+      expect(t.provider.hasUrgentLineState(101), isTrue);
       expect(t.provider.pollCadence, PollCadence.urgent);
     });
 
@@ -462,7 +480,7 @@ void main() {
       t.repo.sessionFn = (_) => null;
       await t.provider.loadBootstrap();
 
-      expect(t.provider.hasUrgentLineState(1), isTrue);
+      expect(t.provider.hasUrgentLineState(101), isTrue);
       expect(t.provider.pollCadence, PollCadence.urgent);
     });
 
@@ -473,8 +491,8 @@ void main() {
       t.repo.sessionFn = (lineId) => _activeSession(lineId);
       await t.provider.loadBootstrap();
 
-      expect(t.provider.hasUrgentLineState(1), isTrue);
-      expect(t.provider.hasUrgentLineState(2), isFalse);
+      expect(t.provider.hasUrgentLineState(101), isTrue);
+      expect(t.provider.hasUrgentLineState(102), isFalse);
       expect(t.provider.hasAnyUrgentLineState, isTrue);
       expect(t.provider.pollCadence, PollCadence.urgent);
     });
@@ -544,28 +562,54 @@ void main() {
   });
 
   group('SSE-driven refresh', () {
-    test('an event for a known line refreshes just that line', () async {
+    PalletizingAppSseEvent frame(String id, {int? line, String? reason}) =>
+        PalletizingAppSseEvent(
+          eventId: id,
+          palletizingLineId: line,
+          reason: reason,
+        );
+
+    test('an event for a rendered line refreshes just that line', () async {
       final t = _newProvider();
       t.repo.bootstrapFn = () => _bootstrap([_line(1), _line(2)]);
       t.repo.sessionFn = (_) => null;
       await t.provider.loadBootstrap();
 
       t.repo.lineStateFn = (lineId) => _line(lineId == 101 ? 1 : 2);
-      await t.provider.refreshFromSseEvent(101);
+      await t.provider.refreshFromSseEvents([
+        frame('a', line: 101, reason: 'PALLET_CREATED'),
+      ]);
 
       expect(t.repo.lineStateLineIds, [101]); // only the affected line
+      expect(t.repo.bootstrapCalls, 1); // no bootstrap re-fetch
     });
 
-    test('an event with no resolvable line refreshes every line', () async {
+    test('events for two rendered lines refresh both lines', () async {
       final t = _newProvider();
       t.repo.bootstrapFn = () => _bootstrap([_line(1), _line(2)]);
       t.repo.sessionFn = (_) => null;
       await t.provider.loadBootstrap();
 
       t.repo.lineStateFn = (lineId) => _line(lineId == 101 ? 1 : 2);
-      await t.provider.refreshFromSseEvent(null);
+      await t.provider.refreshFromSseEvents([
+        frame('a', line: 101, reason: 'PALLET_CREATED'),
+        frame('b', line: 102, reason: 'SESSION_CHANGED'),
+      ]);
 
       expect(t.repo.lineStateLineIds.toSet(), {101, 102});
+      expect(t.repo.bootstrapCalls, 1);
+    });
+
+    test('an event with no line id re-fetches bootstrap instead', () async {
+      final t = _newProvider();
+      t.repo.bootstrapFn = () => _bootstrap([_line(1), _line(2)]);
+      t.repo.sessionFn = (_) => null;
+      await t.provider.loadBootstrap();
+
+      await t.provider.refreshFromSseEvents([frame('a')]);
+
+      expect(t.repo.bootstrapCalls, 2);
+      expect(t.repo.lineStateLineIds, isEmpty);
     });
 
     test('an SSE refresh never flips the provider into the loading state',
@@ -576,10 +620,14 @@ void main() {
       await t.provider.loadBootstrap();
       expect(t.provider.state, PalletizingState.loaded);
 
-      t.repo.lineStateFn = (lineId) => _line(lineId == 101 ? 1 : 2);
-      await t.provider.refreshFromSseEvent(null);
+      final states = <PalletizingState>[];
+      t.provider.addListener(() => states.add(t.provider.state));
+      await t.provider.refreshFromSseEvents([
+        frame('a', line: 101, reason: 'LINE_STATE_CHANGED'),
+      ]);
 
-      // pollLineMonitoring, not loadBootstrap — no shimmer flash.
+      // Silent bootstrap, not loadBootstrap — no shimmer flash.
+      expect(states, isNot(contains(PalletizingState.loading)));
       expect(t.provider.state, PalletizingState.loaded);
     });
   });
@@ -600,8 +648,8 @@ void main() {
           lineId == 101 ? handout.removeAt(0).future : Future.value(_line(2));
 
       // Refresh A starts first and reserves cOld; refresh B reserves cNew.
-      final a = t.provider.refreshLineState(1);
-      final b = t.provider.refreshLineState(1);
+      final a = t.provider.refreshLineState(101);
+      final b = t.provider.refreshLineState(101);
 
       // The newer refresh (B) lands first with fresh state...
       cNew.complete(_line(1, blocked: true, blockedReason: 'NEWER'));
@@ -610,8 +658,8 @@ void main() {
       await Future.wait([a, b]);
 
       // A's overtaken response was dropped — B's fresh state still stands.
-      expect(t.provider.getBlockedReason(1), 'NEWER');
-      expect(t.provider.getUiState(1), LineUiState.blocked);
+      expect(t.provider.getBlockedReason(101), 'NEWER');
+      expect(t.provider.getUiState(101), LineUiState.blocked);
     });
   });
 
@@ -623,15 +671,15 @@ void main() {
       t.repo.sessionFn = (_) => null;
 
       await t.provider.loadBootstrap();
-      expect(t.provider.getUiState(1), LineUiState.waitingForThermoforming);
+      expect(t.provider.getUiState(101), LineUiState.waitingForThermoforming);
       expect(t.repo.bootstrapCalls, 1);
 
       t.repo.bootstrapFn = () => _bootstrap([_line(1), _line(2)]);
       await t.provider.loadBootstrap();
 
       expect(t.repo.bootstrapCalls, 2);
-      expect(t.provider.getUiState(1), LineUiState.needsPalletizerAuth);
-      expect(t.provider.hasUrgentLineState(1), isFalse);
+      expect(t.provider.getUiState(101), LineUiState.needsPalletizerAuth);
+      expect(t.provider.hasUrgentLineState(101), isFalse);
     });
   });
 
@@ -642,7 +690,7 @@ void main() {
       t.repo.bootstrapFn = () => _bootstrap([_line(1), _line(2)]);
       t.repo.sessionFn = (lineId) => _activeSession(lineId);
       await t.provider.loadBootstrap();
-      expect(t.provider.getUiState(1), LineUiState.active);
+      expect(t.provider.getUiState(101), LineUiState.active);
 
       t.repo.createPalletError = ApiException(
         code: 'LINE_BLOCKED_BY_TAKEOVER',
@@ -656,18 +704,23 @@ void main() {
 
       final before = t.repo.lineStateCalls;
       await expectLater(
-        t.provider.createPallet(lineNumber: 1, productTypeId: 1, quantity: 1),
+        t.provider.createPallet(
+          lineId: 101,
+          productTypeId: 1,
+          quantity: 1,
+          expectedPlanItemId: 1,
+        ),
         throwsA(isA<ApiException>()),
       );
 
       expect(t.repo.lineStateCalls, greaterThan(before));
       expect(
-        t.provider.getLineError(1),
+        t.provider.getLineError(101),
         'لا يمكن إنشاء طبليات الآن — الخط في وضع تسليم. '
         'الرجاء الانتظار حتى يكمل المشغّل استلام الخط.',
       );
-      expect(t.provider.getUiState(1), LineUiState.blocked);
-      expect(t.provider.hasUrgentLineState(1), isTrue);
+      expect(t.provider.getUiState(101), LineUiState.blocked);
+      expect(t.provider.hasUrgentLineState(101), isTrue);
     });
 
     test('a create rejected for a missing palletizer session drops to State B',
@@ -676,7 +729,7 @@ void main() {
       t.repo.bootstrapFn = () => _bootstrap([_line(1), _line(2)]);
       t.repo.sessionFn = (lineId) => _activeSession(lineId);
       await t.provider.loadBootstrap();
-      expect(t.provider.getUiState(1), LineUiState.active);
+      expect(t.provider.getUiState(101), LineUiState.active);
 
       t.repo.createPalletError = ApiException(
         code: 'PALLETIZER_SESSION_REQUIRED',
@@ -684,11 +737,16 @@ void main() {
       );
 
       await expectLater(
-        t.provider.createPallet(lineNumber: 1, productTypeId: 1, quantity: 1),
+        t.provider.createPallet(
+          lineId: 101,
+          productTypeId: 1,
+          quantity: 1,
+          expectedPlanItemId: 1,
+        ),
         throwsA(isA<ApiException>()),
       );
 
-      expect(t.provider.getUiState(1), LineUiState.needsPalletizerAuth);
+      expect(t.provider.getUiState(101), LineUiState.needsPalletizerAuth);
     });
   });
 
@@ -700,13 +758,13 @@ void main() {
           _bootstrap([_line(1, authorized: false), _line(2)]);
       t.repo.sessionFn = (lineId) => _activeSession(lineId);
       await t.provider.loadBootstrap();
-      expect(t.provider.getUiState(1), LineUiState.waitingForThermoforming);
+      expect(t.provider.getUiState(101), LineUiState.waitingForThermoforming);
 
       t.repo.lineStateFn = (lineId) => _line(lineId == 101 ? 1 : 2);
-      await t.provider.refreshLineState(1);
+      await t.provider.refreshLineState(101);
 
-      expect(t.provider.getUiState(1), LineUiState.active);
-      expect(t.provider.hasUrgentLineState(1), isFalse);
+      expect(t.provider.getUiState(101), LineUiState.active);
+      expect(t.provider.hasUrgentLineState(101), isFalse);
     });
 
     test('logout clears transient refresh state', () async {

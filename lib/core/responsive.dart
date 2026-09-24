@@ -3,7 +3,19 @@ import 'package:flutter/material.dart';
 class Breakpoints {
   static const double mobile = 600;
   static const double tablet = 1200;
+
+  /// Minimum width of one line pane in the side-by-side layout. Below it the
+  /// palletizing screen falls back to tabs (3 panes at 1200 dp would be
+  /// ~400 dp each). Proposed value — validate on the real tablet.
+  static const double minPaneWidth = 420;
 }
+
+/// Side-by-side panes only when the screen is desktop-wide AND each of the
+/// [lineCount] panes gets at least [Breakpoints.minPaneWidth]; tabs otherwise.
+bool usePalletizingPanes(double screenWidth, int lineCount) =>
+    lineCount > 0 &&
+    screenWidth >= Breakpoints.tablet &&
+    screenWidth / lineCount >= Breakpoints.minPaneWidth;
 
 enum ScreenType { mobile, tablet, desktop }
 

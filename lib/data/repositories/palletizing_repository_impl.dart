@@ -1,31 +1,29 @@
 import 'package:flutter/foundation.dart';
 
 import '../../domain/entities/bootstrap_response.dart';
+import '../../domain/entities/pallet_label.dart';
 import '../../domain/entities/falet_exists_response.dart';
 import '../../domain/entities/falet_response.dart';
 import '../../domain/entities/first_pallet_context.dart';
 import '../../domain/entities/manager_announcement.dart';
-import '../../domain/entities/operator.dart';
 import '../../domain/entities/pallet_create_response.dart';
 import '../../domain/entities/palletizer_auth_result.dart';
 import '../../domain/entities/palletizer_session.dart';
+import '../../domain/entities/plan_item_close_request.dart';
 import '../../domain/entities/print_attempt_result.dart';
 import '../../domain/entities/session_production_detail.dart';
-import '../../domain/entities/product_type.dart';
 import '../../domain/repositories/palletizing_repository.dart';
-import '../../domain/entities/production_line.dart';
 import '../datasources/api_client.dart';
 import '../models/bootstrap_response_model.dart';
 import '../models/falet_exists_response_model.dart';
 import '../models/falet_response_model.dart';
 import '../models/first_pallet_context_model.dart';
 import '../models/manager_announcement_model.dart';
-import '../models/operator_model.dart';
 import '../models/pallet_create_response_model.dart';
+import '../models/pallet_label_model.dart';
 import '../models/palletizer_session_model.dart';
+import '../models/plan_item_close_request_model.dart';
 import '../models/print_attempt_result_model.dart';
-import '../models/product_type_model.dart';
-import '../models/production_line_model.dart';
 import '../models/session_production_detail_model.dart';
 
 class PalletizingRepositoryImpl implements PalletizingRepository {
@@ -34,33 +32,7 @@ class PalletizingRepositoryImpl implements PalletizingRepository {
   PalletizingRepositoryImpl({required ApiClient apiClient})
     : _apiClient = apiClient;
 
-  // ── Legacy endpoints (kept for adjacent flows) ──
-
-  Future<List<Operator>> getOperators() async {
-    return await _apiClient.requestList<Operator>(
-      path: '/palletizing/operators',
-      method: 'GET',
-      itemParser: (json) => OperatorModel.fromJson(json),
-    );
-  }
-
-  Future<List<ProductType>> getProductTypes() async {
-    return await _apiClient.requestList<ProductType>(
-      path: '/palletizing/product-types',
-      method: 'GET',
-      itemParser: (json) => ProductTypeModel.fromJson(json),
-    );
-  }
-
-  Future<List<ProductionLine>> getProductionLines() async {
-    return await _apiClient.requestList<ProductionLine>(
-      path: '/palletizing/production-lines',
-      method: 'GET',
-      itemParser: (json) => ProductionLineModel.fromJson(json),
-    );
-  }
-
-  // ── New line-scoped endpoints (/palletizing-line) ──
+  // ── Line-scoped endpoints (/palletizing-line) ──
 
   @override
   Future<BootstrapResponse> bootstrap() async {
@@ -140,14 +112,18 @@ class PalletizingRepositoryImpl implements PalletizingRepository {
     required int lineId,
     required int productTypeId,
     required int quantity,
+    required int expectedPlanItemId,
     bool confirmOverproduction = false,
     int? firstPalletFaletExpectedQuantity,
     int? firstPalletFaletId,
+    String? grindingRecommendationReason,
   }) async {
     final body = <String, dynamic>{
       'productTypeId': productTypeId,
       'quantity': quantity,
       'confirmOverproduction': confirmOverproduction,
+      // V190: mandatory on every pallet — the line's `currentPlanItemId`.
+      'expectedPlanItemId': expectedPlanItemId,
     };
     // Only attach the consumption block when the caller is on the first-pallet
     // FALET path. The backend treats absence and `null` differently: absence
@@ -156,6 +132,12 @@ class PalletizingRepositoryImpl implements PalletizingRepository {
       body['firstPalletFaletConsumption'] = <String, dynamic>{
         'expectedFaletQuantity': firstPalletFaletExpectedQuantity,
         'faletId': firstPalletFaletId,
+      };
+    }
+    // Present object = "recommend for grinding"; absent = a normal pallet.
+    if (grindingRecommendationReason != null) {
+      body['grindingRecommendation'] = <String, dynamic>{
+        'reason': grindingRecommendationReason.trim(),
       };
     }
     return await _apiClient.request<PalletCreateResponse>(
@@ -262,6 +244,68 @@ class PalletizingRepositoryImpl implements PalletizingRepository {
     );
   }
 
+  // ── Plan-item close handshake (V190) ──
+
+  /// Header carrying the PIN-issued palletizer session token. The device key
+  /// is attached separately by the [ApiClient] interceptor.
+  static const String palletizerSessionTokenHeader =
+      'X-Palletizer-Session-Token';
+
+  static Map<String, dynamic> _sessionHeaders(String sessionToken) => {
+    palletizerSessionTokenHeader: sessionToken,
+  };
+
+  @override
+  Future<PlanItemCloseRequest?> getActivePlanItemCloseRequest({
+    required int lineId,
+    required String sessionToken,
+  }) async {
+    return await _apiClient.request<PlanItemCloseRequest?>(
+      path: '/palletizing-line/lines/$lineId/plan-item-close-request',
+      method: 'GET',
+      headers: _sessionHeaders(sessionToken),
+      parser: (json) => PlanItemCloseRequestModel.activeFromJson(
+        json['data'] as Map<String, dynamic>,
+      ),
+    );
+  }
+
+  @override
+  Future<PlanItemCloseRequest> reportMorePalletsRemain({
+    required int lineId,
+    required int closeRequestId,
+    required String sessionToken,
+  }) async {
+    return await _apiClient.request<PlanItemCloseRequest>(
+      path:
+          '/palletizing-line/lines/$lineId/plan-item-close-requests/'
+          '$closeRequestId/more-pallets-remain',
+      method: 'POST',
+      headers: _sessionHeaders(sessionToken),
+      parser: (json) => PlanItemCloseRequestModel.fromJson(
+        json['data'] as Map<String, dynamic>,
+      ),
+    );
+  }
+
+  @override
+  Future<PlanItemCloseRequest> confirmAllPalletsRegistered({
+    required int lineId,
+    required int closeRequestId,
+    required String sessionToken,
+  }) async {
+    return await _apiClient.request<PlanItemCloseRequest>(
+      path:
+          '/palletizing-line/lines/$lineId/plan-item-close-requests/'
+          '$closeRequestId/confirm-all-pallets-registered',
+      method: 'POST',
+      headers: _sessionHeaders(sessionToken),
+      parser: (json) => PlanItemCloseRequestModel.fromJson(
+        json['data'] as Map<String, dynamic>,
+      ),
+    );
+  }
+
   // ── Sanitized urgent manager announcements ──
 
   @override
@@ -291,6 +335,18 @@ class PalletizingRepositoryImpl implements PalletizingRepository {
       method: 'POST',
       queryParameters: {'lineId': lineId},
       parser: (_) {},
+    );
+  }
+
+  // ── Pallet label reprint (unscoped — any shift / any line) ──
+
+  @override
+  Future<PalletLabel> fetchPalletLabel(String scannedValue) async {
+    return await _apiClient.request<PalletLabel>(
+      path: '/palletizing-line/pallets/$scannedValue/label',
+      method: 'GET',
+      parser: (json) =>
+          PalletLabelModel.fromJson(json['data'] as Map<String, dynamic>),
     );
   }
 }

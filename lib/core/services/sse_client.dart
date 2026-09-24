@@ -229,6 +229,21 @@ class SseClient {
         continue;
       }
       // Unknown event name — ignore.
+      //
+      // The device stream is shared by more than one domain, so it carries
+      // frames this app is not the audience for — `production-plan-changed`
+      // (roll production plan), `roll-manager-announcement` and
+      // `roll-production-settings-changed`. Dropping them here is the
+      // property that makes the shared stream safe: the backend can add or
+      // remove such a frame without a Palletizing App release.
+      //
+      // `production-plan-changed` in particular is being routed away from
+      // this stream behind a backend compatibility flag; when that flag
+      // flips the frame simply stops arriving. Nothing below this line
+      // depends on it, and nothing should — a palletizing surface that needs
+      // a refresh signal must get one of its own, not borrow the roll
+      // domain's. See
+      // [docs/FRONTEND_HANDOFF_PALLETIZING_APP_PLAN_CHANGED_FRAME_REMOVED.md].
     }
   }
 

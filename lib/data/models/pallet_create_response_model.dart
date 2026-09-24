@@ -3,6 +3,7 @@ import '../../domain/entities/pallet_create_response.dart';
 import '../../domain/entities/operator.dart';
 import '../../domain/entities/product_type.dart';
 import '../../domain/entities/production_line.dart';
+import 'grinding_order_summary_model.dart';
 
 class PalletCreateResponseModel extends PalletCreateResponse {
   const PalletCreateResponseModel({
@@ -18,6 +19,10 @@ class PalletCreateResponseModel extends PalletCreateResponse {
     required super.createdAtDisplay,
     super.sessionProductSequence,
     super.faletConsumption,
+    super.grindingOrder,
+    super.grindingRecommended,
+    super.grindingLabelText,
+    super.labelReprintAllowed,
   });
 
   factory PalletCreateResponseModel.fromJson(Map<String, dynamic> json) {
@@ -58,6 +63,12 @@ class PalletCreateResponseModel extends PalletCreateResponse {
       createdAtDisplay: json['createdAtDisplay'] as String? ?? '',
       sessionProductSequence: json['sessionProductSequence'] as int?,
       faletConsumption: _parseFaletConsumption(json['faletConsumption']),
+      grindingOrder: GrindingOrderSummaryModel.tryFromJson(
+        json['grindingOrder'],
+      ),
+      grindingRecommended: json['grindingRecommended'] as bool?,
+      grindingLabelText: json['grindingLabelText'] as String?,
+      labelReprintAllowed: json['labelReprintAllowed'] as bool?,
     );
   }
 

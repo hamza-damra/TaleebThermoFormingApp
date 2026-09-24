@@ -7,6 +7,7 @@ import 'package:image/image.dart' as img;
 import 'package:qr/qr.dart';
 
 import '../domain/entities/label_preset.dart';
+import '../domain/entities/pallet_label_content.dart';
 import 'unit_converter.dart';
 
 class LabelLayout {
@@ -29,6 +30,10 @@ class LabelLayout {
   final int sideBandTop;
   final int sideBandBottom;
 
+  // Grinding marker line — below the quantity line, only when requested.
+  final bool hasMarkerLine;
+  final int markerTextY;
+
   LabelLayout({
     required this.widthDots,
     required this.heightDots,
@@ -46,12 +51,21 @@ class LabelLayout {
     this.sideBandWidth = 0,
     this.sideBandTop = 0,
     this.sideBandBottom = 0,
+    this.hasMarkerLine = false,
+    this.markerTextY = 0,
   });
 
   static const int _gap = 6;
   static const int _minQrDots = 80;
 
-  factory LabelLayout.fromPreset(LabelPreset preset, {bool hasText = false}) {
+  /// [hasMarkerLine] adds one horizontal line at the bottom for the grinding
+  /// marker: the quantity line moves up one line and the QR zone loses that
+  /// height. Without it the layout is exactly the plain 4-side layout.
+  factory LabelLayout.fromPreset(
+    LabelPreset preset, {
+    bool hasText = false,
+    bool hasMarkerLine = false,
+  }) {
     final widthDots = UnitConverter.mmToDots(preset.widthMm);
     final heightDots = UnitConverter.mmToDots(preset.heightMm);
     final marginDots = UnitConverter.mmToDots(preset.marginMm);
@@ -75,20 +89,28 @@ class LabelLayout {
       );
     }
 
+    // Horizontal lines: product (top) and quantity (bottom), plus the marker.
+    final horizontalLines = hasMarkerLine ? 3 : 2;
+
     // Choose main font: prefer arial48, fall back to arial24
     final arial48H = img.arial48.lineHeight;
     final arial24H = img.arial24.lineHeight;
     final bool useLarge =
-        printableHeightDots - 2 * (arial48H + _gap) >= _minQrDots;
+        printableHeightDots - horizontalLines * (arial48H + _gap) >= _minQrDots;
     final mainFontH = useLarge ? arial48H : arial24H;
 
-    // Top / bottom text bands
+    // Top / bottom text bands. The marker, when present, takes the last line
+    // and the quantity line sits one line above it.
     final topTextY = marginDots;
-    final bottomTextY = heightDots - marginDots - mainFontH;
+    final lastLineY = heightDots - marginDots - mainFontH;
+    final bottomTextY = hasMarkerLine
+        ? lastLineY - mainFontH - _gap
+        : lastLineY;
+    final markerTextY = hasMarkerLine ? lastLineY : 0;
 
     // Vertical zone between top/bottom bands (for QR + side bands)
     final qrZoneTop = marginDots + mainFontH + _gap;
-    final qrZoneBottom = heightDots - marginDots - mainFontH - _gap;
+    final qrZoneBottom = bottomTextY - _gap;
     final qrZoneHeight = qrZoneBottom - qrZoneTop;
 
     // Left / right side bands (same font as top/bottom, rotated)
@@ -118,6 +140,8 @@ class LabelLayout {
       sideBandWidth: sideBandW,
       sideBandTop: qrZoneTop,
       sideBandBottom: qrZoneBottom,
+      hasMarkerLine: hasMarkerLine,
+      markerTextY: markerTextY,
     );
   }
 
@@ -143,17 +167,18 @@ class LabelRenderResult {
 
 class LabelRenderer {
   Future<LabelRenderResult> render({
-    required String value,
+    required PalletLabelContent content,
     required LabelPreset preset,
-    String? topText,
-    String? bottomText,
-    String? sideText,
   }) async {
-    final hasText = topText != null || bottomText != null || sideText != null;
-    final layout = LabelLayout.fromPreset(preset, hasText: hasText);
+    final markerText = content.grindingMarkerText;
+    final layout = LabelLayout.fromPreset(
+      preset,
+      hasText: true,
+      hasMarkerLine: markerText != null,
+    );
 
     final qrCode = QrCode.fromData(
-      data: value,
+      data: content.qrValue,
       errorCorrectLevel: QrErrorCorrectLevel.M,
     );
     final qrImage = QrImage(qrCode);
@@ -165,15 +190,14 @@ class LabelRenderer {
 
     img.fill(image, color: img.ColorRgba8(255, 255, 255, 255));
 
-    if (hasText) {
-      await _drawLabelText(
-        image,
-        layout,
-        topText: topText,
-        bottomText: bottomText,
-        sideText: sideText,
-      );
-    }
+    await _drawLabelText(
+      image,
+      layout,
+      topText: content.productText,
+      bottomText: content.actualQuantityText,
+      sideText: content.sideText,
+      markerText: markerText,
+    );
 
     _drawQrCode(image, qrImage, layout);
 
@@ -192,9 +216,22 @@ class LabelRenderer {
     String? topText,
     String? bottomText,
     String? sideText,
+    String? markerText,
   }) async {
     final fontSize = layout.mainFontHeight * 0.72;
     final maxHorizWidth = image.width - (layout.marginDots * 2);
+
+    // Grinding marker (horizontal, centered, bold) on the last line.
+    if (markerText != null && layout.hasMarkerLine) {
+      final textBitmap = await _renderTextBitmap(
+        markerText,
+        fontSize,
+        maxHorizWidth,
+        fontWeight: FontWeight.bold,
+      );
+      final centerX = (image.width - textBitmap.width) ~/ 2;
+      _compositeBlackPixels(image, textBitmap, centerX, layout.markerTextY);
+    }
 
     // Top text (horizontal, centered)
     if (topText != null) {
@@ -275,8 +312,9 @@ class LabelRenderer {
   Future<img.Image> _renderTextBitmap(
     String text,
     double fontSize,
-    int maxWidth,
-  ) async {
+    int maxWidth, {
+    FontWeight fontWeight = FontWeight.w600,
+  }) async {
     // Detect base text direction for proper BiDi rendering
     final isRtl = RegExp(
       r'[\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF]',
@@ -288,7 +326,7 @@ class LabelRenderer {
         style: TextStyle(
           color: const Color(0xFF000000),
           fontSize: fontSize,
-          fontWeight: FontWeight.w600,
+          fontWeight: fontWeight,
         ),
       ),
       textDirection: isRtl ? TextDirection.rtl : TextDirection.ltr,
@@ -305,7 +343,7 @@ class LabelRenderer {
         style: TextStyle(
           color: const Color(0xFF000000),
           fontSize: usedFontSize,
-          fontWeight: FontWeight.w600,
+          fontWeight: fontWeight,
         ),
       );
       textPainter.layout();

@@ -1,14 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:provider/provider.dart';
 
 import '../../core/constants.dart';
 import '../../core/responsive.dart';
-import '../../domain/entities/product_type.dart';
+import '../../domain/entities/palletizing_line.dart';
 import '../../domain/entities/session_table_row.dart';
+import '../providers/palletizing_provider.dart';
 import 'session_drilldown_dialog.dart';
 
 class SessionTableWidget extends StatelessWidget {
-  final ProductionLine line;
+  final PalletizingLine line;
   final List<SessionTableRow> rows;
 
   const SessionTableWidget({super.key, required this.line, required this.rows});
@@ -119,6 +121,7 @@ class SessionTableWidget extends StatelessWidget {
   }
 
   Widget _buildTable(BuildContext context, bool isMobile) {
+    final provider = context.watch<PalletizingProvider>();
     final headerStyle = GoogleFonts.cairo(
       fontSize: isMobile ? 11 : 13,
       fontWeight: FontWeight.bold,
@@ -173,7 +176,10 @@ class SessionTableWidget extends StatelessWidget {
                     : null,
                 children: [
                   _buildCell(
-                    ProductType.formatCompactName(row.productTypeName),
+                    provider.productDisplayName(
+                      productTypeId: row.productTypeId,
+                      backendName: row.productTypeName,
+                    ),
                     cellStyle,
                     isMobile,
                   ),

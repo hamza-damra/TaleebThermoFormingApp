@@ -1,14 +1,14 @@
 import 'palletizer_session.dart';
 
 class PalletizerSessionState {
-  final int lineNumber;
+  final int lineId;
   final PalletizerSession? session;
   final bool isAuthenticating;
   final String? authError;
   final String? authErrorCode;
 
   const PalletizerSessionState({
-    required this.lineNumber,
+    required this.lineId,
     this.session,
     this.isAuthenticating = false,
     this.authError,
@@ -26,7 +26,7 @@ class PalletizerSessionState {
     bool clearAuthError = false,
   }) {
     return PalletizerSessionState(
-      lineNumber: lineNumber,
+      lineId: lineId,
       session: clearSession ? null : (session ?? this.session),
       isAuthenticating: isAuthenticating ?? this.isAuthenticating,
       authError: clearAuthError ? null : (authError ?? this.authError),
@@ -36,6 +36,6 @@ class PalletizerSessionState {
     );
   }
 
-  factory PalletizerSessionState.empty(int lineNumber) =>
-      PalletizerSessionState(lineNumber: lineNumber);
+  factory PalletizerSessionState.empty(int lineId) =>
+      PalletizerSessionState(lineId: lineId);
 }

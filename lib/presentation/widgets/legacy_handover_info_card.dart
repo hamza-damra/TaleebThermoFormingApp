@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 
 import '../../core/constants.dart';
 import '../../core/responsive.dart';
+import '../../domain/entities/palletizing_line.dart';
 import '../providers/palletizing_provider.dart';
 
 /// Passive overlay shown when [LineUiState.pendingHandoverIncoming] or
@@ -12,7 +13,7 @@ import '../providers/palletizing_provider.dart';
 /// rows are cleaned up server-side by an admin. This card just informs the
 /// worker that the line is gated until cleanup happens.
 class LegacyHandoverInfoCard extends StatefulWidget {
-  final ProductionLine line;
+  final PalletizingLine line;
 
   const LegacyHandoverInfoCard({super.key, required this.line});
 
@@ -27,7 +28,7 @@ class _LegacyHandoverInfoCardState extends State<LegacyHandoverInfoCard> {
     if (_isRefreshing) return;
     setState(() => _isRefreshing = true);
     await context.read<PalletizingProvider>().refreshLineState(
-      widget.line.number,
+      widget.line.lineId,
     );
     if (mounted) setState(() => _isRefreshing = false);
   }

@@ -3,10 +3,13 @@ import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 
-import '../../domain/entities/product_type.dart';
-import '../../domain/entities/session_production_detail.dart';
+import '../../core/constants/grinding_recommendation_strings.dart';
+import '../../core/exceptions/api_exception.dart';
+import '../../domain/entities/pallet_label.dart';
+import '../../domain/entities/pallet_label_content.dart';
 import '../providers/palletizing_provider.dart';
 import '../providers/printing_provider.dart';
+import 'grinding_chip.dart';
 import 'printer_selector_dialog.dart';
 
 class ReprintByIdDialog extends StatefulWidget {
@@ -18,16 +21,14 @@ class ReprintByIdDialog extends StatefulWidget {
 
 class _ReprintByIdDialogState extends State<ReprintByIdDialog> {
   final _controller = TextEditingController();
-  bool _isSearching = false;
+  bool _isLoading = false;
   bool _isPrinting = false;
   bool _printDone = false;
   bool _printSuccess = false;
   String? _error;
 
-  // Found pallet data
-  SessionPalletDetail? _foundPallet;
-  SessionProductTypeGroup? _foundGroup;
-  int? _foundLineNumber;
+  /// The resolved label from the backend, cleared after print + reset.
+  PalletLabel? _label;
 
   static const _primaryColor = Color(0xFF1565C0);
 
@@ -37,64 +38,177 @@ class _ReprintByIdDialogState extends State<ReprintByIdDialog> {
     super.dispose();
   }
 
-  Future<void> _search() async {
-    final query = _controller.text.trim();
-    if (query.isEmpty) {
-      setState(() => _error = 'يرجى إدخال رقم الطبلية');
-      return;
-    }
-    if (query.length != 12) {
-      setState(() => _error = 'رقم الطبلية يجب أن يكون 12 رقم');
-      return;
-    }
-    if (!RegExp(r'^\d{12}$').hasMatch(query)) {
-      setState(() => _error = 'رقم الطبلية يجب أن يتكون من أرقام فقط');
-      return;
-    }
-
+  /// Resets all transient state for a new search.
+  void _reset() {
     setState(() {
-      _isSearching = true;
-      _error = null;
-      _foundPallet = null;
-      _foundGroup = null;
-      _foundLineNumber = null;
+      _label = null;
+      _isLoading = false;
+      _isPrinting = false;
       _printDone = false;
-    });
-
-    final palletizingProvider = context.read<PalletizingProvider>();
-
-    // Search both lines
-    for (final lineNumber in [1, 2]) {
-      try {
-        final detail = await palletizingProvider.fetchSessionProductionDetail(
-          lineNumber,
-        );
-        for (final group in detail.groups) {
-          for (final pallet in group.pallets) {
-            if (pallet.scannedValue == query) {
-              setState(() {
-                _foundPallet = pallet;
-                _foundGroup = group;
-                _foundLineNumber = lineNumber;
-                _isSearching = false;
-              });
-              return;
-            }
-          }
-        }
-      } catch (_) {
-        // Line may not be authorized — skip
-      }
-    }
-
-    setState(() {
-      _isSearching = false;
-      _error = 'لم يتم العثور على طبلية بهذا الرقم في المناوبة الحالية';
+      _printSuccess = false;
+      _error = null;
+      _controller.clear();
     });
   }
 
+  // ── Client-side validation ──
+
+  String? _validateLocally(String input) {
+    if (input.isEmpty) return 'يرجى إدخال رقم الطبلية';
+    if (!RegExp(r'^\d+$').hasMatch(input)) {
+      return 'رقم الطبلية يجب أن يحتوي على أرقام فقط';
+    }
+    if (input.length != 12) {
+      return 'رقم الطبلية يجب أن يكون 12 رقماً';
+    }
+    return null;
+  }
+
+  // ── Search (fetch label from backend) ──
+
+  Future<void> _search() async {
+    // Guard re-entry (double-tap).
+    if (_isLoading || _isPrinting) return;
+
+    final query = _controller.text.trim();
+    final localError = _validateLocally(query);
+    if (localError != null) {
+      setState(() => _error = localError);
+      return;
+    }
+
+    setState(() {
+      _isLoading = true;
+      _error = null;
+      _label = null;
+      _printDone = false;
+    });
+
+    final provider = context.read<PalletizingProvider>();
+
+    try {
+      final label = await provider.fetchPalletLabel(query);
+
+      if (!mounted) return;
+
+      setState(() {
+        _label = label;
+        _isLoading = false;
+      });
+    } on ApiException catch (e) {
+      if (!mounted) return;
+
+      final refusal = switch (e.code) {
+        'PALLET_LABEL_REPRINT_NOT_AVAILABLE' =>
+          'هذه الطبلية ملغاة، ولا يمكن إعادة طباعة ملصقها.',
+        'PALLET_BLOCKED_BY_GRINDING' =>
+          GrindingRecommendationStrings.reprintBlocked,
+        _ => null,
+      };
+      if (refusal != null) {
+        setState(() => _isLoading = false);
+        await _showReprintRefusedDialog(refusal);
+        if (!mounted) return;
+        _reset();
+        return;
+      }
+
+      setState(() {
+        _isLoading = false;
+        _error = _mapApiError(e);
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _isLoading = false;
+        _error = 'تعذّر الاتصال بالخادم. حاول مرة أخرى.';
+      });
+    }
+  }
+
+  String _mapApiError(ApiException e) {
+    switch (e.code) {
+      case 'PALLET_NOT_FOUND':
+        return 'لا توجد طبلية بهذا الرقم. تأكد من الرقم المطبوع على الطبلية.';
+      case 'INVALID_SCANNED_VALUE_LENGTH':
+        return 'رقم الطبلية يجب أن يكون 12 رقماً';
+      case 'INVALID_SCANNED_VALUE_NON_NUMERIC':
+        return 'رقم الطبلية يجب أن يحتوي على أرقام فقط';
+      case 'INVALID_SCANNED_VALUE_FORMAT':
+        return 'يرجى إدخال رقم الطبلية';
+      case 'DEVICE_KEY_INVALID':
+        return 'الجهاز غير مصرّح له. راجع الإدارة.';
+      case 'NETWORK_ERROR':
+      case 'TIMEOUT_ERROR':
+        return 'تعذّر الاتصال بالخادم. حاول مرة أخرى.';
+      default:
+        return e.displayMessage;
+    }
+  }
+
+  // ── Reprint refused (409: cancelled pallet / grinding started) ──
+
+  Future<void> _showReprintRefusedDialog(String message) {
+    return showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: [
+            Icon(Icons.cancel_rounded, color: Colors.red.shade700, size: 28),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                'تعذّرت إعادة الطباعة',
+                style: GoogleFonts.cairo(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.red.shade800,
+                ),
+              ),
+            ),
+          ],
+        ),
+        content: Text(
+          message,
+          style: GoogleFonts.cairo(fontSize: 15, height: 1.5),
+        ),
+        actions: [
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.red.shade700,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
+              ),
+              child: Text(
+                'حسناً',
+                style: GoogleFonts.cairo(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 16,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ── Print ──
+
+  /// `false` once the pallet's grinding started or finished (backend flag;
+  /// absent on an older backend = allowed).
+  bool get _labelReprintAllowed => _label?.labelReprintAllowed ?? true;
+
   Future<void> _print() async {
-    if (_foundPallet == null || _foundLineNumber == null) return;
+    if (_label == null || _isPrinting || !_labelReprintAllowed) return;
 
     final printingProvider = context.read<PrintingProvider>();
 
@@ -124,37 +238,28 @@ class _ReprintByIdDialogState extends State<ReprintByIdDialog> {
       _error = null;
     });
 
-    // Look up full product type from bootstrap data for label content
+    final label = _label!;
     final palletizingProvider = context.read<PalletizingProvider>();
-    final productType = _foundGroup != null
-        ? palletizingProvider.productTypes
-              .where((p) => p.id == _foundGroup!.productTypeId)
-              .firstOrNull
-        : null;
-
-    // Top: productName (no sequence available for reprints)
-    final topText =
-        productType?.productName ??
-        (_foundGroup != null
-            ? ProductType.formatCompactName(_foundGroup!.productTypeName)
-            : null);
-
-    // Bottom: description with fallback
-    final description = productType?.description;
-    final bottomText = (description != null && description.isNotEmpty)
-        ? description
-        : productType?.name ?? _foundGroup?.productTypeName;
-
-    // Sides: scannedValue (lineLetter)
-    final lineLetter = _foundLineNumber == 1 ? 'A' : 'B';
-    final sideText = '${_foundPallet!.scannedValue} ($lineLetter)';
+    final productType = label.productTypeId == null
+        ? null
+        : palletizingProvider.productTypes
+              .where((item) => item.id == label.productTypeId)
+              .firstOrNull;
+    // Resolve the pallet's line number (rendered line, or the last number
+    // seen for that lineId) so the side band carries the same letter the
+    // original print used, not the backend's long snapshot name.
+    final lineNumber = label.productionLineId == null
+        ? null
+        : palletizingProvider.lineNumberForLineId(label.productionLineId!);
+    final labelContent = PalletLabelContentMapper.fromResolvedLabel(
+      label,
+      productType: productType,
+      lineNumber: lineNumber,
+    );
 
     final result = await printingProvider.print(
-      scannedValue: _foundPallet!.scannedValue,
+      labelContent: labelContent,
       copies: printingProvider.copies,
-      topText: topText,
-      bottomText: bottomText,
-      sideText: sideText,
     );
 
     if (!mounted) return;
@@ -165,6 +270,21 @@ class _ReprintByIdDialogState extends State<ReprintByIdDialog> {
       _printSuccess = result.isSuccess;
       _error = result.isSuccess ? null : result.errorMessage;
     });
+
+    if (result.isSuccess) {
+      // Show snackbar outside the dialog.
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'تمت إعادة الطباعة',
+            style: GoogleFonts.cairo(fontWeight: FontWeight.bold),
+          ),
+          behavior: SnackBarBehavior.floating,
+          backgroundColor: Colors.green.shade700,
+          duration: const Duration(seconds: 2),
+        ),
+      );
+    }
   }
 
   @override
@@ -222,7 +342,7 @@ class _ReprintByIdDialogState extends State<ReprintByIdDialog> {
                 decoration: InputDecoration(
                   labelText: 'رقم الطبلية',
                   labelStyle: GoogleFonts.cairo(fontSize: 14),
-                  hintText: '0370000005',
+                  hintText: '12 رقماً',
                   hintStyle: GoogleFonts.robotoMono(
                     fontSize: 14,
                     color: Colors.grey.shade400,
@@ -249,18 +369,24 @@ class _ReprintByIdDialogState extends State<ReprintByIdDialog> {
                   fillColor: Colors.grey.shade50,
                   counterText: '',
                 ),
+                onChanged: (_) {
+                  // Clear error on keystroke so the worker sees fresh feedback.
+                  if (_error != null) {
+                    setState(() => _error = null);
+                  }
+                },
                 onSubmitted: (_) => _search(),
-                enabled: !_isSearching && !_isPrinting,
+                enabled: !_isLoading && !_isPrinting,
               ),
               const SizedBox(height: 16),
 
-              // Search button
-              if (_foundPallet == null && !_printDone)
+              // Search / print button
+              if (_label == null && !_printDone)
                 SizedBox(
                   width: double.infinity,
                   child: ElevatedButton.icon(
-                    onPressed: _isSearching ? null : _search,
-                    icon: _isSearching
+                    onPressed: _isLoading ? null : _search,
+                    icon: _isLoading
                         ? const SizedBox(
                             width: 20,
                             height: 20,
@@ -271,7 +397,7 @@ class _ReprintByIdDialogState extends State<ReprintByIdDialog> {
                           )
                         : const Icon(Icons.search_rounded),
                     label: Text(
-                      _isSearching ? 'جاري البحث...' : 'بحث',
+                      _isLoading ? 'جارٍ التحميل…' : 'بحث',
                       style: GoogleFonts.cairo(
                         fontWeight: FontWeight.bold,
                         fontSize: 16,
@@ -289,13 +415,20 @@ class _ReprintByIdDialogState extends State<ReprintByIdDialog> {
                 ),
 
               // Found pallet info + print
-              if (_foundPallet != null && !_printDone) ...[
+              if (_label != null && !_printDone) ...[
                 _buildPalletInfo(),
+                if (!_labelReprintAllowed) ...[
+                  const SizedBox(height: 12),
+                  _buildReprintBlockedBanner(),
+                ],
                 const SizedBox(height: 16),
                 SizedBox(
                   width: double.infinity,
                   child: ElevatedButton.icon(
-                    onPressed: _isPrinting ? null : _print,
+                    key: const Key('reprintByIdPrintButton'),
+                    onPressed: _isPrinting || !_labelReprintAllowed
+                        ? null
+                        : _print,
                     icon: _isPrinting
                         ? const SizedBox(
                             width: 20,
@@ -307,7 +440,7 @@ class _ReprintByIdDialogState extends State<ReprintByIdDialog> {
                           )
                         : const Icon(Icons.print_rounded),
                     label: Text(
-                      _isPrinting ? 'جاري الطباعة...' : 'طباعة الملصق',
+                      _isPrinting ? 'جاري الطباعة...' : 'إعادة طباعة الملصق',
                       style: GoogleFonts.cairo(
                         fontWeight: FontWeight.bold,
                         fontSize: 16,
@@ -335,7 +468,7 @@ class _ReprintByIdDialogState extends State<ReprintByIdDialog> {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  _printSuccess ? 'تمت الطباعة بنجاح' : 'فشل في الطباعة',
+                  _printSuccess ? 'تمت إعادة الطباعة' : 'فشل في الطباعة',
                   style: GoogleFonts.cairo(
                     fontSize: 16,
                     fontWeight: FontWeight.bold,
@@ -348,6 +481,8 @@ class _ReprintByIdDialogState extends State<ReprintByIdDialog> {
                     width: double.infinity,
                     child: OutlinedButton.icon(
                       onPressed: () {
+                        // Retry re-prints from the label already in memory —
+                        // no second fetch needed.
                         setState(() {
                           _printDone = false;
                           _error = null;
@@ -428,17 +563,7 @@ class _ReprintByIdDialogState extends State<ReprintByIdDialog> {
                     const SizedBox(width: 12),
                     Expanded(
                       child: ElevatedButton(
-                        onPressed: () {
-                          setState(() {
-                            _foundPallet = null;
-                            _foundGroup = null;
-                            _foundLineNumber = null;
-                            _printDone = false;
-                            _printSuccess = false;
-                            _error = null;
-                            _controller.clear();
-                          });
-                        },
+                        onPressed: _reset,
                         style: ElevatedButton.styleFrom(
                           backgroundColor: _primaryColor,
                           foregroundColor: Colors.white,
@@ -464,11 +589,8 @@ class _ReprintByIdDialogState extends State<ReprintByIdDialog> {
   }
 
   Widget _buildPalletInfo() {
-    final indicator = _foundLineNumber == 1 ? 'A' : 'B';
-    final lineName = _foundLineNumber == 1 ? 'خط الإنتاج 1' : 'خط الإنتاج 2';
-    final lineColor = _foundLineNumber == 1
-        ? const Color(0xFF1565C0)
-        : const Color(0xFF388E3C);
+    final label = _label!;
+    final lineColor = _primaryColor;
 
     return Container(
       width: double.infinity,
@@ -495,10 +617,61 @@ class _ReprintByIdDialogState extends State<ReprintByIdDialog> {
             ],
           ),
           const SizedBox(height: 10),
-          _infoRow('رقم الطبلية', _foundPallet!.scannedValue),
-          _infoRow('خط الإنتاج', '$lineName ($indicator)'),
-          _infoRow('الكمية', '${_foundPallet!.quantity}'),
-          _infoRow('تاريخ الإنشاء', _foundPallet!.createdAtDisplay),
+          _infoRow('رقم الطبلية', label.scannedValue),
+          _infoRow(
+            'المنتج',
+            context.watch<PalletizingProvider>().productDisplayName(
+              productTypeId: label.productTypeId,
+              backendName: label.productTypeName,
+            ),
+          ),
+          _infoRow('خط الإنتاج', label.productionLineName),
+          _infoRow('المشغل', label.operatorName),
+          _infoRow('الكمية', '${label.quantity}'),
+          _infoRow('تاريخ الإنشاء', label.createdAtDisplay),
+          if (_grindingMarkerText(label) case final marker?) ...[
+            const SizedBox(height: 8),
+            Align(
+              alignment: AlignmentDirectional.centerStart,
+              child: GrindingChip(text: marker),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  /// The marker the label will carry, exactly as the backend sent it.
+  String? _grindingMarkerText(PalletLabel label) {
+    if (label.grindingRecommended != true) return null;
+    final text = label.grindingLabelText?.trim();
+    return text == null || text.isEmpty ? null : text;
+  }
+
+  Widget _buildReprintBlockedBanner() {
+    return Container(
+      key: const Key('reprintBlockedByGrindingBanner'),
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.red.shade50,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: Colors.red.shade200),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.block_rounded, size: 20, color: Colors.red.shade700),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              GrindingRecommendationStrings.reprintBlocked,
+              style: GoogleFonts.cairo(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: Colors.red.shade700,
+              ),
+            ),
+          ),
         ],
       ),
     );

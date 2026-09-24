@@ -14,4 +14,23 @@ class SessionTableRow {
   });
 
   bool get hasLooseBalance => loosePackageCount > 0;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is SessionTableRow &&
+          productTypeId == other.productTypeId &&
+          productTypeName == other.productTypeName &&
+          completedPalletCount == other.completedPalletCount &&
+          completedPackageCount == other.completedPackageCount &&
+          loosePackageCount == other.loosePackageCount;
+
+  @override
+  int get hashCode => Object.hash(
+    productTypeId,
+    productTypeName,
+    completedPalletCount,
+    completedPackageCount,
+    loosePackageCount,
+  );
 }
