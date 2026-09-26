@@ -1,4 +1,5 @@
 import '../constants/grinding_recommendation_strings.dart';
+import '../constants/production_transit_strings.dart';
 
 class ApiException implements Exception {
   final String code;
@@ -204,6 +205,25 @@ class ApiException implements Exception {
       case 'PRODUCTION_PLAN_TARGET_EXCEEDED_CONFIRMATION_REQUIRED':
         return 'تم تجاوز حد الخطة. العدد الحالي تجاوز الكمية المطلوبة. '
             'هل تريد المتابعة؟';
+      // ── V210 — PRODUCTION → TRANSIT («الرصيف») ──
+      case 'PREVIOUS_PALLET_STILL_AT_PRODUCTION':
+        return ProductionTransitStrings.createBlocked;
+      case 'PALLETIZER_LOGOUT_BLOCKED_BY_PRODUCTION_PALLETS':
+        return ProductionTransitStrings.logoutBlocked;
+      case 'PALLET_IDENTIFIER_INVALID':
+        return ProductionTransitStrings.identifierInvalid;
+      case 'PALLET_CANCELLED':
+        return ProductionTransitStrings.cancelled;
+      case 'PALLET_OUTSIDE_PALLETIZER_LINE_SCOPE':
+        return ProductionTransitStrings.outsideLineScope;
+      case 'PALLET_OUTSIDE_CURRENT_OPERATOR_SHIFT':
+        return ProductionTransitStrings.outsideOperatorShift;
+      case 'PALLET_NOT_AT_PRODUCTION':
+        return ProductionTransitStrings.notAtProduction;
+      case 'PALLETIZER_TRANSIT_MOVE_REQUEST_VOIDED':
+        return ProductionTransitStrings.requestVoided;
+      case 'PALLETIZER_TRANSIT_MOVE_IDEMPOTENCY_KEY_REUSED':
+        return ProductionTransitStrings.genericFailure;
       case 'INTERNAL_ERROR':
         return 'حدث خطأ في الخادم. حاول مرة أخرى';
       default:

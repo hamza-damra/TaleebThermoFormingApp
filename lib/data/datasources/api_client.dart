@@ -11,6 +11,10 @@ import 'auth_local_storage.dart';
 /// production.
 const String _bootstrapPath = '/palletizing-line/bootstrap';
 
+/// `RequestOptions.extra` flag of a request that must carry neither a JWT
+/// nor the device key (the biometric attempt status).
+const String _anonymousExtra = 'taleeb.anonymous';
+
 class ApiClient {
   late final Dio dio;
   final AuthLocalStorage _authStorage;
@@ -51,8 +55,12 @@ class ApiClient {
   ) async {
     bool deviceKeyAttached = false;
     int deviceKeyLength = 0;
-    // For palletizing-line endpoints, use X-Device-Key header (no JWT)
-    if (options.path.contains('/palletizing-line/')) {
+    if (options.extra[_anonymousExtra] == true) {
+      // No credentials of any kind — the caller supplies its own header.
+      options.headers.remove('Authorization');
+      options.headers.remove('X-Device-Key');
+    } else if (options.path.contains('/palletizing-line/')) {
+      // For palletizing-line endpoints, use X-Device-Key header (no JWT)
       final deviceKey = await _authStorage.getDeviceKey();
       if (deviceKey != null && deviceKey.isNotEmpty) {
         options.headers['X-Device-Key'] = deviceKey;
@@ -168,12 +176,19 @@ class ApiClient {
 
   /// [headers] are per-call extras (e.g. `X-Palletizer-Session-Token`). They
   /// are never logged — the interceptor logs only the method and path.
+  ///
+  /// [anonymous] sends neither the JWT nor the device key. [receiveTimeout]
+  /// overrides the client default (long-polls). A cancelled [cancelToken]
+  /// fails the call with [ApiException.network].
   Future<T> request<T>({
     required String path,
     required String method,
     Map<String, dynamic>? data,
     Map<String, dynamic>? queryParameters,
     Map<String, dynamic>? headers,
+    bool anonymous = false,
+    Duration? receiveTimeout,
+    CancelToken? cancelToken,
     required T Function(Map<String, dynamic>) parser,
   }) async {
     try {
@@ -181,7 +196,13 @@ class ApiClient {
         path,
         data: data,
         queryParameters: queryParameters,
-        options: Options(method: method, headers: headers),
+        cancelToken: cancelToken,
+        options: Options(
+          method: method,
+          headers: headers,
+          receiveTimeout: receiveTimeout,
+          extra: anonymous ? const {_anonymousExtra: true} : null,
+        ),
       );
 
       final responseData = response.data as Map<String, dynamic>;

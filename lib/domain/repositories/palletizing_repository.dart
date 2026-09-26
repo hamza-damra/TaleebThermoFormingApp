@@ -1,3 +1,4 @@
+import '../entities/biometric_login.dart';
 import '../entities/bootstrap_response.dart';
 import '../entities/pallet_label.dart';
 import '../entities/falet_exists_response.dart';
@@ -9,6 +10,7 @@ import '../entities/palletizer_auth_result.dart';
 import '../entities/palletizer_session.dart';
 import '../entities/plan_item_close_request.dart';
 import '../entities/print_attempt_result.dart';
+import '../entities/production_transit.dart';
 import '../entities/session_production_detail.dart';
 
 abstract class PalletizingRepository {
@@ -73,6 +75,8 @@ abstract class PalletizingRepository {
 
   /// POST /palletizing-line/lines/{lineId}/palletizer-auth
   /// Returns the new session plus the raw sessionToken (only ever exposed once).
+  /// Throws [BiometricDenialException] when the biometric login gate refuses
+  /// the login (a `BIOMETRIC_*` 403) — a fingerprint is needed, not a new PIN.
   Future<PalletizerAuthResult> palletizerAuth({
     required int lineId,
     required String pin,
@@ -131,6 +135,28 @@ abstract class PalletizingRepository {
   Future<PlanItemCloseRequest> confirmAllPalletsRegistered({
     required int lineId,
     required int closeRequestId,
+    required String sessionToken,
+  });
+
+  // ── PRODUCTION → TRANSIT move (V210) ──
+  // Both calls send a palletizer session token in `X-Palletizer-Session-Token`;
+  // the scope is every line the token's employee holds an ACTIVE session on.
+  // 401 `PALLETIZER_SESSION_REQUIRED` means that token is no longer usable.
+
+  /// POST /palletizing-line/palletizer/pallets/move-to-transit
+  ///
+  /// [clientRequestId] is one UUID per physical scan, reused verbatim for
+  /// every retry of that scan — a retry never makes a second movement
+  /// (`replayed: true`).
+  Future<PalletizerTransitMoveResult> movePalletToTransit({
+    required String sessionToken,
+    required String identifier,
+    required String clientRequestId,
+    required PalletTransitScanType scanType,
+  });
+
+  /// GET /palletizing-line/palletizer/production-pending-pallets
+  Future<ProductionPendingPallets> getProductionPendingPallets({
     required String sessionToken,
   });
 

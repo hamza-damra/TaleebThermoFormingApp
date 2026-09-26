@@ -3,9 +3,12 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/constants.dart';
+import '../../core/exceptions/api_exception.dart';
 import '../../core/responsive.dart';
 import '../../domain/entities/palletizing_line.dart';
+import '../../domain/entities/production_transit.dart';
 import '../providers/palletizing_provider.dart';
+import 'transit/production_blockers_dialog.dart';
 
 /// State C top context strip for a single line. Three read-only identity rows
 /// in the existing card style: operator on duty (المشغّل), palletizer using
@@ -334,30 +337,54 @@ class _LeaveLineButtonState extends State<_LeaveLineButton> {
     // changed underneath us) — bail before touching state / context again.
     if (confirmed != true || !mounted) return;
 
+    await _leave();
+  }
+
+  /// Runs the release. On `PALLETIZER_LOGOUT_BLOCKED_BY_PRODUCTION_PALLETS`
+  /// (V210) the line stays logged in and the blocking pallets are listed
+  /// with a move action; once they are moved «مغادرة الآن» tries again
+  /// without re-confirming.
+  Future<void> _leave() async {
     setState(() => _isLeaving = true);
     // Capture the messenger before the await so we never read context after
     // this widget may have been disposed by the post-logout state change.
     final messenger = ScaffoldMessenger.of(context);
+    final provider = context.read<PalletizingProvider>();
+    ProductionPalletBlockers? blockers;
     try {
-      await context.read<PalletizingProvider>().palletizerLogout(
-        widget.line.lineId,
-      );
+      await provider.palletizerLogout(widget.line.lineId);
+    } on ApiException catch (e) {
+      blockers = provider.productionBlockersOf(e);
+      if (blockers == null) _showLeaveFailed(messenger);
     } catch (e) {
-      messenger.showSnackBar(
-        SnackBar(
-          backgroundColor: Colors.red,
-          content: Text(
-            'تعذّر إتمام مغادرة الخط. الرجاء المحاولة مرة أخرى.',
-            style: GoogleFonts.cairo(),
-            textDirection: TextDirection.rtl,
-          ),
-        ),
-      );
+      _showLeaveFailed(messenger);
     } finally {
       // A successful logout drops the line to State B and disposes this
       // widget — only touch state when still mounted.
       if (mounted) setState(() => _isLeaving = false);
     }
+
+    if (blockers == null || !mounted) return;
+    final retry = await ProductionBlockersDialog.show(
+      context,
+      lineId: widget.line.lineId,
+      kind: ProductionBlockerKind.logout,
+      blockers: blockers,
+    );
+    if (retry && mounted) await _leave();
+  }
+
+  void _showLeaveFailed(ScaffoldMessengerState messenger) {
+    messenger.showSnackBar(
+      SnackBar(
+        backgroundColor: Colors.red,
+        content: Text(
+          'تعذّر إتمام مغادرة الخط. الرجاء المحاولة مرة أخرى.',
+          style: GoogleFonts.cairo(),
+          textDirection: TextDirection.rtl,
+        ),
+      ),
+    );
   }
 
   Future<bool?> _confirmLeave() {

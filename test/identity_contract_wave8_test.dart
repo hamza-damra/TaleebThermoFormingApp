@@ -7,6 +7,7 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:dio/dio.dart' show CancelToken;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:taleeb_thermoforming/core/exceptions/api_exception.dart';
 import 'package:taleeb_thermoforming/data/datasources/api_client.dart';
@@ -103,6 +104,9 @@ class FakeApiClient extends ApiClient {
     Map<String, dynamic>? data,
     Map<String, dynamic>? queryParameters,
     Map<String, dynamic>? headers,
+    bool anonymous = false,
+    Duration? receiveTimeout,
+    CancelToken? cancelToken,
     required T Function(Map<String, dynamic>) parser,
   }) async {
     calledPaths.add(path);

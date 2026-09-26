@@ -26,6 +26,11 @@ class SessionPalletDetail {
   final String? grindingStatus;
   final String? grindingStatusLabel;
 
+  /// Where the pallet is now (`PRODUCTION`, `TRANSIT`, …), when the backend
+  /// sends it. Absent today — see
+  /// docs/backend-contracts/SESSION_PRODUCTION_DETAIL_CURRENT_LOCATION.md.
+  final String? currentLocation;
+
   const SessionPalletDetail({
     required this.palletId,
     required this.scannedValue,
@@ -39,10 +44,14 @@ class SessionPalletDetail {
     this.labelReprintAllowed,
     this.grindingStatus,
     this.grindingStatusLabel,
+    this.currentLocation,
   });
 
   /// `false` only when the backend says so (grinding started or finished).
   bool get isLabelReprintAllowed => labelReprintAllowed ?? true;
+
+  /// The backend reports the pallet at «الرصيف».
+  bool get isAtTransit => currentLocation == 'TRANSIT';
 
   /// The full pallet number to show. Falls back to [serialNumber] only if a
   /// response ever omits [scannedValue]; the prefix is never rebuilt here.

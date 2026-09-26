@@ -17,6 +17,7 @@ import '../widgets/plan_item_close_request_dialog.dart';
 import '../widgets/production_line_section.dart';
 import '../widgets/reprint_by_id_dialog.dart';
 import '../widgets/takeover_dialog.dart';
+import '../widgets/transit/transit_action_bar.dart';
 import '../widgets/urgent_announcement_overlay.dart';
 import '../widgets/shimmer/palletizing_shimmer.dart';
 import 'device_settings_screen.dart';
@@ -430,7 +431,14 @@ class _PalletizingScreenState extends State<PalletizingScreen>
           : _buildTabsAppBar(provider, lines),
       body: Stack(
         children: [
-          _buildBody(provider, lines, usePanes),
+          Column(
+            children: [
+              // «نقل إلى الرصيف» — one device-wide action above every line
+              // (V210); renders nothing until a palletizer is logged in.
+              const TransitActionBar(),
+              Expanded(child: _buildBody(provider, lines, usePanes)),
+            ],
+          ),
           // Global blocking notice, layered above every machine tab / sub-flow.
           // Only mounted while a sanitized urgent announcement is pending; the
           // Consumer scopes rebuilds to this overlay.

@@ -28,6 +28,7 @@ import 'package:taleeb_thermoforming/domain/entities/takeover_request.dart';
 import 'package:taleeb_thermoforming/domain/entities/takeover_status.dart';
 import 'package:taleeb_thermoforming/domain/entities/manager_announcement.dart';
 import 'package:taleeb_thermoforming/domain/entities/pallet_label.dart';
+import 'package:taleeb_thermoforming/domain/entities/production_transit.dart';
 import 'package:taleeb_thermoforming/domain/repositories/palletizing_repository.dart';
 import 'package:taleeb_thermoforming/presentation/providers/palletizing_provider.dart';
 
@@ -169,6 +170,19 @@ class _FakeRepo implements PalletizingRepository {
   @override
   Future<PalletLabel> fetchPalletLabel(String scannedValue) =>
       throw UnimplementedError();
+
+  @override
+  Future<PalletizerTransitMoveResult> movePalletToTransit({
+    required String sessionToken,
+    required String identifier,
+    required String clientRequestId,
+    required PalletTransitScanType scanType,
+  }) => throw UnimplementedError();
+
+  @override
+  Future<ProductionPendingPallets> getProductionPendingPallets({
+    required String sessionToken,
+  }) async => ProductionPendingPallets.empty;
 
   @override
   Future<PlanItemCloseRequest?> getActivePlanItemCloseRequest({

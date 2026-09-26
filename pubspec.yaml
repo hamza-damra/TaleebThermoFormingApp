@@ -52,6 +52,9 @@ dependencies:
   cached_network_image: ^3.3.1
   audioplayers: ^6.1.0
   vibration: ^2.0.0
+  # QR scan for the PRODUCTION → TRANSIT move — the warehouse app's
+  # mobile_scanner 6 line.
+  mobile_scanner: ^6.0.5
 
 dev_dependencies:
   hive_generator: ^2.0.1

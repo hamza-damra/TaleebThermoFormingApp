@@ -52,6 +52,10 @@ class AppConfig {
   static const Duration receiveTimeout = Duration(seconds: 30);
   static const Duration sendTimeout = Duration(seconds: 30);
 
+  /// Biometric attempt status is a long-poll the server holds for up to
+  /// 25 s; the gate's handoff requires a receive timeout of at least 35 s.
+  static const Duration biometricStatusReceiveTimeout = Duration(seconds: 40);
+
   /// Human-readable build tag rendered on the settings screen and emitted to
   /// adb logcat at startup.
   static const String buildLabel = 'palletizing-staging-2026-05-26';

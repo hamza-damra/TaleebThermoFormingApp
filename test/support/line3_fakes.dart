@@ -23,6 +23,7 @@ import 'package:taleeb_thermoforming/domain/entities/palletizer_auth_result.dart
 import 'package:taleeb_thermoforming/domain/entities/palletizer_session.dart';
 import 'package:taleeb_thermoforming/domain/entities/plan_item_close_request.dart';
 import 'package:taleeb_thermoforming/domain/entities/print_attempt_result.dart';
+import 'package:taleeb_thermoforming/domain/entities/production_transit.dart';
 import 'package:taleeb_thermoforming/domain/entities/session_production_detail.dart';
 import 'package:taleeb_thermoforming/domain/entities/takeover_request.dart';
 import 'package:taleeb_thermoforming/domain/repositories/palletizing_repository.dart';
@@ -189,19 +190,35 @@ class FakePalletizingRepository implements PalletizingRepository {
   /// Configures `palletizerAuth`; unset → [UnimplementedError].
   PalletizerAuthResult Function(int lineId)? authFn;
 
+  /// When it returns a future, `palletizerAuth` completes with it — lets a
+  /// test hold a login in flight. Checked before [authFn].
+  Future<PalletizerAuthResult>? Function(int lineId)? authAsyncFn;
+
+  /// Every `palletizerAuth` call, in order.
+  final List<({int lineId, String pin})> authCalls = [];
+
   @override
   Future<PalletizerAuthResult> palletizerAuth({
     required int lineId,
     required String pin,
   }) async {
+    authCalls.add((lineId: lineId, pin: pin));
+    final pending = authAsyncFn?.call(lineId);
+    if (pending != null) return pending;
     final fn = authFn;
     if (fn == null) throw UnimplementedError('authFn not configured');
     return fn(lineId);
   }
 
+  /// Serves `/first-pallet-context`; unset → [UnimplementedError].
+  FirstPalletContext Function(int lineId)? firstPalletContextFn;
+
   @override
-  Future<FirstPalletContext> getFirstPalletContext(int lineId) =>
-      throw UnimplementedError();
+  Future<FirstPalletContext> getFirstPalletContext(int lineId) async {
+    final fn = firstPalletContextFn;
+    if (fn == null) throw UnimplementedError('firstPalletContextFn');
+    return fn(lineId);
+  }
 
   @override
   Future<PrintAttemptResult> logLinePrintAttempt({
@@ -216,7 +233,11 @@ class FakePalletizingRepository implements PalletizingRepository {
   Future<void> palletizerLogout({
     required int lineId,
     required String sessionToken,
-  }) async {}
+  }) async {
+    logoutLineIds.add(lineId);
+    final error = logoutErrors[lineId];
+    if (error != null) throw error;
+  }
 
   @override
   Future<FaletResponse> getFaletItems(int lineId) => throw UnimplementedError();
@@ -236,6 +257,61 @@ class FakePalletizingRepository implements PalletizingRepository {
   @override
   Future<PalletLabel> fetchPalletLabel(String scannedValue) =>
       throw UnimplementedError();
+
+  // ── PRODUCTION → TRANSIT (V210) ──
+
+  /// Pending list served per session token; unset → empty.
+  ProductionPendingPallets Function(String sessionToken)? pendingFn;
+  final List<String> pendingTokens = [];
+
+  /// Queued move results, consumed one per call: a
+  /// [PalletizerTransitMoveResult] is returned, anything else is thrown.
+  /// When empty, [moveFn] answers (default: a fresh successful move).
+  final List<Object> moveResults = [];
+  PalletizerTransitMoveResult Function(TransitMoveCall call)? moveFn;
+  final List<TransitMoveCall> moveCalls = [];
+
+  /// When set, every move waits for it before answering.
+  Completer<void>? moveGate;
+
+  /// Logout errors per line (thrown by `palletizerLogout`).
+  final Map<int, Object> logoutErrors = {};
+  final List<int> logoutLineIds = [];
+
+  @override
+  Future<PalletizerTransitMoveResult> movePalletToTransit({
+    required String sessionToken,
+    required String identifier,
+    required String clientRequestId,
+    required PalletTransitScanType scanType,
+  }) async {
+    final call = TransitMoveCall(
+      sessionToken: sessionToken,
+      identifier: identifier,
+      clientRequestId: clientRequestId,
+      scanType: scanType,
+    );
+    moveCalls.add(call);
+    await moveGate?.future;
+    if (moveResults.isNotEmpty) {
+      final next = moveResults.removeAt(0);
+      if (next is PalletizerTransitMoveResult) return next;
+      throw next;
+    }
+    // Like the backend: the response carries the canonical 12 digits.
+    return (moveFn ??
+        (c) => transitMoveResult(PalletIdentifier.canonicalize(c.identifier)))(
+      call,
+    );
+  }
+
+  @override
+  Future<ProductionPendingPallets> getProductionPendingPallets({
+    required String sessionToken,
+  }) async {
+    pendingTokens.add(sessionToken);
+    return pendingFn?.call(sessionToken) ?? ProductionPendingPallets.empty;
+  }
 
   @override
   Future<PlanItemCloseRequest?> getActivePlanItemCloseRequest({
@@ -326,14 +402,98 @@ class FakePalletizingRepository implements PalletizingRepository {
   }
 }
 
-/// An ACTIVE palletizer session on [lineId].
-PalletizerSession activeSession(int lineId) => PalletizerSession(
-  sessionId: 500 + lineId,
-  palletizerOperatorId: 70,
-  palletizerName: 'أحمد خالد',
+/// One call to the move-to-transit endpoint.
+class TransitMoveCall {
+  final String sessionToken;
+  final String identifier;
+  final String clientRequestId;
+  final PalletTransitScanType scanType;
+
+  const TransitMoveCall({
+    required this.sessionToken,
+    required this.identifier,
+    required this.clientRequestId,
+    required this.scanType,
+  });
+}
+
+/// A successful move of [identifier] as the backend returns it.
+PalletizerTransitMoveResult transitMoveResult(
+  String identifier, {
+  int palletId = 55012,
+  bool replayed = false,
+  bool movementUndone = false,
+  bool inherited = false,
+  int lineId = 11,
+}) => PalletizerTransitMoveResult(
+  movementId: 90211,
+  palletId: palletId,
+  scannedValue: identifier,
+  productTypeId: 7,
+  productTypeName: 'علبة 500 مل',
   palletizingLineId: lineId,
-  palletizingLineName: 'line $lineId',
+  palletizingLineName: 'خط أ',
+  thermoformingShiftLineId: 3120,
+  fromLocation: 'PRODUCTION',
+  toLocation: 'TRANSIT',
+  currentLocation: movementUndone ? 'PRODUCTION' : 'TRANSIT',
+  movedAt: DateTime.utc(2026, 9, 24, 12, 3, 11),
+  movedAtDisplay: '2026-09-24، 03:03 مساءً',
+  movedByName: 'أحمد',
+  producedByPalletizerName: 'محمد',
+  inherited: inherited,
+  replayed: replayed,
+  movementUndone: movementUndone,
 );
+
+/// A pallet still at PRODUCTION.
+ProductionPendingPallet pendingPallet(
+  String scannedValue, {
+  int palletId = 55011,
+  bool inherited = false,
+}) => ProductionPendingPallet(
+  palletId: palletId,
+  scannedValue: scannedValue,
+  productTypeId: 7,
+  productTypeName: 'علبة 500 مل',
+  thermoformingShiftLineId: 3120,
+  currentLocation: 'PRODUCTION',
+  producedAt: DateTime.utc(2026, 9, 24, 11, 40),
+  producedAtDisplay: '2026-09-24، 02:40 مساءً',
+  palletizerName: 'محمد',
+  inherited: inherited,
+);
+
+/// The pending list of one employee's lines.
+ProductionPendingPallets pendingList(
+  Map<int, List<ProductionPendingPallet>> palletsByLine,
+) {
+  final lines = [
+    for (final entry in palletsByLine.entries)
+      ProductionPendingLine(
+        palletizerSessionId: 500 + entry.key,
+        palletizingLineId: entry.key,
+        palletizingLineName: 'line ${entry.key}',
+        thermoformingShiftLineId: 3120,
+        pendingCount: entry.value.length,
+        pallets: entry.value,
+      ),
+  ];
+  return ProductionPendingPallets(
+    totalPendingCount: lines.fold(0, (sum, l) => sum + l.pendingCount),
+    lines: lines,
+  );
+}
+
+/// An ACTIVE palletizer session on [lineId], for employee [operatorId].
+PalletizerSession activeSession(int lineId, {int operatorId = 70}) =>
+    PalletizerSession(
+      sessionId: 500 + lineId,
+      palletizerOperatorId: operatorId,
+      palletizerName: 'أحمد خالد',
+      palletizingLineId: lineId,
+      palletizingLineName: 'line $lineId',
+    );
 
 /// A close request as the backend returns it, for line [lineId].
 PlanItemCloseRequest closeRequest({
@@ -396,6 +556,7 @@ BootstrapLineState skewedLine(
   String? lineDisplayName,
   int? planItemId,
   int? planProductId,
+  int? packagesPerPallet,
   TakeoverRequest? takeover,
 }) {
   final label = abjadLabels[lineNumber] ?? 'خط $lineNumber';
@@ -418,6 +579,7 @@ BootstrapLineState skewedLine(
     currentPlanItemId: planItemId,
     currentPlanItemProductTypeId: planProductId,
     currentPlanItemProductName: planProductId == null ? null : 'Plan product',
+    currentPlanItemPackagesPerPallet: packagesPerPallet,
     pendingTakeoverRequest: takeover,
     takeoverRequestStatus: takeover == null ? null : 'PENDING',
   );

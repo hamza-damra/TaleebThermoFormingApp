@@ -1,14 +1,18 @@
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
+import 'package:uuid/uuid.dart';
 
 import '../../core/constants/plan_item_close_request_strings.dart';
+import '../../core/constants/production_transit_strings.dart';
 import '../../core/exceptions/api_exception.dart';
 import '../../core/services/palletizing_event.dart';
 import '../../core/services/refresh_coordinator.dart';
 import '../../core/services/sse_client.dart';
 import '../../core/services/takeover_notification_service.dart';
 import '../../data/datasources/auth_local_storage.dart';
+import '../../data/models/production_transit_model.dart';
+import '../../domain/entities/biometric_login.dart';
 import '../../domain/entities/bootstrap_response.dart';
 import '../../domain/entities/falet_response.dart';
 import '../../domain/entities/first_pallet_context.dart';
@@ -19,6 +23,7 @@ import '../../domain/entities/palletizer_session.dart';
 import '../../domain/entities/palletizing_line.dart';
 import '../../domain/entities/palletizer_session_state.dart';
 import '../../domain/entities/plan_item_close_request.dart';
+import '../../domain/entities/production_transit.dart';
 import '../../domain/entities/session_production_detail.dart';
 import '../../domain/entities/product_type.dart';
 import '../../domain/entities/session_table_row.dart';
@@ -155,6 +160,142 @@ enum CloseDecisionOutcome {
   ignored,
 }
 
+/// How a PRODUCTION → TRANSIT move attempt ended (V210) — picks the UI.
+enum TransitMoveStatus {
+  /// Moved (or a replay of that move) and the pallet is at «الرصيف».
+  moved,
+
+  /// Replay of a movement the warehouse undid — the pallet is back at
+  /// PRODUCTION. Never shown as a green success.
+  returnedToProduction,
+
+  /// `PALLET_NOT_AT_PRODUCTION` — already moved (e.g. by a driver).
+  /// Informational.
+  notAtProduction,
+
+  /// `PALLETIZER_TRANSIT_MOVE_REQUEST_VOIDED` — an administrator deleted the
+  /// movement. When the pallet is at PRODUCTION again it needs a new scan.
+  voided,
+
+  /// Network / timeout / 5xx — the scan is kept and is retried with the SAME
+  /// `clientRequestId`.
+  retryable,
+
+  /// Any other refusal — nothing was moved.
+  refused,
+
+  /// The palletizer session is gone; its line dropped to the PIN screen.
+  sessionLost,
+
+  /// Nothing was sent: no palletizer session, or a move already in flight.
+  ignored,
+}
+
+class TransitMoveOutcome {
+  final TransitMoveStatus status;
+  final PalletizerTransitMoveResult? result;
+  final String? errorCode;
+  final String message;
+
+  /// The pallet number — from the result, the error details or the scan.
+  final String scannedValue;
+
+  /// Where the pallet is now, when the backend said so.
+  final String? currentLocation;
+
+  const TransitMoveOutcome({
+    required this.status,
+    required this.message,
+    required this.scannedValue,
+    this.result,
+    this.errorCode,
+    this.currentLocation,
+  });
+
+  bool get canRetry => status == TransitMoveStatus.retryable;
+
+  /// A voided request whose pallet is back at PRODUCTION: the user must scan
+  /// again (a new `clientRequestId`).
+  bool get needsNewScan =>
+      status == TransitMoveStatus.voided && currentLocation == 'PRODUCTION';
+
+  /// The pallet is no longer at PRODUCTION — moved by this attempt or by
+  /// someone else — so it no longer blocks anything.
+  bool get palletLeftProduction =>
+      status == TransitMoveStatus.moved ||
+      status == TransitMoveStatus.notAtProduction ||
+      (status == TransitMoveStatus.voided &&
+          currentLocation != null &&
+          currentLocation != 'PRODUCTION');
+}
+
+/// How a palletizer PIN login ended — picks the PIN screen's next step.
+enum PalletizerAuthStatus {
+  success,
+
+  /// The biometric login gate refused it: open the fingerprint dialog.
+  biometricRequired,
+
+  /// Any other refusal or error; the inline PIN error is already set.
+  failed,
+
+  /// Nothing was sent: a login is already in flight for the line.
+  ignored,
+}
+
+class PalletizerAuthOutcome {
+  final PalletizerAuthStatus status;
+
+  /// Set for [PalletizerAuthStatus.biometricRequired]. Carries the secret
+  /// attempt token — keep it only for the life of the fingerprint dialog.
+  final BiometricDenial? denial;
+
+  /// The refusal, for [PalletizerAuthStatus.failed] when one was received.
+  final ApiException? error;
+
+  const PalletizerAuthOutcome.success()
+    : status = PalletizerAuthStatus.success,
+      denial = null,
+      error = null;
+
+  const PalletizerAuthOutcome.biometricRequired(BiometricDenial this.denial)
+    : status = PalletizerAuthStatus.biometricRequired,
+      error = null;
+
+  const PalletizerAuthOutcome.failed([this.error])
+    : status = PalletizerAuthStatus.failed,
+      denial = null;
+
+  const PalletizerAuthOutcome.ignored()
+    : status = PalletizerAuthStatus.ignored,
+      denial = null,
+      error = null;
+
+  bool get isSuccess => status == PalletizerAuthStatus.success;
+
+  /// No answer from the server (timeout, no connection) — worth retrying.
+  bool get isTransientFailure =>
+      error?.code == 'NETWORK_ERROR' || error?.code == 'TIMEOUT_ERROR';
+}
+
+/// One physical scan: its `clientRequestId` is reused verbatim for every
+/// retry, always with the token of the line it was first sent with (the
+/// backend binds the id to that employee).
+class _TransitScan {
+  final String identifier;
+  final String canonical;
+  final String clientRequestId;
+  final PalletTransitScanType scanType;
+  int? tokenLineId;
+
+  _TransitScan({
+    required this.identifier,
+    required this.canonical,
+    required this.clientRequestId,
+    required this.scanType,
+  });
+}
+
 class PalletizingProvider extends ChangeNotifier {
   final PalletizingRepository _repository;
   final AuthLocalStorage _authStorage;
@@ -173,6 +314,13 @@ class PalletizingProvider extends ChangeNotifier {
   /// hit a transient failure (handoff §17). Injectable for tests.
   final Duration _closeDecisionRetryDelay;
 
+  /// Wait before the single automatic retry of a transit move that hit a
+  /// transient failure. Injectable for tests.
+  final Duration _transitRetryDelay;
+
+  /// New `clientRequestId` per physical scan. Injectable for tests.
+  final String Function() _newClientRequestId;
+
   PalletizingProvider(
     this._repository,
     this._authStorage,
@@ -180,8 +328,12 @@ class PalletizingProvider extends ChangeNotifier {
     SseClient? sseClient,
     DateTime Function()? clock,
     Duration closeDecisionRetryDelay = const Duration(seconds: 1),
+    Duration transitRetryDelay = const Duration(seconds: 1),
+    String Function()? clientRequestIdFactory,
   }) : _clock = clock ?? DateTime.now,
-       _closeDecisionRetryDelay = closeDecisionRetryDelay {
+       _closeDecisionRetryDelay = closeDecisionRetryDelay,
+       _transitRetryDelay = transitRetryDelay,
+       _newClientRequestId = clientRequestIdFactory ?? const Uuid().v4 {
     if (sseClient != null) {
       _coordinator = RefreshCoordinator(
         sseClient: sseClient,
@@ -306,6 +458,25 @@ class PalletizingProvider extends ChangeNotifier {
 
   /// Minimum age of the last pending read before a routine poll re-reads it.
   static const Duration closeRequestPollInterval = Duration(seconds: 20);
+
+  // ── PRODUCTION → TRANSIT move (V210) ──
+  // The pending list is merged from one read per palletizer employee on this
+  // device (each read covers every line that employee holds a session on),
+  // keyed by palletizingLineId. REST only — SSE frames just trigger a re-read.
+
+  final Map<int, ProductionPendingLine> _pendingLines = {};
+
+  /// palletizingLineId → palletizerOperatorId whose read reported the line.
+  final Map<int, int> _pendingLineOwners = {};
+  bool _pendingLoaded = false;
+  bool _pendingReadFailed = false;
+  Future<void>? _pendingFetchInFlight;
+  bool _pendingRerunRequested = false;
+
+  /// The last scan that failed transiently — resent with the same
+  /// `clientRequestId` when the same pallet is submitted again.
+  _TransitScan? _unresolvedTransitScan;
+  bool _transitMoveInFlight = false;
 
   // ── Adaptive polling ──
   /// `true` when the most recent [pollLineMonitoring] round failed for every
@@ -859,6 +1030,10 @@ class PalletizingProvider extends ChangeNotifier {
   /// open drill-down re-reads its pallets (grinding chip, label marker,
   /// reprint permission) — the session table's counts do not change, so the
   /// `/state` refresh alone would not.
+  ///
+  /// Every batch also re-reads the PRODUCTION pending list (V210 §6): a
+  /// palletizer or driver move, an undo, a movement deletion or a grinding
+  /// rejection all arrive as a frame for the pallet's line.
   Future<void> refreshFromSseEvents(List<PalletizingAppSseEvent> events) async {
     var needsBootstrap = false;
     final lineIds = <int>{};
@@ -885,10 +1060,12 @@ class PalletizingProvider extends ChangeNotifier {
     }
     _closeRequestForced.addAll(closeRequestLineIds);
     if (needsBootstrap) {
+      // The bootstrap apply re-reads the pending list.
       await refreshBootstrap();
       if (_bumpSessionRevisions(grindingLineIds)) notifyListeners();
       return;
     }
+    unawaited(refreshProductionPending());
     await Future.wait(lineIds.map(_refreshLineStateFromBackend));
     // A `/state` refresh that was overtaken skips the session sync, so make
     // sure every nudged line still re-reads its request (no-op when the sync
@@ -1128,6 +1305,10 @@ class PalletizingProvider extends ChangeNotifier {
           .where((l) => l.isAuthorized)
           .map((l) => refreshPalletizerSession(l.lineId)),
     );
+
+    // Same triggers for the PRODUCTION pending list (V210 §6) — after the
+    // sessions are known, since the read is token-gated.
+    unawaited(refreshProductionPending());
   }
 
   /// Removes every trace of a line that left bootstrap. Stored palletizer
@@ -1365,8 +1546,21 @@ class PalletizingProvider extends ChangeNotifier {
 
   // ── Palletizer auth ──
 
-  Future<bool> palletizerAuth(int lineId, String pin) async {
-    if (!isLineRendered(lineId)) return false;
+  Future<bool> palletizerAuth(int lineId, String pin) async =>
+      (await palletizerAuthAttempt(lineId, pin)).isSuccess;
+
+  /// PIN login on [lineId]. A biometric-gate refusal comes back as
+  /// [PalletizerAuthStatus.biometricRequired] with the denial — the caller
+  /// opens the fingerprint dialog — and is not recorded as a PIN error.
+  Future<PalletizerAuthOutcome> palletizerAuthAttempt(
+    int lineId,
+    String pin,
+  ) async {
+    if (!isLineRendered(lineId)) return const PalletizerAuthOutcome.failed();
+    // One login per line at a time: a second tap is dropped.
+    if (isPalletizerAuthenticating(lineId)) {
+      return const PalletizerAuthOutcome.ignored();
+    }
 
     _palletizerSessions[lineId] =
         (_palletizerSessions[lineId] ?? PalletizerSessionState.empty(lineId))
@@ -1383,7 +1577,7 @@ class PalletizingProvider extends ChangeNotifier {
       );
       // The line was switched off while the PIN was being checked — keep the
       // token (re-validated if the line returns) but no per-line state.
-      if (!isLineRendered(lineId)) return true;
+      if (!isLineRendered(lineId)) return const PalletizerAuthOutcome.success();
 
       // The app now has a session — re-open the `/palletizer-session/current`
       // gate for this line.
@@ -1408,12 +1602,24 @@ class PalletizingProvider extends ChangeNotifier {
       }
 
       notifyListeners();
+      // A new session inherits the line's pending pallets (V210 §3.4).
+      unawaited(refreshProductionPending());
       // A close request sent while nobody was logged in appears right after
       // PIN login (handoff §6 / Appendix D).
       await refreshCloseRequest(lineId);
-      return true;
+      return const PalletizerAuthOutcome.success();
+    } on BiometricDenialException catch (e) {
+      // Biometric login gate: a fingerprint is needed. Not a wrong PIN — no
+      // inline error — and whatever session state the line had stays as is
+      // (the backend leaves the line's palletizer session untouched too).
+      if (!isLineRendered(lineId)) return const PalletizerAuthOutcome.failed();
+      _palletizerSessions[lineId] =
+          (_palletizerSessions[lineId] ?? PalletizerSessionState.empty(lineId))
+              .copyWith(isAuthenticating: false, clearAuthError: true);
+      notifyListeners();
+      return PalletizerAuthOutcome.biometricRequired(e.denial);
     } on ApiException catch (e) {
-      if (!isLineRendered(lineId)) return false;
+      if (!isLineRendered(lineId)) return PalletizerAuthOutcome.failed(e);
       _palletizerSessions[lineId] = PalletizerSessionState(
         lineId: lineId,
         isAuthenticating: false,
@@ -1423,16 +1629,16 @@ class PalletizingProvider extends ChangeNotifier {
       notifyListeners();
       // The line was switched off / removed — bootstrap drops its tab.
       if (_isStaleLineError(e)) await refreshBootstrap();
-      return false;
+      return PalletizerAuthOutcome.failed(e);
     } catch (e) {
-      if (!isLineRendered(lineId)) return false;
+      if (!isLineRendered(lineId)) return const PalletizerAuthOutcome.failed();
       _palletizerSessions[lineId] = PalletizerSessionState(
         lineId: lineId,
         isAuthenticating: false,
         authError: 'فشل في التحقق من الرمز',
       );
       notifyListeners();
-      return false;
+      return const PalletizerAuthOutcome.failed();
     }
   }
 
@@ -1506,12 +1712,23 @@ class PalletizingProvider extends ChangeNotifier {
     }
   }
 
+  /// Ends the palletizer session of [lineId] and drops the line to the PIN
+  /// screen.
+  ///
+  /// Throws the [ApiException] `PALLETIZER_LOGOUT_BLOCKED_BY_PRODUCTION_PALLETS`
+  /// (V210) — with the session left ACTIVE and the line still logged in —
+  /// while the line has pallets at PRODUCTION; [productionBlockersOf] reads
+  /// its details. Every other failure is treated as an ended session.
   Future<void> palletizerLogout(int lineId) async {
     final token = await _authStorage.getPalletizerSessionToken(lineId);
     if (token != null && token.isNotEmpty) {
       try {
         await _repository.palletizerLogout(lineId: lineId, sessionToken: token);
       } on ApiException catch (e) {
+        if (e.code == ProductionPalletBlockersModel.logoutBlockedCode) {
+          unawaited(refreshProductionPending());
+          rethrow;
+        }
         // Idempotent — any flavor of session-required is treated as success.
         if (e.code != 'PALLETIZER_SESSION_REQUIRED') {
           debugPrint(
@@ -1544,6 +1761,8 @@ class PalletizingProvider extends ChangeNotifier {
     // is fetched again after the next PIN login (handoff Appendix B).
     _clearCloseRequestState(lineId);
     notifyListeners();
+    // The pending list follows the remaining sessions (cleared with the last).
+    unawaited(refreshProductionPending());
   }
 
   void clearPalletizerAuthError(int lineId) {
@@ -1886,6 +2105,459 @@ class PalletizingProvider extends ChangeNotifier {
     }
   }
 
+  // ── PRODUCTION → TRANSIT move (V210) ──
+
+  /// Rendered lines with an ACTIVE palletizer session, in server order — the
+  /// lines whose tokens can move pallets.
+  List<int> get _linesWithPalletizerSession => [
+    for (final id in _renderedLineIds)
+      if (hasActivePalletizerSession(id)) id,
+  ];
+
+  int? _palletizerEmployeeOf(int lineId) =>
+      _palletizerSessions[lineId]?.session?.palletizerOperatorId;
+
+  /// `true` when at least one rendered line has a palletizer logged in — the
+  /// central «نقل إلى الرصيف» action is shown only then.
+  bool get canMoveToTransit => _linesWithPalletizerSession.isNotEmpty;
+
+  bool get isTransitMoveInFlight => _transitMoveInFlight;
+
+  bool get hasLoadedProductionPending => _pendingLoaded;
+
+  /// The latest pending read failed for every employee (the last known list,
+  /// if any, is kept).
+  bool get productionPendingReadFailed => _pendingReadFailed;
+
+  /// The list is exactly what the backend last returned and that read
+  /// succeeded — the only state a "nothing blocks any more" decision may use.
+  /// The list is never edited locally; a move shows up after the re-read.
+  bool get isProductionPendingConfirmed =>
+      _pendingLoaded && !_pendingReadFailed;
+
+  /// The pending pallets of one palletizing line as last read, or `null`
+  /// when no read covered that line (no session on it).
+  ProductionPendingLine? productionPendingLine(int palletizingLineId) =>
+      _pendingLines[palletizingLineId];
+
+  /// Lines with pallets still at PRODUCTION — rendered lines first in server
+  /// order, then any other line of the same employees.
+  List<ProductionPendingLine> get productionPendingLines {
+    final lines = _pendingLines.values.where((l) => l.pallets.isNotEmpty);
+    int rank(ProductionPendingLine l) {
+      final i = _renderedLineIds.indexOf(l.palletizingLineId);
+      return i < 0 ? _renderedLineIds.length : i;
+    }
+
+    return lines.toList()..sort((a, b) => rank(a).compareTo(rank(b)));
+  }
+
+  int get productionPendingCount =>
+      _pendingLines.values.fold<int>(0, (sum, l) => sum + l.pendingCount);
+
+  /// Re-reads the pending list. A no-op read (list cleared) when no rendered
+  /// line has a palletizer session. Single-flight: a call made while a read
+  /// is in flight joins it and schedules one trailing re-read, so the
+  /// returned future completes only after a read that started after the call.
+  Future<void> refreshProductionPending() {
+    final inFlight = _pendingFetchInFlight;
+    if (inFlight != null) {
+      _pendingRerunRequested = true;
+      return inFlight;
+    }
+    final run = _runPendingFetchLoop();
+    _pendingFetchInFlight = run;
+    return run;
+  }
+
+  Future<void> _runPendingFetchLoop() async {
+    try {
+      do {
+        _pendingRerunRequested = false;
+        await _fetchAndApplyPending();
+      } while (_pendingRerunRequested);
+    } finally {
+      _pendingFetchInFlight = null;
+    }
+  }
+
+  Future<void> _fetchAndApplyPending() async {
+    // One read per employee — each covers all of that employee's lines.
+    final lineByEmployee = <int, int>{};
+    for (final lineId in _linesWithPalletizerSession) {
+      final employee = _palletizerEmployeeOf(lineId);
+      if (employee != null) lineByEmployee.putIfAbsent(employee, () => lineId);
+    }
+    if (lineByEmployee.isEmpty) {
+      final hadAny = _pendingLines.isNotEmpty;
+      _pendingLines.clear();
+      _pendingLineOwners.clear();
+      _pendingLoaded = false;
+      _pendingReadFailed = false;
+      if (hadAny) notifyListeners();
+      return;
+    }
+
+    final merged = <int, ProductionPendingLine>{};
+    final owners = <int, int>{};
+    final failedEmployees = <int>{};
+    for (final MapEntry(key: employee, value: lineId)
+        in lineByEmployee.entries) {
+      final token = await _authStorage.getPalletizerSessionToken(lineId);
+      if (token == null || token.isEmpty) {
+        failedEmployees.add(employee);
+        continue;
+      }
+      try {
+        final pending = await _repository.getProductionPendingPallets(
+          sessionToken: token,
+        );
+        for (final line in pending.lines) {
+          merged.putIfAbsent(line.palletizingLineId, () => line);
+          owners.putIfAbsent(line.palletizingLineId, () => employee);
+        }
+      } on ApiException catch (e) {
+        failedEmployees.add(employee);
+        if (e.code == 'PALLETIZER_SESSION_REQUIRED') {
+          // The line drops to the PIN screen; the trailing re-read uses the
+          // employee's other lines, if any.
+          await _dropToStateB(lineId);
+          _pendingRerunRequested = true;
+        } else {
+          debugPrint('Production-pending read failed: ${e.code}');
+        }
+      } catch (e) {
+        failedEmployees.add(employee);
+        debugPrint('Production-pending read failed: $e');
+      }
+    }
+
+    if (failedEmployees.length == lineByEmployee.length) {
+      if (!_pendingReadFailed) {
+        _pendingReadFailed = true;
+        notifyListeners();
+      }
+      return;
+    }
+    _pendingReadFailed = false;
+
+    // A failed read keeps that employee's last known lines.
+    for (final entry in _pendingLines.entries) {
+      final owner = _pendingLineOwners[entry.key];
+      if (owner != null && failedEmployees.contains(owner)) {
+        merged.putIfAbsent(entry.key, () => entry.value);
+        owners.putIfAbsent(entry.key, () => owner);
+      }
+    }
+    // A pallet that left (or reached) PRODUCTION changes what the shift
+    // production detail shows for it — let an open drill-down re-read.
+    if (_pendingLoaded) {
+      _bumpSessionRevisions({
+        for (final id in {...merged.keys, ..._pendingLines.keys})
+          if (!_samePendingPallets(_pendingLines[id], merged[id])) id,
+      });
+    }
+    _pendingLines
+      ..clear()
+      ..addAll(merged);
+    _pendingLineOwners
+      ..clear()
+      ..addAll(owners);
+    _pendingLoaded = true;
+    notifyListeners();
+  }
+
+  static bool _samePendingPallets(
+    ProductionPendingLine? a,
+    ProductionPendingLine? b,
+  ) => setEquals(
+    {for (final p in a?.pallets ?? const []) p.scannedValue},
+    {for (final p in b?.pallets ?? const []) p.scannedValue},
+  );
+
+  /// Lines whose tokens to try for a pallet, one per employee: the employee
+  /// whose pending list holds the pallet first, then [preferredLineId], the
+  /// selected line, and the rest in server order. The backend refuses
+  /// another employee's pallet with `PALLET_OUTSIDE_PALLETIZER_LINE_SCOPE`
+  /// before writing anything, so the next employee can be tried with the
+  /// same `clientRequestId`.
+  List<int> _transitCandidateLines(String canonical, int? preferredLineId) {
+    final withSession = _linesWithPalletizerSession;
+    final ordered = <int>[];
+    void add(int? lineId) {
+      if (lineId != null &&
+          withSession.contains(lineId) &&
+          !ordered.contains(lineId)) {
+        ordered.add(lineId);
+      }
+    }
+
+    for (final line in _pendingLines.values) {
+      if (!line.pallets.any((p) => p.scannedValue == canonical)) continue;
+      add(line.palletizingLineId);
+      final owner = _pendingLineOwners[line.palletizingLineId];
+      for (final lineId in withSession) {
+        if (_palletizerEmployeeOf(lineId) == owner) add(lineId);
+      }
+    }
+    add(preferredLineId);
+    add(_selectedLineId);
+    withSession.forEach(add);
+
+    final employees = <int?>{};
+    return [
+      for (final lineId in ordered)
+        if (employees.add(_palletizerEmployeeOf(lineId))) lineId,
+    ];
+  }
+
+  /// Moves one pallet from PRODUCTION to «الرصيف» — the central Scan action,
+  /// the pending-list rows and the blocked dialogs all end here. Never throws.
+  ///
+  /// [identifier] is the raw QR payload or typed number (normalised by the
+  /// backend). Submitting the same pallet again after a transient failure is
+  /// a retry of that scan: the same `clientRequestId` and token are reused,
+  /// so the backend answers `replayed: true` instead of moving twice. Any
+  /// other outcome discards the scan; the next submit is a new scan.
+  Future<TransitMoveOutcome> movePalletToTransit(
+    String identifier, {
+    PalletTransitScanType scanType = PalletTransitScanType.qr,
+    int? preferredLineId,
+  }) async {
+    final canonical = PalletIdentifier.canonicalize(identifier);
+    if (_transitMoveInFlight) {
+      return TransitMoveOutcome(
+        status: TransitMoveStatus.ignored,
+        message: ProductionTransitStrings.moving,
+        scannedValue: canonical,
+      );
+    }
+
+    var scan = _unresolvedTransitScan;
+    final pinned = scan?.tokenLineId;
+    if (scan == null ||
+        scan.canonical != canonical ||
+        (pinned != null && !hasActivePalletizerSession(pinned))) {
+      scan = _TransitScan(
+        identifier: identifier.trim(),
+        canonical: canonical,
+        clientRequestId: _newClientRequestId(),
+        scanType: scanType,
+      );
+    }
+    _unresolvedTransitScan = null;
+
+    final tokenLine = scan.tokenLineId;
+    final candidates = tokenLine != null
+        ? [tokenLine]
+        : _transitCandidateLines(canonical, preferredLineId);
+    if (candidates.isEmpty) {
+      return TransitMoveOutcome(
+        status: TransitMoveStatus.ignored,
+        message: ProductionTransitStrings.sessionRequired,
+        scannedValue: canonical,
+      );
+    }
+
+    // Claimed before the first await, so a double tap or a second camera
+    // frame can never send a second request.
+    _transitMoveInFlight = true;
+    notifyListeners();
+
+    late TransitMoveOutcome outcome;
+    try {
+      PalletizerTransitMoveResult? result;
+      Object? error;
+      int? usedLine;
+      for (final lineId in candidates) {
+        final token = await _authStorage.getPalletizerSessionToken(lineId);
+        if (token == null || token.isEmpty) continue;
+        usedLine = lineId;
+        try {
+          result = await _sendTransitMove(token, scan);
+          error = null;
+          break;
+        } catch (e) {
+          error = e;
+          // Another employee's pallet — nothing was written, so the next
+          // employee may try the same id.
+          if (e is ApiException &&
+              e.code == 'PALLET_OUTSIDE_PALLETIZER_LINE_SCOPE' &&
+              tokenLine == null) {
+            continue;
+          }
+          break;
+        }
+      }
+
+      if (usedLine == null) {
+        outcome = TransitMoveOutcome(
+          status: TransitMoveStatus.ignored,
+          message: ProductionTransitStrings.sessionRequired,
+          scannedValue: canonical,
+        );
+      } else if (result != null) {
+        outcome = _transitSuccessOutcome(result, canonical);
+      } else {
+        outcome = await _transitErrorOutcome(error, scan, usedLine);
+      }
+    } finally {
+      _transitMoveInFlight = false;
+    }
+
+    notifyListeners();
+    if (outcome.status != TransitMoveStatus.ignored) {
+      unawaited(refreshProductionPending());
+    }
+    return outcome;
+  }
+
+  /// One send plus a single automatic retry — same id, same token — when the
+  /// first attempt failed transiently.
+  Future<PalletizerTransitMoveResult> _sendTransitMove(
+    String token,
+    _TransitScan scan,
+  ) async {
+    Future<PalletizerTransitMoveResult> send() =>
+        _repository.movePalletToTransit(
+          sessionToken: token,
+          identifier: scan.identifier,
+          clientRequestId: scan.clientRequestId,
+          scanType: scan.scanType,
+        );
+    try {
+      return await send();
+    } catch (e) {
+      if (!_isTransientTransitError(e)) rethrow;
+      await Future<void>.delayed(_transitRetryDelay);
+      return await send();
+    }
+  }
+
+  /// Network, timeout, 5xx, or an unreadable response — the move may or may
+  /// not have happened, so only a same-id retry is safe.
+  static bool _isTransientTransitError(Object e) {
+    if (e is! ApiException) return true;
+    return e.code == 'NETWORK_ERROR' ||
+        e.code == 'TIMEOUT_ERROR' ||
+        (e.statusCode ?? 0) >= 500;
+  }
+
+  TransitMoveOutcome _transitSuccessOutcome(
+    PalletizerTransitMoveResult result,
+    String canonical,
+  ) {
+    final scanned = result.scannedValue.isEmpty
+        ? canonical
+        : result.scannedValue;
+    if (result.returnedToProduction) {
+      return TransitMoveOutcome(
+        status: TransitMoveStatus.returnedToProduction,
+        message: ProductionTransitStrings.replayUndone,
+        scannedValue: scanned,
+        result: result,
+        currentLocation: result.currentLocation ?? 'PRODUCTION',
+      );
+    }
+    return TransitMoveOutcome(
+      status: TransitMoveStatus.moved,
+      message: ProductionTransitStrings.success,
+      scannedValue: scanned,
+      result: result,
+      currentLocation: result.currentLocation,
+    );
+  }
+
+  Future<TransitMoveOutcome> _transitErrorOutcome(
+    Object? error,
+    _TransitScan scan,
+    int lineId,
+  ) async {
+    if (error == null || _isTransientTransitError(error)) {
+      // Kept: the next submit of this pallet resends the same id and token.
+      scan.tokenLineId = lineId;
+      _unresolvedTransitScan = scan;
+      debugPrint('Transit move transient failure: $error');
+      return TransitMoveOutcome(
+        status: TransitMoveStatus.retryable,
+        errorCode: error is ApiException ? error.code : null,
+        message: ProductionTransitStrings.connectionFailed,
+        scannedValue: scan.canonical,
+      );
+    }
+    final e = error as ApiException;
+    debugPrint('Transit move refused: ${e.code} (status=${e.statusCode})');
+    final details = e.details ?? const <String, dynamic>{};
+    final scanned = details['scannedValue'] is String
+        ? details['scannedValue'] as String
+        : scan.canonical;
+    final location = details['currentLocation'] is String
+        ? details['currentLocation'] as String
+        : null;
+    switch (e.code) {
+      case 'PALLETIZER_SESSION_REQUIRED':
+        await _dropToStateB(lineId);
+        return TransitMoveOutcome(
+          status: TransitMoveStatus.sessionLost,
+          errorCode: e.code,
+          message: ProductionTransitStrings.sessionRequired,
+          scannedValue: scanned,
+        );
+      case 'PALLET_NOT_AT_PRODUCTION':
+        return TransitMoveOutcome(
+          status: TransitMoveStatus.notAtProduction,
+          errorCode: e.code,
+          message: ProductionTransitStrings.notAtProduction,
+          scannedValue: scanned,
+          currentLocation: location,
+        );
+      case 'PALLETIZER_TRANSIT_MOVE_REQUEST_VOIDED':
+        return TransitMoveOutcome(
+          status: TransitMoveStatus.voided,
+          errorCode: e.code,
+          message: ProductionTransitStrings.requestVoided,
+          scannedValue: scanned,
+          currentLocation: location,
+        );
+      default:
+        return TransitMoveOutcome(
+          status: TransitMoveStatus.refused,
+          errorCode: e.code,
+          message: transitRefusalMessage(e),
+          scannedValue: scanned,
+        );
+    }
+  }
+
+  /// Arabic text for a move refusal (handoff §3.3).
+  static String transitRefusalMessage(ApiException e) => switch (e.code) {
+    'PALLET_IDENTIFIER_INVALID' => ProductionTransitStrings.identifierInvalid,
+    'PALLET_NOT_FOUND' => ProductionTransitStrings.notFound,
+    'PALLET_CANCELLED' => ProductionTransitStrings.cancelled,
+    'PALLET_BLOCKED_BY_GRINDING' => ProductionTransitStrings.blockedByGrinding,
+    'PALLET_OUTSIDE_PALLETIZER_LINE_SCOPE' =>
+      ProductionTransitStrings.outsideLineScope,
+    'PALLET_OUTSIDE_CURRENT_OPERATOR_SHIFT' =>
+      ProductionTransitStrings.outsideOperatorShift,
+    // An app bug (a reused id) or a malformed request — nothing was moved.
+    'PALLETIZER_TRANSIT_MOVE_IDEMPOTENCY_KEY_REUSED' ||
+    'VALIDATION_ERROR' => ProductionTransitStrings.genericFailure,
+    _ => e.displayMessage,
+  };
+
+  /// The blocking pallets of a `PREVIOUS_PALLET_STILL_AT_PRODUCTION` (create
+  /// on [lineId]) or `PALLETIZER_LOGOUT_BLOCKED_BY_PRODUCTION_PALLETS`
+  /// refusal; `null` for any other error.
+  ProductionPalletBlockers? productionBlockersOf(
+    ApiException e, {
+    int? lineId,
+  }) => ProductionPalletBlockersModel.fromError(
+    code: e.code,
+    details: e.details,
+    lineId: lineId,
+    lineName: lineId == null ? null : lineLabel(lineId),
+  );
+
   // ── First-pallet context ──
 
   /// Called every time the user taps "إنشاء طبلية جديدة". The backend returns
@@ -1976,6 +2648,8 @@ class PalletizingProvider extends ChangeNotifier {
         _lineCreating.remove(lineId);
       }
       notifyListeners();
+      // The new pallet starts at PRODUCTION.
+      unawaited(refreshProductionPending());
       return response;
     } on ApiException catch (e) {
       if (isLineRendered(lineId)) {
@@ -2010,6 +2684,10 @@ class PalletizingProvider extends ChangeNotifier {
           'PRODUCTION_PLAN_TARGET_EXCEEDED_CONFIRMATION_REQUIRED') {
         // No-op — caller handles the confirmation dialog. Don't refresh and
         // don't clobber the in-flight request payload.
+      } else if (e.code == ProductionPalletBlockersModel.createBlockedCode) {
+        // V210: nothing was written — the caller lists the blocking pallets
+        // and re-sends the same request once they are moved.
+        unawaited(refreshProductionPending());
       } else {
         await _refreshLineStateFromBackend(lineId);
         notifyListeners();

@@ -12,6 +12,7 @@ import '../../domain/entities/palletizing_line.dart';
 import '../../domain/entities/session_production_detail.dart';
 import '../providers/palletizing_provider.dart';
 import 'grinding_chip.dart';
+import 'transit/transit_ui.dart';
 import 'line_scoped_route.dart';
 import '../providers/printing_provider.dart';
 import 'printer_selector_dialog.dart';
@@ -496,13 +497,28 @@ class _SessionDrilldownDialogState extends State<SessionDrilldownDialog> {
                     color: Colors.grey.shade600,
                   ),
                 ),
-                if (_nonBlank(pallet.grindingStatusLabel) case final status?)
+                if (_nonBlank(pallet.grindingStatusLabel) != null ||
+                    pallet.isAtTransit)
                   Padding(
                     padding: EdgeInsets.only(top: isMobile ? 2 : 4),
-                    child: GrindingChip(
-                      key: Key('grindingStatusChip-${pallet.palletId}'),
-                      text: status,
-                      fontSize: isMobile ? 10 : 11,
+                    child: Wrap(
+                      spacing: 4,
+                      runSpacing: 4,
+                      children: [
+                        if (_nonBlank(pallet.grindingStatusLabel)
+                            case final status?)
+                          GrindingChip(
+                            key: Key('grindingStatusChip-${pallet.palletId}'),
+                            text: status,
+                            fontSize: isMobile ? 10 : 11,
+                          ),
+                        // Location only — no move action in this dialog.
+                        if (pallet.isAtTransit)
+                          TransitLocationChip(
+                            key: Key('transitLocationChip-${pallet.palletId}'),
+                            fontSize: isMobile ? 10 : 11,
+                          ),
+                      ],
                     ),
                   ),
               ],

@@ -8,6 +8,7 @@ import 'core/config.dart';
 import 'core/di.dart';
 import 'core/http/staging_http_overrides.dart';
 import 'core/theme.dart';
+import 'domain/repositories/biometric_login_repository.dart';
 import 'presentation/providers/manager_announcement_notifier.dart';
 import 'presentation/providers/palletizing_provider.dart';
 import 'presentation/providers/printing_provider.dart';
@@ -46,6 +47,10 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MultiProvider(
       providers: [
+        // Status long-poll of the biometric login gate (fingerprint dialog).
+        Provider<BiometricLoginRepository>.value(
+          value: serviceLocator.biometricLoginRepository,
+        ),
         ChangeNotifierProvider<PalletizingProvider>(
           create: (_) => serviceLocator.createPalletizingProvider(),
         ),

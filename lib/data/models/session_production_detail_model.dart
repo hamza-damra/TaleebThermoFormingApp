@@ -14,6 +14,7 @@ class SessionPalletDetailModel extends SessionPalletDetail {
     super.labelReprintAllowed,
     super.grindingStatus,
     super.grindingStatusLabel,
+    super.currentLocation,
   });
 
   factory SessionPalletDetailModel.fromJson(Map<String, dynamic> json) {
@@ -30,6 +31,7 @@ class SessionPalletDetailModel extends SessionPalletDetail {
       labelReprintAllowed: json['labelReprintAllowed'] as bool?,
       grindingStatus: json['grindingStatus'] as String?,
       grindingStatusLabel: json['grindingStatusLabel'] as String?,
+      currentLocation: json['currentLocation'] as String?,
     );
   }
 }

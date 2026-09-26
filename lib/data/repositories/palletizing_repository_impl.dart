@@ -1,5 +1,7 @@
 import 'package:flutter/foundation.dart';
 
+import '../../core/exceptions/api_exception.dart';
+import '../../domain/entities/biometric_login.dart';
 import '../../domain/entities/bootstrap_response.dart';
 import '../../domain/entities/pallet_label.dart';
 import '../../domain/entities/falet_exists_response.dart';
@@ -11,9 +13,11 @@ import '../../domain/entities/palletizer_auth_result.dart';
 import '../../domain/entities/palletizer_session.dart';
 import '../../domain/entities/plan_item_close_request.dart';
 import '../../domain/entities/print_attempt_result.dart';
+import '../../domain/entities/production_transit.dart';
 import '../../domain/entities/session_production_detail.dart';
 import '../../domain/repositories/palletizing_repository.dart';
 import '../datasources/api_client.dart';
+import '../models/biometric_login_model.dart';
 import '../models/bootstrap_response_model.dart';
 import '../models/falet_exists_response_model.dart';
 import '../models/falet_response_model.dart';
@@ -24,6 +28,7 @@ import '../models/pallet_label_model.dart';
 import '../models/palletizer_session_model.dart';
 import '../models/plan_item_close_request_model.dart';
 import '../models/print_attempt_result_model.dart';
+import '../models/production_transit_model.dart';
 import '../models/session_production_detail_model.dart';
 
 class PalletizingRepositoryImpl implements PalletizingRepository {
@@ -179,14 +184,21 @@ class PalletizingRepositoryImpl implements PalletizingRepository {
     required int lineId,
     required String pin,
   }) async {
-    return await _apiClient.request<PalletizerAuthResult>(
-      path: '/palletizing-line/lines/$lineId/palletizer-auth',
-      method: 'POST',
-      data: {'pin': pin},
-      parser: (json) => PalletizerAuthResultModel.fromJson(
-        json['data'] as Map<String, dynamic>,
-      ),
-    );
+    try {
+      return await _apiClient.request<PalletizerAuthResult>(
+        path: '/palletizing-line/lines/$lineId/palletizer-auth',
+        method: 'POST',
+        data: {'pin': pin},
+        parser: (json) => PalletizerAuthResultModel.fromJson(
+          json['data'] as Map<String, dynamic>,
+        ),
+      );
+    } on ApiException catch (e) {
+      // Biometric login gate: a fingerprint is needed — not a wrong PIN.
+      final denial = BiometricDenialModel.fromApiException(e);
+      if (denial != null) throw BiometricDenialException(denial);
+      rethrow;
+    }
   }
 
   @override
@@ -301,6 +313,44 @@ class PalletizingRepositoryImpl implements PalletizingRepository {
       method: 'POST',
       headers: _sessionHeaders(sessionToken),
       parser: (json) => PlanItemCloseRequestModel.fromJson(
+        json['data'] as Map<String, dynamic>,
+      ),
+    );
+  }
+
+  // ── PRODUCTION → TRANSIT move (V210) ──
+
+  @override
+  Future<PalletizerTransitMoveResult> movePalletToTransit({
+    required String sessionToken,
+    required String identifier,
+    required String clientRequestId,
+    required PalletTransitScanType scanType,
+  }) async {
+    return await _apiClient.request<PalletizerTransitMoveResult>(
+      path: '/palletizing-line/palletizer/pallets/move-to-transit',
+      method: 'POST',
+      headers: _sessionHeaders(sessionToken),
+      data: {
+        'identifier': identifier,
+        'clientRequestId': clientRequestId,
+        'scanType': scanType.wire,
+      },
+      parser: (json) => PalletizerTransitMoveResultModel.fromJson(
+        json['data'] as Map<String, dynamic>,
+      ),
+    );
+  }
+
+  @override
+  Future<ProductionPendingPallets> getProductionPendingPallets({
+    required String sessionToken,
+  }) async {
+    return await _apiClient.request<ProductionPendingPallets>(
+      path: '/palletizing-line/palletizer/production-pending-pallets',
+      method: 'GET',
+      headers: _sessionHeaders(sessionToken),
+      parser: (json) => ProductionPendingPalletsModel.fromJson(
         json['data'] as Map<String, dynamic>,
       ),
     );

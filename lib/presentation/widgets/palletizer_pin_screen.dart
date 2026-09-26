@@ -6,7 +6,9 @@ import 'package:provider/provider.dart';
 import '../../core/constants.dart';
 import '../../core/responsive.dart';
 import '../../domain/entities/palletizing_line.dart';
+import '../../domain/repositories/biometric_login_repository.dart';
 import '../providers/palletizing_provider.dart';
+import 'biometric_login_dialog.dart';
 
 /// State B overlay: line is open (Thermoforming operator authorized) but no
 /// palletizer session exists yet for this device. Authenticates the
@@ -41,7 +43,12 @@ class _PalletizerPinScreenState extends State<PalletizerPinScreen> {
     super.dispose();
   }
 
-  void _handleSubmit() {
+  /// A login or its fingerprint dialog is in progress — further taps on
+  /// «دخول» are dropped, so there is only ever one attempt and one dialog.
+  bool _busy = false;
+
+  Future<void> _handleSubmit() async {
+    if (_busy) return;
     final pin = _pinController.text.trim();
     if (pin.length != 4) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -55,11 +62,33 @@ class _PalletizerPinScreenState extends State<PalletizerPinScreen> {
     }
 
     final provider = context.read<PalletizingProvider>();
-    provider.palletizerAuth(widget.line.lineId, pin).then((success) {
+    final lineId = widget.line.lineId;
+    _busy = true;
+    try {
+      final outcome = await provider.palletizerAuthAttempt(lineId, pin);
       if (!mounted) return;
       _pinController.clear();
-      if (!success) _focusNode.requestFocus();
-    });
+      if (outcome.status == PalletizerAuthStatus.biometricRequired) {
+        final biometric = context.read<BiometricLoginRepository>();
+        // The PIN lives on only in the re-submit closure, for the dialog's
+        // lifetime — it is never stored.
+        await showDialog<void>(
+          context: context,
+          barrierDismissible: false,
+          builder: (_) => BiometricLoginDialog(
+            lineId: lineId,
+            denial: outcome.denial!,
+            fetchStatus: biometric.getBiometricAttemptStatus,
+            resubmit: () => provider.palletizerAuthAttempt(lineId, pin),
+          ),
+        );
+        if (mounted) _focusNode.requestFocus();
+      } else if (!outcome.isSuccess) {
+        _focusNode.requestFocus();
+      }
+    } finally {
+      _busy = false;
+    }
   }
 
   @override

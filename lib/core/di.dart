@@ -1,9 +1,11 @@
 import '../data/datasources/api_client.dart';
 import '../data/datasources/auth_local_storage.dart';
 import '../data/datasources/printing_local_storage.dart';
+import '../data/repositories/biometric_login_repository_impl.dart';
 import '../data/repositories/palletizing_repository_impl.dart';
 import '../data/repositories/preset_repository_impl.dart';
 import '../data/repositories/printer_repository_impl.dart';
+import '../domain/repositories/biometric_login_repository.dart';
 import '../domain/repositories/palletizing_repository.dart';
 import '../domain/repositories/preset_repository.dart';
 import '../domain/repositories/printer_repository.dart';
@@ -21,6 +23,7 @@ class ServiceLocator {
   late ApiClient _apiClient;
   late AuthLocalStorage _authLocalStorage;
   late PalletizingRepository _palletizingRepository;
+  late BiometricLoginRepository _biometricLoginRepository;
   late PrinterRepository _printerRepository;
   late PresetRepository _presetRepository;
   late TakeoverNotificationService _takeoverNotifications;
@@ -31,6 +34,9 @@ class ServiceLocator {
     _apiClient = ApiClient(authStorage: _authLocalStorage);
 
     _palletizingRepository = PalletizingRepositoryImpl(apiClient: _apiClient);
+    _biometricLoginRepository = BiometricLoginRepositoryImpl(
+      apiClient: _apiClient,
+    );
     _takeoverNotifications = TakeoverNotificationService();
     // One device-level SSE stream for the whole app, shared by the single
     // PalletizingProvider.
@@ -43,6 +49,11 @@ class ServiceLocator {
     _printerRepository = PrinterRepositoryImpl();
     _presetRepository = PresetRepositoryImpl();
   }
+
+  /// Status long-poll of the biometric login gate, read by the fingerprint
+  /// dialog of the palletizer PIN screen.
+  BiometricLoginRepository get biometricLoginRepository =>
+      _biometricLoginRepository;
 
   PalletizingProvider createPalletizingProvider() {
     return PalletizingProvider(

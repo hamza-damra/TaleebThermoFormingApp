@@ -23,6 +23,7 @@ import 'falet_screen.dart';
 import 'session_table_widget.dart';
 import 'takeover_banner.dart';
 import 'thermoforming_waiting_card.dart';
+import 'transit/production_blockers_dialog.dart';
 
 class ProductionLineSection extends StatelessWidget {
   final PalletizingLine line;
@@ -709,6 +710,31 @@ class ProductionLineSection extends StatelessWidget {
           expectedPlanItemId: expectedPlanItemId,
           quantity: quantity,
           confirmOverproduction: true,
+          firstPalletFaletExpectedQuantity: firstPalletFaletExpectedQuantity,
+          firstPalletFaletId: firstPalletFaletId,
+          grindingRecommendationReason: grindingRecommendationReason,
+        );
+        return;
+      }
+      // V210: an earlier pallet of the same product is still at PRODUCTION.
+      // The refusal wrote nothing — list the blockers with a move action and,
+      // once they are moved, re-send the IDENTICAL payload.
+      if (e.code == 'PREVIOUS_PALLET_STILL_AT_PRODUCTION') {
+        final blockers = provider.productionBlockersOf(e, lineId: line.lineId);
+        if (blockers == null) return;
+        final retry = await ProductionBlockersDialog.show(
+          context,
+          lineId: line.lineId,
+          kind: ProductionBlockerKind.create,
+          blockers: blockers,
+        );
+        if (!retry || !context.mounted) return;
+        await _submitCreatePallet(
+          context,
+          productTypeId: productTypeId,
+          expectedPlanItemId: expectedPlanItemId,
+          quantity: quantity,
+          confirmOverproduction: confirmOverproduction,
           firstPalletFaletExpectedQuantity: firstPalletFaletExpectedQuantity,
           firstPalletFaletId: firstPalletFaletId,
           grindingRecommendationReason: grindingRecommendationReason,
